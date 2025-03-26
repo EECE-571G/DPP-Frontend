@@ -27,7 +27,7 @@ const Swap: React.FC<SwapProps> = ({ selectedPool }) => {
 
   // The computed “buy” amount
   const [buyAmount, setBuyAmount] = useState("");
-  // Approx USD values (optional)
+  // Approx USD values
   const [sellUsdValue, setSellUsdValue] = useState(0);
   const [buyUsdValue, setBuyUsdValue] = useState(0);
 
@@ -157,8 +157,8 @@ const Swap: React.FC<SwapProps> = ({ selectedPool }) => {
                         value={sellToken}
                         onChange={(e) => setSellToken(e.target.value as string)}
                         sx={{ minWidth: 80 }}
+                        variant="standard"
                       >
-                        {/* Only allow the two tokens in the selectedPool */}
                         <MenuItem value={selectedPool.tokenA}>
                           {selectedPool.tokenA}
                         </MenuItem>
@@ -193,7 +193,6 @@ const Swap: React.FC<SwapProps> = ({ selectedPool }) => {
                 variant="outlined"
                 placeholder="0.0"
                 value={buyAmount}
-                // readOnly if you want the ratio to control it
                 sx={{ flex: 1 }}
                 InputProps={{
                   readOnly: true,
@@ -203,6 +202,7 @@ const Swap: React.FC<SwapProps> = ({ selectedPool }) => {
                         value={buyToken}
                         onChange={(e) => setBuyToken(e.target.value as string)}
                         sx={{ minWidth: 80 }}
+                        variant="standard"
                       >
                         <MenuItem value={selectedPool.tokenA}>
                           {selectedPool.tokenA}
