@@ -1,4 +1,3 @@
-// src/components/Liquidity.tsx
 import React, { useState } from 'react';
 import { Box, Typography, Tabs, Tab, TextField, Button } from '@mui/material';
 import { Pool } from './Dashboard';

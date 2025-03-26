@@ -1,4 +1,3 @@
-// src/components/Governance.tsx
 import React, { useState } from 'react';
 import { Box, Typography, Paper, TextField, Button } from '@mui/material';
 

@@ -1,4 +1,3 @@
-// src/components/WalletConnect.tsx
 import React, { useState } from 'react';
 import { Paper, Typography, TextField, Button } from '@mui/material';
 

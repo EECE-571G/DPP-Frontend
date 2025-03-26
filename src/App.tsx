@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { AppBar, Toolbar, Typography, Tabs, Tab, Box } from '@mui/material';
 import WalletConnect from './components/WalletConnect';
-import Dashboard, { Pool } from './components/Dashboard';
+import Dashboard from './components/Dashboard';
 import Swap from './components/Swap';
 import Liquidity from './components/Liquidity';
 import Governance, { Proposal } from './components/Governance';
+import DashboardLayout from './layout/DashboardLayout';
+import { Pool } from './components/Dashboard';
 
 const App: React.FC = () => {
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState("");
-  const [selectedTab, setSelectedTab] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
 
@@ -44,52 +45,30 @@ const App: React.FC = () => {
     }));
   };
 
+  // Render the content based on selected navigation index
+  const renderContent = () => {
+    switch (selectedIndex) {
+      case 0:
+        return <Dashboard pools={samplePools} selectedPool={selectedPool} onSelectPool={setSelectedPool} />;
+      case 1:
+        return <Swap selectedPool={selectedPool} />;
+      case 2:
+        return <Liquidity selectedPool={selectedPool} />;
+      case 3:
+        return <Governance proposals={proposals} addProposal={addProposal} voteOnProposal={voteOnProposal} />;
+      default:
+        return <Dashboard pools={samplePools} selectedPool={selectedPool} onSelectPool={setSelectedPool} />;
+    }
+  };
+
+  if (!walletConnected) {
+    return <WalletConnect onConnect={handleWalletConnect} />;
+  }
+
   return (
-    <div>
-      {!walletConnected ? (
-        <WalletConnect onConnect={handleWalletConnect} />
-      ) : (
-        <>
-          <AppBar position="static">
-            <Toolbar>
-              <Typography variant="h6">DPP Frontend</Typography>
-              <Box flexGrow={1} />
-              <Typography variant="subtitle1">{walletAddress}</Typography>
-            </Toolbar>
-          </AppBar>
-          <Tabs
-            value={selectedTab}
-            onChange={(e, newValue) => setSelectedTab(newValue)}
-            indicatorColor="primary"
-            textColor="primary"
-            centered
-          >
-            <Tab label="Dashboard" />
-            <Tab label="Swap" />
-            <Tab label="Liquidity" />
-            <Tab label="Governance" />
-          </Tabs>
-          <Box p={2}>
-            {selectedTab === 0 && (
-              <Dashboard
-                pools={samplePools}
-                selectedPool={selectedPool}
-                onSelectPool={setSelectedPool}
-              />
-            )}
-            {selectedTab === 1 && <Swap selectedPool={selectedPool} />}
-            {selectedTab === 2 && <Liquidity selectedPool={selectedPool} />}
-            {selectedTab === 3 && (
-              <Governance
-                proposals={proposals}
-                addProposal={addProposal}
-                voteOnProposal={voteOnProposal}
-              />
-            )}
-          </Box>
-        </>
-      )}
-    </div>
+    <DashboardLayout selectedIndex={selectedIndex} onMenuItemClick={setSelectedIndex} walletAddress={walletAddress}>
+      {renderContent()}
+    </DashboardLayout>
   );
 };
 
