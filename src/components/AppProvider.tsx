@@ -1,7 +1,9 @@
+// src/components/AppProvider.tsx
 import React, { createContext, useContext, ReactNode, useState, useMemo } from 'react';
 import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
+// --- Interface Exports (Keep these easily accessible) ---
 export interface NavigationItem {
   kind?: 'header' | 'item';
   segment?: string;
@@ -19,7 +21,7 @@ export interface Router {
 export interface User {
   name?: string;
   email?: string;
-  address: string;
+  address: string; // Primary identifier from wallet
   image?: string;
 }
 
@@ -32,21 +34,58 @@ export interface Authentication {
   signOut: () => void;
 }
 
+// Added export
 export interface ColorMode {
   mode: PaletteMode;
   toggleColorMode: () => void;
 }
 
 export type Navigation = NavigationItem[];
+// --- End Interface Exports ---
+
+
+// --- Pool Data Structure (Centralize definition here) ---
+export interface Pool {
+  id: number;
+  name: string;
+  tokenA: string; // Symbol
+  tokenB: string; // Symbol
+  tokenA_Address?: string; // Placeholder for contract address
+  tokenB_Address?: string; // Placeholder for contract address
+  poolAddress?: string;   // Placeholder for contract address
+  currentPrice: number;  // e.g., 1 tokenA = X tokenB
+  desiredPrice: number;  // Community-set target price (1 tokenA = X tokenB)
+  baseFee: number;       // Base protocol fee percentage (e.g., 0.003 for 0.3%)
+  // Add other relevant pool stats later (TVL, volume, etc.)
+}
+// --- End Pool Data Structure ---
+
+// --- Governance Data Structure ---
+export interface Proposal {
+    id: number;
+    poolId: number; // Link proposal to a specific pool
+    proposer: string; // Address of proposer
+    proposedDesiredPrice: number;
+    description: string;
+    votes: {
+      yes: number; // Could represent token weight later
+      no: number;
+    };
+    endBlock?: number; // Placeholder for voting deadline
+    status: 'pending' | 'active' | 'succeeded' | 'defeated';
+}
+// --- End Governance Data Structure ---
+
 
 interface AppContextType {
   navigation: Navigation;
   router: Router;
-  theme: any;
+  theme: ReturnType<typeof createTheme>; // Use inferred theme type
   window?: Window;
   session: Session | null;
   authentication: Authentication;
   colorMode: ColorMode;
+  // Add other global state/functions if needed later
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -62,7 +101,7 @@ export const useAppContext = () => {
 interface AppProviderProps {
   navigation: Navigation;
   router: Router;
-  theme: any;
+  // theme: any; // Removed, created internally
   window?: Window;
   children: ReactNode;
   session: Session | null;
@@ -89,15 +128,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({
     [mode]
   );
 
-  // Just use MUI's default theme with the mode
-  const theme = useMemo(() => 
-    createTheme({
+  // Define theme options once
+  const themeOptions = useMemo(() => ({
       palette: {
         mode,
+        // Add custom theme overrides here if needed
+        // primary: { main: '...' },
       },
-    }),
-    [mode]
-  );
+      // Add other theme aspects (typography, components defaults)
+    }), [mode]);
+
+  // Create the theme
+  const theme = useMemo(() => createTheme(themeOptions), [themeOptions]);
+
 
   const contextValue = useMemo(() => ({
     navigation,

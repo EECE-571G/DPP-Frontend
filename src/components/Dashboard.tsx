@@ -7,35 +7,31 @@ import {
   Card,
   CardContent,
   Paper,
+  Grid, // Use Grid for better layout
 } from '@mui/material';
-
-export interface Pool {
-  id: number;
-  name: string;
-  tokenA: string;
-  tokenB: string;
-  currentPrice: number;
-}
+import { Pool } from './AppProvider'; // Import from AppProvider
 
 interface DashboardProps {
   pools: Pool[];
   selectedPool: Pool | null;
-  onSelectPool: (pool: Pool) => void;
+  onSelectPool: (pool: Pool | null) => void; // Allow null selection
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ pools, selectedPool, onSelectPool }) => {
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 2 }}>
+      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3 }}>
         Pool Dashboard
       </Typography>
+
+      {/* Pool Selection Card */}
       <Card
         sx={{
-          borderRadius: 3,
-          boxShadow: 3,
+          borderRadius: 2, // Consistent radius
+          boxShadow: '0 4px 12px rgba(0,0,0,0.05)', // Softer shadow
           p: 2,
           mb: 3,
-          backgroundColor: 'background.paper',
+          // backgroundColor: 'background.paper', // Inherits by default
         }}
       >
         <CardContent>
@@ -43,43 +39,67 @@ const Dashboard: React.FC<DashboardProps> = ({ pools, selectedPool, onSelectPool
             options={pools}
             value={selectedPool}
             onChange={(event, newValue) => {
-              if (newValue) {
-                onSelectPool(newValue);
-              }
+              onSelectPool(newValue); // Pass null if cleared
             }}
             getOptionLabel={(option) => `${option.name} (${option.tokenA}/${option.tokenB})`}
             isOptionEqualToValue={(option, value) => option.id === value.id}
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Select a Pool"
+                label="Select a DPP Pool"
                 variant="outlined"
                 fullWidth
               />
             )}
-            sx={{ mb: 2 }}
+            sx={{ mb: 1 }} // Reduced margin
           />
         </CardContent>
       </Card>
+
+      {/* Selected Pool Details Card */}
       {selectedPool && (
         <Paper
-          elevation={3}
+          elevation={0} // Use border instead of elevation for a flatter look
+          variant="outlined"
           sx={{
-            p: 2,
+            p: 3,
             borderRadius: 2,
-            backgroundColor: 'background.default',
+            // backgroundColor: 'background.default', // Inherits
           }}
         >
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            {selectedPool.name}
+          <Typography variant="h5" sx={{ mb: 2, fontWeight: 500 }}>
+            {selectedPool.name} Details
           </Typography>
-          <Typography variant="body1" sx={{ mb: 0.5 }}>
-            <strong>Current Price:</strong> {selectedPool.currentPrice}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {selectedPool.tokenA} / {selectedPool.tokenB}
-          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Typography variant="body1" >
+                <strong>Token Pair:</strong> {selectedPool.tokenA} / {selectedPool.tokenB}
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+               <Typography variant="body1" >
+                 <strong>Current Price:</strong> 1 {selectedPool.tokenA} = {selectedPool.currentPrice} {selectedPool.tokenB}
+               </Typography>
+            </Grid>
+             <Grid item xs={12} sm={6}>
+               <Typography variant="body1" color="primary.main" sx={{ fontWeight: 'medium' }}>
+                 <strong>Desired Price:</strong> 1 {selectedPool.tokenA} = {selectedPool.desiredPrice} {selectedPool.tokenB}
+               </Typography>
+            </Grid>
+             <Grid item xs={12} sm={6}>
+               <Typography variant="body2" color="text.secondary" >
+                 Base Fee: {(selectedPool.baseFee * 100).toFixed(2)}%
+               </Typography>
+             </Grid>
+             {/* Add more details here later: TVL, Volume, Your Position etc. */}
+          </Grid>
         </Paper>
+      )}
+
+      {!selectedPool && (
+          <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
+              Select a pool above to see details.
+          </Typography>
       )}
     </Box>
   );
