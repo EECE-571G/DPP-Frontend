@@ -117,7 +117,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div">
-            DPP Frontend Dashboard
+            Desired Price Pool
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
           <ThemeToggleButton />
