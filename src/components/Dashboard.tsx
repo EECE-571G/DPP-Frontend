@@ -1,5 +1,13 @@
 import React from 'react';
-import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Paper } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Autocomplete,
+  TextField,
+  Card,
+  CardContent,
+  Paper,
+} from '@mui/material';
 
 export interface Pool {
   id: number;
@@ -17,33 +25,60 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ pools, selectedPool, onSelectPool }) => {
   return (
-    <Box p={2}>
-      <Typography variant="h6">Dashboard</Typography>
-      <FormControl fullWidth margin="normal">
-        <InputLabel>Select Pool</InputLabel>
-        <Select
-          value={selectedPool ? selectedPool.id : ""}
-          label="Select Pool"
-          onChange={(e) => {
-            const pool = pools.find(p => p.id === Number(e.target.value));
-            if (pool) {
-              onSelectPool(pool);
-            }
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 2 }}>
+        Pool Dashboard
+      </Typography>
+      <Card
+        sx={{
+          borderRadius: 3,
+          boxShadow: 3,
+          p: 2,
+          mb: 3,
+          backgroundColor: 'background.paper',
+        }}
+      >
+        <CardContent>
+          <Autocomplete
+            options={pools}
+            value={selectedPool}
+            onChange={(event, newValue) => {
+              if (newValue) {
+                onSelectPool(newValue);
+              }
+            }}
+            getOptionLabel={(option) => `${option.name} (${option.tokenA}/${option.tokenB})`}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Select a Pool"
+                variant="outlined"
+                fullWidth
+              />
+            )}
+            sx={{ mb: 2 }}
+          />
+        </CardContent>
+      </Card>
+      {selectedPool && (
+        <Paper
+          elevation={3}
+          sx={{
+            p: 2,
+            borderRadius: 2,
+            backgroundColor: 'background.default',
           }}
         >
-          {pools.map(pool => (
-            <MenuItem key={pool.id} value={pool.id}>
-              {pool.name} ({pool.tokenA}/{pool.tokenB})
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      {selectedPool && (
-        <Paper elevation={2} style={{ padding: 16, marginTop: 16 }}>
-          <Typography variant="subtitle1">
-            Current Price: {selectedPool.currentPrice}
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            {selectedPool.name}
           </Typography>
-          <Typography variant="subtitle2">Pool: {selectedPool.name}</Typography>
+          <Typography variant="body1" sx={{ mb: 0.5 }}>
+            <strong>Current Price:</strong> {selectedPool.currentPrice}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {selectedPool.tokenA} / {selectedPool.tokenB}
+          </Typography>
         </Paper>
       )}
     </Box>
