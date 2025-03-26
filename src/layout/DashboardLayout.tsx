@@ -6,21 +6,18 @@ import {
   AppBar as MuiAppBar,
   Toolbar,
   List,
-  CssBaseline,
-  Typography,
-  Divider,
-  IconButton,
   ListItem,
   ListItemButton,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  Typography,
+  Divider,
+  IconButton,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import GavelIcon from '@mui/icons-material/Gavel';
+import { useAppContext } from '../components/AppProvider';
+import ThemeToggleButton from '../components/ThemeToggle';
 
 const drawerWidth = 240;
 
@@ -75,21 +72,25 @@ const AppBar = styled(MuiAppBar, {
   }),
 }));
 
-interface DashboardLayoutProps {
-  children: ReactNode;
-  selectedIndex: number;
-  onMenuItemClick: (index: number) => void;
-  walletAddress: string;
+export interface SidebarFooterProps {
+  mini: boolean;
 }
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+interface DashboardLayoutProps {
+  children: ReactNode;
+  slots?: {
+    toolbarAccount?: React.ComponentType;
+    sidebarFooter?: React.ComponentType<SidebarFooterProps>;
+  };
+}
+
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
-  selectedIndex,
-  onMenuItemClick,
-  walletAddress,
+  slots = {},
 }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
+  const { navigation, router } = useAppContext();
 
   const handleDrawerOpen = () => {
     setOpen(true);
@@ -99,16 +100,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     setOpen(false);
   };
 
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon /> },
-    { text: 'Swap', icon: <SwapHorizIcon /> },
-    { text: 'Liquidity', icon: <AccountBalanceWalletIcon /> },
-    { text: 'Governance', icon: <GavelIcon /> },
-  ];
+  const ToolbarAccount = slots.toolbarAccount;
+  const SidebarFooter = slots.sidebarFooter;
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <CssBaseline />
       <AppBar position="fixed" open={open}>
         <Toolbar>
           <IconButton
@@ -124,29 +120,28 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             DPP Frontend Dashboard
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="subtitle1" noWrap>
-            {walletAddress}
-          </Typography>
+          <ThemeToggleButton />
+          {ToolbarAccount && <ToolbarAccount />}
         </Toolbar>
       </AppBar>
       <Drawer
-        variant="permanent"
-        open={open}
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          whiteSpace: 'nowrap',
-          boxSizing: 'border-box',
-          ...(open && {
-            ...openedMixin(theme),
-            '& .MuiDrawer-paper': openedMixin(theme),
-          }),
-          ...(!open && {
-            ...closedMixin(theme),
-            '& .MuiDrawer-paper': closedMixin(theme),
-          }),
-        }}
-      >
+    variant="permanent"
+    open={open}
+    sx={{
+      width: drawerWidth,
+      flexShrink: 0,
+      whiteSpace: 'nowrap',
+      boxSizing: 'border-box',
+      ...(open && {
+        ...openedMixin(theme),
+        '& .MuiDrawer-paper': openedMixin(theme),
+      }),
+      ...(!open && {
+        ...closedMixin(theme),
+        '& .MuiDrawer-paper': closedMixin(theme),
+      }),
+    }}
+  >
         <DrawerHeader>
           <IconButton onClick={handleDrawerClose}>
             <ChevronLeftIcon />
@@ -154,36 +149,74 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </DrawerHeader>
         <Divider />
         <List>
-          {menuItems.map((item, index) => (
-            <ListItem key={item.text} disablePadding sx={{ display: 'block' }} onClick={() => onMenuItemClick(index)}>
-              <ListItemButton
-                sx={{
-                  minHeight: 48,
-                  justifyContent: open ? 'initial' : 'center',
-                  px: 2.5,
-                }}
-                selected={selectedIndex === index}
+          {navigation.map((item, index) => {
+            if (item.kind === 'header') {
+              return (
+                <ListItem key={index} sx={{ py: 1 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    {item.title}
+                  </Typography>
+                </ListItem>
+              );
+            }
+            
+            return (
+              <ListItem 
+                key={index} 
+                disablePadding 
+                sx={{ display: 'block' }}
+                onClick={() => item.segment && router.navigate(`/${item.segment}`)}
               >
-                <ListItemIcon
+                <ListItemButton
                   sx={{
-                    minWidth: 0,
-                    mr: open ? 3 : 'auto',
-                    justifyContent: 'center',
+                    minHeight: 48,
+                    justifyContent: open ? 'initial' : 'center',
+                    px: 2.5,
                   }}
+                  selected={router.pathname.substring(1) === item.segment}
                 >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />
-              </ListItemButton>
-            </ListItem>
-          ))}
+                  {item.icon && (
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 0,
+                        mr: open ? 3 : 'auto',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                  )}
+                  <ListItemText 
+                    primary={item.title} 
+                    sx={{ opacity: open ? 1 : 0 }} 
+                  />
+                  {open && item.action}
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
         </List>
+        
+        {SidebarFooter && (
+          <Box sx={{ marginTop: 'auto' }}>
+            <SidebarFooter mini={!open} />
+          </Box>
+        )}
       </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <DrawerHeader />
-        {children}
-      </Box>
-    </Box>
+  <Box 
+    component="main" 
+    sx={{ 
+      flexGrow: 1, 
+      p: 3,
+      bgcolor: 'background.default', 
+      color: 'text.primary',
+      minHeight: '100vh'
+    }}
+  >
+    <DrawerHeader />
+    {children}
+  </Box>
+</Box>
   );
 };
 
