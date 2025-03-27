@@ -148,8 +148,6 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
     const oldBuyToken = buyToken;
     setSellToken(oldBuyToken);
     setBuyToken(oldSellToken);
-    // Optional: try to preserve value - recalculation will happen automatically
-    // setSellAmountStr(buyAmountNum > 0 ? buyAmountNum.toFixed(6) : "");
 
     // Reset rotation after animation duration
     setTimeout(() => setIsRotating(false), 300); // Match CSS transition duration
@@ -166,8 +164,8 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
         return;
     }
     onSwap(sellToken, buyToken, sellAmountNum, buyAmountNum);
-    // Optionally clear fields after initiating swap
-    // setSellAmountStr("");
+    // Clear fields after initiating swap
+    setSellAmountStr("");
   };
 
   // Handle Token Selection Changes
@@ -293,7 +291,10 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
                       <Typography variant="body1" fontWeight="medium" color="text.secondary">
                          Buy (Estimated)
                       </Typography>
-                      {/* Optional: Show buy balance */}
+                      {/* Show buy balance */}
+                      <Typography variant="caption" color="text.secondary">
+                         Balance: {userBalances[buyToken || '']?.toLocaleString(undefined, { maximumFractionDigits: 4 })} {buyToken}
+                      </Typography>
                  </Box>
                 <Box sx={{ display: "flex", alignItems: "center" }}>
                   <TextField
