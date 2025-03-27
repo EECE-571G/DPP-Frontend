@@ -1,54 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Paper, TextField, Button, MenuItem, Select, FormControl, InputLabel,
-    CircularProgress, SelectChangeEvent, List, ListItem, ListItemText, Divider, Grid, Chip
+    CircularProgress, SelectChangeEvent, List, ListItem, ListItemText, Divider, Grid, Chip, Tooltip,
+    ListItemIcon,
+    ButtonGroup,
+    Stack
 } from '@mui/material';
-import { Proposal, Pool } from './AppProvider'; // Import types
+import DragHandleIcon from '@mui/icons-material/DragHandle';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { Proposal, Pool } from './AppProvider';
+
+// --- dnd-kit Imports ---
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    verticalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+// --- End dnd-kit Imports ---
+
 
 interface GovernanceProps {
-  pools: Pool[]; // To select which pool the proposal is for
+  pools: Pool[];
   proposals: Proposal[];
   addProposal: (poolId: number, proposedPrice: number, description: string) => void;
   voteOnProposal: (id: number, vote: "yes" | "no") => void;
-  loadingStates: Record<string, boolean>; // Pass loading states from App.tsx
+  loadingStates: Record<string, boolean>;
 }
 
+// --- Sortable Item Component ---
+interface SortableProposalItemProps {
+    proposal: Proposal;
+    isVoting: (id: number) => boolean;
+    voteOnProposal: (id: number, vote: "yes" | "no") => void;
+    getPoolName: (id: number) => string;
+}
+
+function SortableProposalItem({ proposal, isVoting, voteOnProposal, getPoolName }: SortableProposalItemProps) {
+    const {
+        attributes, listeners, setNodeRef, transform, transition, isDragging,
+    } = useSortable({ id: proposal.id.toString() });
+    const style = {
+        transform: CSS.Transform.toString(transform), transition,
+        zIndex: isDragging ? 10 : undefined, opacity: isDragging ? 0.85 : 1,
+    };
+    return (
+        <ListItem ref={setNodeRef} style={style} {...attributes} alignItems="center"
+            sx={{ py: 1.5, pr: 2, pl: 0, bgcolor: isDragging ? 'action.selected' : 'inherit', transition: 'background-color 0.2s ease-in-out', }}
+        >
+            <ListItemIcon {...listeners}
+                sx={{ minWidth: 'auto', p: 1.5, cursor: 'grab', borderRadius: 1, transition: 'background-color 0.15s ease-out', '&:hover': { backgroundColor: 'action.hover', }, '&:active': { cursor: 'grabbing', }, }}
+            > <DragHandleIcon sx={{ color: 'text.secondary' }} /> </ListItemIcon>
+            <ListItemText
+                primary={<Typography variant="subtitle1" fontWeight="medium"> Proposal #{proposal.id}: Change {getPoolName(proposal.poolId)} Desired Price to {proposal.proposedDesiredPrice} </Typography>}
+                secondary={
+                    <>
+                       <Typography component="span" variant="body2" color="text.primary" sx={{ display: 'block', mt: 0.5, mb: 1.5 }}> {proposal.description} </Typography>
+                       <Grid container spacing={1} alignItems="center" mt={1}>
+                            <Grid item> <Chip label={`Yes: ${proposal.votes.yes}`} color="success" size="small" variant="outlined"/> </Grid>
+                            <Grid item> <Chip label={`No: ${proposal.votes.no}`} color="error" size="small" variant="outlined"/> </Grid>
+                            <Grid item xs />
+                            <Grid item>
+                               <Button variant="outlined" color="success" size="small" onClick={() => voteOnProposal(proposal.id, "yes")} disabled={isVoting(proposal.id)} sx={{ mr: 1 }} startIcon={isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : null} > {isVoting(proposal.id) ? 'Voting...' : 'Vote Yes'} </Button>
+                               <Button variant="outlined" color="error" size="small" onClick={() => voteOnProposal(proposal.id, "no")} disabled={isVoting(proposal.id)} startIcon={isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : null} > {isVoting(proposal.id) ? 'Voting...' : 'Vote No'} </Button>
+                            </Grid>
+                       </Grid>
+                     </> }
+             />
+        </ListItem>
+    );
+}
+// --- End Sortable Item Component ---
+
+
 const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, voteOnProposal, loadingStates }) => {
-  const [selectedPoolId, setSelectedPoolId] = useState<string>(pools[0]?.id.toString() || ""); // Default to first pool ID
+  // --- State for Creation Form ---
+  const [createPoolId, setCreatePoolId] = useState<string>(pools[0]?.id.toString() || "");
   const [proposedPriceStr, setProposedPriceStr] = useState("");
   const [description, setDescription] = useState("");
 
+  // --- State for Filtering & Sorting ---
+  const [filterPoolId, setFilterPoolId] = useState<string>("all"); // "all" or a pool ID string
+  const [sortDirection, setSortDirection] = useState<'none' | 'asc' | 'desc'>("none");
+
+  // --- Process Proposals: Filter -> Sort ---
+  const processedProposals = useMemo(() => {
+    let active = proposals.filter(p => p.status === 'active');
+    let filtered = active;
+    if (filterPoolId !== "all") {
+      filtered = active.filter(p => p.poolId.toString() === filterPoolId);
+    }
+    let sorted = [...filtered]; // Sort operates on a new array
+    if (sortDirection === 'asc') {
+      sorted.sort((a, b) => a.proposedDesiredPrice - b.proposedDesiredPrice);
+    } else if (sortDirection === 'desc') {
+      sorted.sort((a, b) => b.proposedDesiredPrice - a.proposedDesiredPrice);
+    }
+    return sorted;
+  }, [proposals, filterPoolId, sortDirection]); // Dependencies are correct
+
+  // --- State for DND Order (Based on processed proposals) ---
+  const [orderedProposalIds, setOrderedProposalIds] = useState<string[]>(() =>
+    processedProposals.map(p => p.id.toString())
+  );
+
+  // Reset DND order when filter/sort changes (processedProposals changes)
+  useEffect(() => {
+    // console.log("Filter/Sort changed, resetting DND order based on:", processedProposals.map(p => p.id));
+    setOrderedProposalIds(processedProposals.map(p => p.id.toString()));
+  }, [processedProposals]); // This dependency is correct and crucial
+
+  // Map ordered IDs back to proposal objects for rendering the draggable list
+  const displayProposals = useMemo(() => {
+      const proposalMap = new Map(proposals.map(p => [p.id.toString(), p]));
+      return orderedProposalIds.map(id => proposalMap.get(id)).filter((p): p is Proposal => !!p);
+  }, [orderedProposalIds, proposals]);
+  // --- End State & Processing ---
+
+  // --- dnd-kit Sensors ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 10 } })
+  );
+  // --- End dnd-kit Sensors ---
+
+  // --- Drag End Handler (No changes needed) ---
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setOrderedProposalIds((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        // console.log(`Moving ${active.id} from ${oldIndex} to ${newIndex}`);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }
+  // --- End Drag End Handler ---
+
+  // --- Event Handlers ---
   const handleCreateProposal = () => {
-    const poolIdNum = parseInt(selectedPoolId, 10);
-    const proposedPriceNum = parseFloat(proposedPriceStr);
-
-    if (!selectedPoolId || isNaN(poolIdNum)) {
-        alert("Please select a pool."); // Use Snackbar later
-        return;
-    }
-    if (!proposedPriceStr || isNaN(proposedPriceNum) || proposedPriceNum <= 0) {
-      alert("Enter a valid positive desired price."); // Use Snackbar later
-      return;
-    }
-     if (!description.trim()) {
-         alert("Please provide a short description/reason for the proposal."); // Use Snackbar later
-         return;
-     }
-
-    addProposal(poolIdNum, proposedPriceNum, description.trim());
-    // Clear form after initiating
-    setProposedPriceStr("");
-    setDescription("");
+     // ... validation ...
+     const poolIdNum = parseInt(createPoolId, 10);
+     const proposedPriceNum = parseFloat(proposedPriceStr);
+     if (!createPoolId || isNaN(poolIdNum)) { alert("Please select a pool."); return; }
+     if (!proposedPriceStr || isNaN(proposedPriceNum) || proposedPriceNum <= 0) { alert("Enter a valid positive desired price."); return; }
+     if (!description.trim()) { alert("Please provide a short description/reason."); return; }
+     addProposal(poolIdNum, proposedPriceNum, description.trim());
   };
+
+  const handleFilterChange = (event: SelectChangeEvent) => {
+    setFilterPoolId(event.target.value);
+    // Reset sort when filter changes?
+    // setSortDirection("none");
+  };
+
+  // --- REFINED handleSort ---
+  const handleSort = (clickedDirection: 'asc' | 'desc') => {
+    // console.log(`Clicked ${clickedDirection}, current is ${sortDirection}`);
+    setSortDirection(prev => {
+        // If clicking the button that represents the *current* sort, clear it.
+        if (prev === clickedDirection) {
+            // console.log("Clearing sort");
+            return 'none';
+        }
+        // Otherwise, set the sort to the clicked direction.
+        else {
+            // console.log(`Setting sort to ${clickedDirection}`);
+            return clickedDirection;
+        }
+    });
+};
 
   const getPoolName = (poolId: number): string => {
       return pools.find(p => p.id === poolId)?.name ?? `Pool #${poolId}`;
   }
 
    const isVoting = (proposalId: number): boolean => {
-       // Check for the specific vote loading key
        return loadingStates[`vote_${proposalId}`] || false;
    }
+  // --- End Event Handlers ---
 
   return (
     <Box p={3}>
@@ -56,133 +196,90 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
           Governance
       </Typography>
 
-      {/* Create Proposal Card */}
+      {/* --- Create Proposal Card (No changes) --- */}
       <Paper elevation={2} sx={{ p: 3, mb: 4, borderRadius: 2 }}>
-        <Typography variant="h6" gutterBottom>Create New Proposal</Typography>
-        <FormControl fullWidth margin="normal">
-          <InputLabel id="pool-select-label">Target Pool</InputLabel>
-          <Select
-            labelId="pool-select-label"
-            label="Target Pool"
-            value={selectedPoolId}
-            onChange={(e: SelectChangeEvent) => setSelectedPoolId(e.target.value)}
-            disabled={loadingStates['createProposal']}
-          >
-            {pools.map((pool) => (
-              <MenuItem key={pool.id} value={pool.id.toString()}>
-                {pool.name} ({pool.tokenA}/{pool.tokenB})
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField
-          label="Proposed Desired Price"
-          type="number"
-          fullWidth
-          margin="normal"
-          value={proposedPriceStr}
-          onChange={(e) => setProposedPriceStr(e.target.value)}
-          disabled={loadingStates['createProposal']}
-          InputProps={{ inputProps: { min: 0 } }} // Basic validation
-        />
-        <TextField
-          label="Description / Justification"
-          fullWidth
-          margin="normal"
-          multiline
-          rows={3}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          disabled={loadingStates['createProposal']}
-          inputProps={{ maxLength: 200 }} // Limit description length
-        />
-        <Button
-            variant="contained"
-            color="primary"
-            onClick={handleCreateProposal}
-            disabled={loadingStates['createProposal']}
-            sx={{ mt: 2 }}
-            startIcon={loadingStates['createProposal'] ? <CircularProgress size={20} color="inherit" /> : null}
-        >
-          {loadingStates['createProposal'] ? 'Submitting...' : 'Create Proposal'}
-        </Button>
+         {/* ... Form Content ... */}
+         <Typography variant="h6" gutterBottom>Create New Proposal</Typography>
+         <FormControl fullWidth margin="normal">
+           <InputLabel id="create-pool-select-label">Target Pool</InputLabel>
+           <Select
+             labelId="create-pool-select-label" label="Target Pool"
+             value={createPoolId}
+             onChange={(e: SelectChangeEvent) => setCreatePoolId(e.target.value)}
+             disabled={loadingStates['createProposal']}
+           >
+             {pools.map((pool) => ( <MenuItem key={pool.id} value={pool.id.toString()}> {pool.name} ({pool.tokenA}/{pool.tokenB}) </MenuItem> ))}
+           </Select>
+         </FormControl>
+         <TextField label="Proposed Desired Price" type="number" fullWidth margin="normal" value={proposedPriceStr} onChange={(e) => setProposedPriceStr(e.target.value)} disabled={loadingStates['createProposal']} InputProps={{ inputProps: { min: 0 } }} />
+         <TextField label="Description / Justification" fullWidth margin="normal" multiline rows={3} value={description} onChange={(e) => setDescription(e.target.value)} disabled={loadingStates['createProposal']} inputProps={{ maxLength: 200 }} />
+         <Button variant="contained" color="primary" onClick={handleCreateProposal} disabled={loadingStates['createProposal']} sx={{ mt: 2 }} startIcon={loadingStates['createProposal'] ? <CircularProgress size={20} color="inherit" /> : null} > {loadingStates['createProposal'] ? 'Submitting...' : 'Create Proposal'} </Button>
       </Paper>
 
-      {/* Active Proposals List */}
-      <Typography variant="h5" sx={{ mb: 2 }}>Active Proposals</Typography>
-       <List sx={{ bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden' }}>
-         {proposals.filter(p => p.status === 'active').length === 0 && (
-             <ListItem>
-                 <ListItemText primary="No active proposals."/>
-             </ListItem>
-         )}
-        {proposals.filter(p => p.status === 'active').map((proposal, index) => (
-          <React.Fragment key={proposal.id}>
-             {/* Add sx prop for hover effect */}
-             <ListItem
-                 alignItems="flex-start"
-                 sx={{
-                     py: 2,
-                     transition: 'transform 0.2s ease-in-out, background-color 0.2s ease-in-out',
-                     '&:hover': {
-                         transform: 'translateX(4px)',
-                         backgroundColor: 'action.hover'
-                     }
-                 }}
-             >
-                 <ListItemText
-                    primary={
-                        <Typography variant="subtitle1" fontWeight="medium">
-                           Proposal #{proposal.id}: Change {getPoolName(proposal.poolId)} Desired Price to {proposal.proposedDesiredPrice}
-                        </Typography>
-                     }
-                    secondary={
-                        <>
-                           <Typography component="span" variant="body2" color="text.primary" sx={{ display: 'block', mt: 0.5, mb: 1.5 }}>
-                              {proposal.description}
-                           </Typography>
-                           <Grid container spacing={1} alignItems="center" mt={1}>
-                                <Grid item>
-                                   <Chip label={`Yes: ${proposal.votes.yes}`} color="success" size="small" variant="outlined"/>
-                                </Grid>
-                                <Grid item>
-                                    <Chip label={`No: ${proposal.votes.no}`} color="error" size="small" variant="outlined"/>
-                                </Grid>
-                                <Grid item xs /> {/* Spacer */}
-                                <Grid item>
-                                   <Button
-                                      variant="outlined"
-                                      color="success"
-                                      size="small"
-                                      onClick={() => voteOnProposal(proposal.id, "yes")}
-                                      disabled={isVoting(proposal.id)}
-                                      sx={{ mr: 1 }}
-                                      // Add spinner inside button if loading
-                                      startIcon={isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : null}
-                                   >
-                                      {isVoting(proposal.id) ? 'Voting...' : 'Vote Yes'}
-                                   </Button>
-                                   <Button
-                                      variant="outlined"
-                                      color="error"
-                                      size="small"
-                                      onClick={() => voteOnProposal(proposal.id, "no")}
-                                      disabled={isVoting(proposal.id)}
-                                       startIcon={isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : null}
-                                   >
-                                       {isVoting(proposal.id) ? 'Voting...' : 'Vote No'}
-                                   </Button>
-                                </Grid>
-                           </Grid>
-                         </>
-                     }
-                 />
-             </ListItem>
-             {index < proposals.filter(p => p.status === 'active').length - 1 && <Divider variant="inset" component="li" />}
-          </React.Fragment>
-        ))}
-      </List>
-       {/* TODO: Add sections for Past Proposals (succeeded/defeated) */}
+      {/* --- Active Proposals Section --- */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems="center" mb={2}>
+         <Typography variant="h5">Active Proposals</Typography>
+         {/* Filter & Sort Controls */}
+         <Stack direction="row" spacing={1} alignItems="center">
+             {/* Pool Filter */}
+             <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel id="filter-pool-label">Filter by Pool</InputLabel>
+                <Select labelId="filter-pool-label" label="Filter by Pool" value={filterPoolId} onChange={handleFilterChange} >
+                    <MenuItem value="all"><em>All Pools</em></MenuItem>
+                    {pools.map((pool) => ( <MenuItem key={pool.id} value={pool.id.toString()}> {pool.name} </MenuItem> ))}
+                </Select>
+            </FormControl>
+            {/* Sort Buttons */}
+            <ButtonGroup variant="outlined" size="small" aria-label="Sort proposals by price">
+                 <Tooltip title="Sort Ascending by Price">
+                     <Button
+                        onClick={() => handleSort('asc')}
+                        // Highlight if this is the active sort direction
+                        variant={sortDirection === 'asc' ? 'contained' : 'outlined'}
+                     >
+                         <ArrowUpwardIcon fontSize="small"/>
+                     </Button>
+                 </Tooltip>
+                 <Tooltip title="Sort Descending by Price">
+                     <Button
+                         onClick={() => handleSort('desc')}
+                         // Highlight if this is the active sort direction
+                         variant={sortDirection === 'desc' ? 'contained' : 'outlined'}
+                     >
+                        <ArrowDownwardIcon fontSize="small"/>
+                     </Button>
+                  </Tooltip>
+             </ButtonGroup>
+         </Stack>
+      </Stack>
+
+
+      {/* Draggable List */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} >
+        <SortableContext items={orderedProposalIds} strategy={verticalListSortingStrategy} >
+          <List sx={{ bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden', p: 0 }}>
+            {displayProposals.length === 0 && (
+                <ListItem sx={{ pl: 2 }}>
+                    <ListItemText primary="No active proposals match the current filter."/>
+                </ListItem>
+            )}
+            {/* Render using the displayProposals which respects DND order */}
+            {displayProposals.map((proposal, index) => (
+              <React.Fragment key={proposal.id}>
+                <SortableProposalItem
+                  proposal={proposal}
+                  isVoting={isVoting}
+                  voteOnProposal={voteOnProposal}
+                  getPoolName={getPoolName}
+                />
+                {index < displayProposals.length - 1 && <Divider component="li" variant="inset"/>}
+              </React.Fragment>
+            ))}
+          </List>
+        </SortableContext>
+      </DndContext>
+      {/* --- End Draggable List --- */}
+
     </Box>
   );
 };
