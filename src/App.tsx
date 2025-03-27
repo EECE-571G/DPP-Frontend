@@ -5,7 +5,7 @@ import Swap from './components/Swap';
 import Liquidity from './components/Liquidity';
 import Governance from './components/Governance';
 import DashboardLayout, { SidebarFooterProps } from './layout/DashboardLayout';
-import { AppProvider, Session, Router, Navigation, Pool, Proposal, User, Authentication } from './components/AppProvider'; // Import Pool/Proposal
+import { AppProvider, Session, Router, Navigation, Pool, Proposal, User } from './components/AppProvider';
 
 // MUI Components
 import Typography from '@mui/material/Typography';
@@ -13,6 +13,8 @@ import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
 import Alert, { AlertColor } from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Fade from '@mui/material/Fade';
 
 // MUI Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -155,7 +157,7 @@ const App: React.FC = () => {
       addLiquidity: false,
       removeLiquidity: false,
       createProposal: false,
-      vote: false,
+      vote: false, // Will use vote_ID later
   });
 
   // --- Snackbar State ---
@@ -188,7 +190,7 @@ const App: React.FC = () => {
   }, [pathname]);
 
   // --- Authentication Simulation ---
-  const authentication = useMemo<Authentication>(() => {
+  const authentication = useMemo(() => {
     return {
       signIn: (address: string) => {
         setLoading('connectWallet', true);
@@ -316,7 +318,7 @@ const App: React.FC = () => {
                   // Simulate receiving LP tokens or rewards later
               }));
                // Simulate getting some vDPP reward
-              const simulatedReward = amountA * 0.1; // Totally arbitrary reward logic
+              const simulatedReward = (amountA + amountB) * 0.01; // Totally arbitrary reward logic based on total amount
                setUserBalances(prev => ({
                    ...prev,
                    vDPP: (prev.vDPP || 0) + simulatedReward
@@ -341,6 +343,7 @@ const App: React.FC = () => {
                   ...prev,
                   [tokenA]: (prev[tokenA] || 0) + amountA,
                   [tokenB]: (prev[tokenB] || 0) + amountB,
+                  // Simulate burning LP tokens later
               }));
               showSnackbar(`Removed ${amountA.toFixed(4)} ${tokenA} and ${amountB.toFixed(4)} ${tokenB} liquidity (Simulated)`, 'success');
           } else {
@@ -420,7 +423,13 @@ const App: React.FC = () => {
           // toolbarAccount could be added here if needed
         }}
       >
-        {renderContent()}
+        {/* Wrap the main content area with Fade for page transitions */}
+        <Fade in={true} key={pathname} timeout={500}>
+            {/* The Box wrapper is useful if Fade needs a single child */}
+            <Box>
+              {renderContent()}
+            </Box>
+        </Fade>
       </DashboardLayout>
 
        {/* Global Snackbar for feedback */}

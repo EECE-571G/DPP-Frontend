@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     Box, Typography, Paper, TextField, Button, MenuItem, Select, FormControl, InputLabel,
-    CircularProgress, SelectChangeEvent, List, ListItem, ListItemText, Divider, Grid, Chip, Tooltip
+    CircularProgress, SelectChangeEvent, List, ListItem, ListItemText, Divider, Grid, Chip
 } from '@mui/material';
 import { Proposal, Pool } from './AppProvider'; // Import types
 
@@ -37,9 +37,8 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
 
     addProposal(poolIdNum, proposedPriceNum, description.trim());
     // Clear form after initiating
-    // setProposedPriceStr("");
-    // setDescription("");
-    // Don't clear pool selection
+    setProposedPriceStr("");
+    setDescription("");
   };
 
   const getPoolName = (poolId: number): string => {
@@ -47,6 +46,7 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
   }
 
    const isVoting = (proposalId: number): boolean => {
+       // Check for the specific vote loading key
        return loadingStates[`vote_${proposalId}`] || false;
    }
 
@@ -110,7 +110,7 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
 
       {/* Active Proposals List */}
       <Typography variant="h5" sx={{ mb: 2 }}>Active Proposals</Typography>
-       <List sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>
+       <List sx={{ bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden' }}>
          {proposals.filter(p => p.status === 'active').length === 0 && (
              <ListItem>
                  <ListItemText primary="No active proposals."/>
@@ -118,7 +118,18 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
          )}
         {proposals.filter(p => p.status === 'active').map((proposal, index) => (
           <React.Fragment key={proposal.id}>
-             <ListItem alignItems="flex-start">
+             {/* Add sx prop for hover effect */}
+             <ListItem
+                 alignItems="flex-start"
+                 sx={{
+                     py: 2,
+                     transition: 'transform 0.2s ease-in-out, background-color 0.2s ease-in-out',
+                     '&:hover': {
+                         transform: 'translateX(4px)',
+                         backgroundColor: 'action.hover'
+                     }
+                 }}
+             >
                  <ListItemText
                     primary={
                         <Typography variant="subtitle1" fontWeight="medium">
@@ -130,7 +141,7 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
                            <Typography component="span" variant="body2" color="text.primary" sx={{ display: 'block', mt: 0.5, mb: 1.5 }}>
                               {proposal.description}
                            </Typography>
-                           <Grid container spacing={1} alignItems="center">
+                           <Grid container spacing={1} alignItems="center" mt={1}>
                                 <Grid item>
                                    <Chip label={`Yes: ${proposal.votes.yes}`} color="success" size="small" variant="outlined"/>
                                 </Grid>
@@ -146,8 +157,10 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
                                       onClick={() => voteOnProposal(proposal.id, "yes")}
                                       disabled={isVoting(proposal.id)}
                                       sx={{ mr: 1 }}
+                                      // Add spinner inside button if loading
+                                      startIcon={isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : null}
                                    >
-                                      {isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : 'Vote Yes'}
+                                      {isVoting(proposal.id) ? 'Voting...' : 'Vote Yes'}
                                    </Button>
                                    <Button
                                       variant="outlined"
@@ -155,8 +168,9 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
                                       size="small"
                                       onClick={() => voteOnProposal(proposal.id, "no")}
                                       disabled={isVoting(proposal.id)}
+                                       startIcon={isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : null}
                                    >
-                                       {isVoting(proposal.id) ? <CircularProgress size={16} color="inherit"/> : 'Vote No'}
+                                       {isVoting(proposal.id) ? 'Voting...' : 'Vote No'}
                                    </Button>
                                 </Grid>
                            </Grid>

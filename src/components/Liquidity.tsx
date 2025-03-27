@@ -10,8 +10,9 @@ import {
   Tabs,
   Tab,
   CircularProgress,
-  Paper, // For reward estimation display
+  Paper,
   Tooltip,
+  Fade
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Pool } from './AppProvider';
@@ -113,7 +114,7 @@ const Liquidity: React.FC<LiquidityProps> = ({ selectedPool, userBalances, onAdd
     if (!selectedPool) return;
 
     const numValue = parseFloat(value) || 0;
-    const { currentPrice, tokenA, tokenB } = selectedPool;
+    const { currentPrice } = selectedPool;
     const ratio = currentPrice; // 1 A = ratio B
 
     let otherNumValue = 0;
@@ -197,15 +198,18 @@ const Liquidity: React.FC<LiquidityProps> = ({ selectedPool, userBalances, onAdd
 
   return (
     <Box sx={{ mt: 4, width: '100%', display: 'flex', justifyContent: 'center' }}>
-      <Card
-        sx={{
-          width: '100%',
-          maxWidth: 460, // Match Swap card
-          borderRadius: 3,
-          boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
-          // backgroundColor: 'background.paper', // Default
-        }}
-      >
+      {/* Wrap main Card with Fade for appearance animation */}
+      <Fade in={true} timeout={500}>
+          <Card
+            sx={{
+              width: '100%',
+              maxWidth: 460, // Match Swap card
+              borderRadius: 3,
+              boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
+              overflow: 'hidden' // Prevent content overflow during tab transition
+              // backgroundColor: 'background.paper', // Default
+            }}
+          >
         <Tabs
           value={tabValue}
           onChange={handleChangeTab}
@@ -360,6 +364,7 @@ const Liquidity: React.FC<LiquidityProps> = ({ selectedPool, userBalances, onAdd
           )}
         </CardContent>
       </Card>
+      </Fade>
     </Box>
   );
 };

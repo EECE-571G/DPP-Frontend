@@ -10,10 +10,11 @@ import {
   InputAdornment,
   Select,
   MenuItem,
-  CircularProgress, // For loading
-  Chip, // To display fee
+  CircularProgress,
+  Chip,
   Tooltip,
   SelectChangeEvent,
+  Fade
 } from '@mui/material';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -91,6 +92,7 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
   const [buyAmountNum, setBuyAmountNum] = useState(0); // Calculated buy amount
   const [usdValues, setUsdValues] = useState({ sell: 0, buy: 0 });
   const [dynamicFee, setDynamicFee] = useState({ feePercentage: 0, explanation: '' });
+  const [isRotating, setIsRotating] = useState(false); // State for icon rotation
 
   // Reset state when pool changes
   useEffect(() => {
@@ -139,14 +141,19 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
 
   }, [sellAmountNum, sellToken, buyToken, selectedPool]);
 
-  // Flip Tokens
+  // Flip Tokens with Animation
   const handleSwapTokens = useCallback(() => {
+    setIsRotating(true); // Start rotation
     const oldSellToken = sellToken;
     const oldBuyToken = buyToken;
     setSellToken(oldBuyToken);
     setBuyToken(oldSellToken);
-    // Try to preserve value - recalculation will happen automatically
+    // Optional: try to preserve value - recalculation will happen automatically
     // setSellAmountStr(buyAmountNum > 0 ? buyAmountNum.toFixed(6) : "");
+
+    // Reset rotation after animation duration
+    setTimeout(() => setIsRotating(false), 300); // Match CSS transition duration
+
   }, [sellToken, buyToken]);
 
   // Execute Swap Action
@@ -206,151 +213,158 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
       <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'medium' }}>
         Swap Tokens
       </Typography>
-      <Card
-        sx={{
-          width: "100%",
-          maxWidth: 460, // Slightly wider
-          borderRadius: 3,
-          p: 1, // Padding on card itself
-          boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
-        }}
-      >
-        <CardContent sx={{ p: 3 }}> {/* Padding inside content */}
-          {/* --- SELL Section --- */}
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}>
-                 <Typography variant="body1" fontWeight="medium" color="text.secondary">
-                    Sell
-                 </Typography>
-                 <Typography variant="caption" color="text.secondary">
-                    Balance: {sellBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })} {sellToken}
-                 </Typography>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <TextField
-                type="number" // Use number input
-                variant="outlined"
-                placeholder="0.0"
-                value={sellAmountStr}
-                onChange={(e) => setSellAmountStr(e.target.value)}
-                fullWidth // Take full width within the flex container
-                InputProps={{
-                    sx: { borderRadius: 2, pr: 0 }, // Style input, remove right padding for select
-                    endAdornment: (
-                    <InputAdornment position="end" sx={{ mr: -0.5 }}> {/* Adjust margin */}
-                      <Select
-                        value={sellToken || ''}
-                        onChange={handleSellTokenChange}
-                        variant="standard" // Cleaner look
-                        disableUnderline
-                        sx={{
-                            minWidth: 100, // Ensure enough space
-                            fontWeight: 500,
-                            mr: 1.5, // Margin for spacing
-                            '.MuiSelect-select': { py: 1.8 } // Align text vertically
-                         }}
-                      >
-                        <MenuItem value={selectedPool.tokenA}>
-                          {selectedPool.tokenA}
-                        </MenuItem>
-                        <MenuItem value={selectedPool.tokenB}>
-                          {selectedPool.tokenB}
-                        </MenuItem>
-                      </Select>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, minHeight: '1.2em' }}>
-               {sellAmountNum > 0 ? `~ $${usdValues.sell.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}
-             </Typography>
-          </Box>
-
-          {/* --- Swap Icon Button --- */}
-          <Box sx={{ display: "flex", justifyContent: "center", my: 1 }}>
-            <IconButton onClick={handleSwapTokens} aria-label="Swap tokens">
-              <SwapVertIcon />
-            </IconButton>
-          </Box>
-
-          {/* --- BUY Section --- */}
-          <Box sx={{ mb: 3 }}>
-             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}>
-                  <Typography variant="body1" fontWeight="medium" color="text.secondary">
-                     Buy (Estimated)
-                  </Typography>
-                  {/* Optional: Show buy balance */}
-             </Box>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <TextField
-                type="number"
-                variant="outlined"
-                placeholder="0.0"
-                value={buyAmountNum > 0 ? buyAmountNum.toFixed(6) : ""} // Display calculated amount
-                fullWidth
-                InputProps={{
-                  readOnly: true, // Make it read-only
-                  sx: { borderRadius: 2, pr: 0 },
-                  endAdornment: (
-                    <InputAdornment position="end" sx={{ mr: -0.5 }}>
-                      <Select
-                        value={buyToken || ''}
-                        onChange={handleBuyTokenChange}
-                        variant="standard"
-                        disableUnderline
-                        sx={{
-                           minWidth: 100,
-                           fontWeight: 500,
-                           mr: 1.5,
-                           '.MuiSelect-select': { py: 1.8 }
-                        }}
-                      >
-                         <MenuItem value={selectedPool.tokenA}>
-                           {selectedPool.tokenA}
-                         </MenuItem>
-                         <MenuItem value={selectedPool.tokenB}>
-                           {selectedPool.tokenB}
-                         </MenuItem>
-                      </Select>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, minHeight: '1.2em' }}>
-               {buyAmountNum > 0 ? `~ $${usdValues.buy.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}
-             </Typography>
-          </Box>
-
-          {/* --- Fee Display --- */}
-          {sellAmountNum > 0 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3 }}>
-                   <Tooltip title={dynamicFee.explanation} placement="top">
-                       <Chip
-                           icon={<InfoOutlinedIcon fontSize="small" />}
-                           label={`Est. Fee: ${(dynamicFee.feePercentage * 100).toFixed(3)}%`}
-                           size="small"
-                           variant="outlined"
-                       />
-                   </Tooltip>
-              </Box>
-          )}
-
-
-          {/* --- Action Button --- */}
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={handlePerformSwap}
-            disabled={!canSwap || isLoading}
-            size="large"
-            sx={{ borderRadius: 2, py: 1.5 }}
+      {/* Wrap Card with Fade for appearance animation */}
+      <Fade in={true} timeout={500}>
+          <Card
+            sx={{
+              width: "100%",
+              maxWidth: 460, // Slightly wider
+              borderRadius: 3,
+              p: 1, // Padding on card itself
+              boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
+            }}
           >
-            {isLoading ? <CircularProgress size={24} color="inherit" /> : (sellAmountNum > sellBalance ? 'Insufficient Balance' : 'Swap')}
-          </Button>
-        </CardContent>
-      </Card>
+            <CardContent sx={{ p: 3 }}> {/* Padding inside content */}
+              {/* --- SELL Section --- */}
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}>
+                     <Typography variant="body1" fontWeight="medium" color="text.secondary">
+                        Sell
+                     </Typography>
+                     <Typography variant="caption" color="text.secondary">
+                        Balance: {sellBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })} {sellToken}
+                     </Typography>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <TextField
+                    type="number" // Use number input
+                    variant="outlined"
+                    placeholder="0.0"
+                    value={sellAmountStr}
+                    onChange={(e) => setSellAmountStr(e.target.value)}
+                    fullWidth // Take full width within the flex container
+                    InputProps={{
+                        sx: { borderRadius: 2, pr: 0 }, // Style input, remove right padding for select
+                        endAdornment: (
+                        <InputAdornment position="end" sx={{ mr: -0.5 }}> {/* Adjust margin */}
+                          <Select
+                            value={sellToken || ''}
+                            onChange={handleSellTokenChange}
+                            variant="standard" // Cleaner look
+                            disableUnderline
+                            sx={{
+                                minWidth: 100, // Ensure enough space
+                                fontWeight: 500,
+                                mr: 1.5, // Margin for spacing
+                                '.MuiSelect-select': { py: 1.8 } // Align text vertically
+                             }}
+                          >
+                            <MenuItem value={selectedPool.tokenA}>
+                              {selectedPool.tokenA}
+                            </MenuItem>
+                            <MenuItem value={selectedPool.tokenB}>
+                              {selectedPool.tokenB}
+                            </MenuItem>
+                          </Select>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Box>
+                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, minHeight: '1.2em' }}>
+                   {sellAmountNum > 0 ? `~ $${usdValues.sell.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}
+                 </Typography>
+              </Box>
+
+              {/* --- Swap Icon Button --- */}
+              <Box sx={{ display: "flex", justifyContent: "center", my: 1 }}>
+                <IconButton onClick={handleSwapTokens} aria-label="Swap tokens">
+                  {/* Apply rotation animation styles */}
+                  <SwapVertIcon sx={{
+                      transform: isRotating ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.3s ease-in-out' // CSS transition
+                  }}/>
+                </IconButton>
+              </Box>
+
+              {/* --- BUY Section --- */}
+              <Box sx={{ mb: 3 }}>
+                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}>
+                      <Typography variant="body1" fontWeight="medium" color="text.secondary">
+                         Buy (Estimated)
+                      </Typography>
+                      {/* Optional: Show buy balance */}
+                 </Box>
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <TextField
+                    type="number"
+                    variant="outlined"
+                    placeholder="0.0"
+                    value={buyAmountNum > 0 ? buyAmountNum.toFixed(6) : ""} // Display calculated amount
+                    fullWidth
+                    InputProps={{
+                      readOnly: true, // Make it read-only
+                      sx: { borderRadius: 2, pr: 0 },
+                      endAdornment: (
+                        <InputAdornment position="end" sx={{ mr: -0.5 }}>
+                          <Select
+                            value={buyToken || ''}
+                            onChange={handleBuyTokenChange}
+                            variant="standard"
+                            disableUnderline
+                            sx={{
+                               minWidth: 100,
+                               fontWeight: 500,
+                               mr: 1.5,
+                               '.MuiSelect-select': { py: 1.8 }
+                            }}
+                          >
+                             <MenuItem value={selectedPool.tokenA}>
+                               {selectedPool.tokenA}
+                             </MenuItem>
+                             <MenuItem value={selectedPool.tokenB}>
+                               {selectedPool.tokenB}
+                             </MenuItem>
+                          </Select>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Box>
+                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, minHeight: '1.2em' }}>
+                   {buyAmountNum > 0 ? `~ $${usdValues.buy.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}
+                 </Typography>
+              </Box>
+
+              {/* --- Fee Display --- */}
+              {sellAmountNum > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3 }}>
+                       <Tooltip title={dynamicFee.explanation} placement="top">
+                           <Chip
+                               icon={<InfoOutlinedIcon fontSize="small" />}
+                               label={`Est. Fee: ${(dynamicFee.feePercentage * 100).toFixed(3)}%`}
+                               size="small"
+                               variant="outlined"
+                           />
+                       </Tooltip>
+                  </Box>
+              )}
+
+
+              {/* --- Action Button --- */}
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={handlePerformSwap}
+                disabled={!canSwap || isLoading}
+                size="large"
+                sx={{ borderRadius: 2, py: 1.5 }}
+              >
+                {isLoading ? <CircularProgress size={24} color="inherit" /> : (sellAmountNum > sellBalance ? 'Insufficient Balance' : 'Swap')}
+              </Button>
+            </CardContent>
+          </Card>
+      </Fade>
     </Box>
   );
 };

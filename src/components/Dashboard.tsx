@@ -7,9 +7,10 @@ import {
   Card,
   CardContent,
   Paper,
-  Grid, // Use Grid for better layout
+  Grid,
+  Collapse
 } from '@mui/material';
-import { Pool } from './AppProvider'; // Import from AppProvider
+import { Pool } from './AppProvider';
 
 interface DashboardProps {
   pools: Pool[];
@@ -57,45 +58,49 @@ const Dashboard: React.FC<DashboardProps> = ({ pools, selectedPool, onSelectPool
       </Card>
 
       {/* Selected Pool Details Card */}
-      {selectedPool && (
-        <Paper
-          elevation={0} // Use border instead of elevation for a flatter look
-          variant="outlined"
-          sx={{
-            p: 3,
-            borderRadius: 2,
-            // backgroundColor: 'background.default', // Inherits
-          }}
-        >
-          <Typography variant="h5" sx={{ mb: 2, fontWeight: 500 }}>
-            {selectedPool.name} Details
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body1" >
-                <strong>Token Pair:</strong> {selectedPool.tokenA} / {selectedPool.tokenB}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6}>
+      {/* Wrap the Paper with Collapse for animation */}
+      <Collapse in={!!selectedPool} timeout={400}>
+          <Paper
+            elevation={0} // Use border instead of elevation for a flatter look
+            variant="outlined"
+            sx={{
+              p: 3,
+              borderRadius: 2,
+              // Add margin top only if selectedPool exists to prevent jump
+              mt: !!selectedPool ? 0 : 0,
+            }}
+          >
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 500 }}>
+              {selectedPool?.name} Details
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="body1" >
+                  <strong>Token Pair:</strong> {selectedPool?.tokenA} / {selectedPool?.tokenB}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
                <Typography variant="body1" >
-                 <strong>Current Price:</strong> 1 {selectedPool.tokenA} = {selectedPool.currentPrice} {selectedPool.tokenB}
+                 <strong>Current Price:</strong> 1 {selectedPool?.tokenA} = {selectedPool?.currentPrice} {selectedPool?.tokenB}
                </Typography>
             </Grid>
              <Grid item xs={12} sm={6}>
                <Typography variant="body1" color="primary.main" sx={{ fontWeight: 'medium' }}>
-                 <strong>Desired Price:</strong> 1 {selectedPool.tokenA} = {selectedPool.desiredPrice} {selectedPool.tokenB}
+                 <strong>Desired Price:</strong> 1 {selectedPool?.tokenA} = {selectedPool?.desiredPrice} {selectedPool?.tokenB}
                </Typography>
             </Grid>
              <Grid item xs={12} sm={6}>
                <Typography variant="body2" color="text.secondary" >
-                 Base Fee: {(selectedPool.baseFee * 100).toFixed(2)}%
+                 Base Fee: {selectedPool?.baseFee ? (selectedPool.baseFee * 100).toFixed(2) : 'N/A'}%
                </Typography>
              </Grid>
              {/* Add more details here later: TVL, Volume, Your Position etc. */}
           </Grid>
-        </Paper>
-      )}
+          </Paper>
+      </Collapse>
+      {/* --- End Selected Pool Details Card --- */}
 
+      {/* Message when no pool is selected */}
       {!selectedPool && (
           <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
               Select a pool above to see details.
