@@ -1,9 +1,9 @@
-// src/components/AppProvider.tsx
 import React, { createContext, useContext, ReactNode, useState, useMemo } from 'react';
 import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
-// --- Interface Exports (Keep these easily accessible) ---
+// --- Interface Exports ---
 export interface NavigationItem {
   kind?: 'header' | 'item';
   segment?: string;
@@ -44,7 +44,7 @@ export type Navigation = NavigationItem[];
 // --- End Interface Exports ---
 
 
-// --- Pool Data Structure (Centralize definition here) ---
+// --- Pool Data Structure ---
 export interface Pool {
   id: number;
   name: string;
@@ -101,7 +101,6 @@ export const useAppContext = () => {
 interface AppProviderProps {
   navigation: Navigation;
   router: Router;
-  // theme: any; // Removed, created internally
   window?: Window;
   children: ReactNode;
   session: Session | null;
@@ -116,13 +115,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   session,
   authentication,
 }) => {
-  const getDefaultMode = () => {
-    if (window && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark' as PaletteMode;
-    }
-    return 'light' as PaletteMode;
-  };
-  const [mode, setMode] = useState<PaletteMode>(getDefaultMode());
+  const [mode, setMode] = useState<PaletteMode>(useMediaQuery('(prefers-color-scheme: dark)') ? 'dark' : 'light');
 
   const colorMode = useMemo<ColorMode>(
     () => ({
@@ -138,10 +131,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   const themeOptions = useMemo(() => ({
       palette: {
         mode,
-        // Add custom theme overrides here if needed
-        // primary: { main: '...' },
       },
-      // Add other theme aspects (typography, components defaults)
     }), [mode]);
 
   // Create the theme

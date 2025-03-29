@@ -46,7 +46,7 @@ const calculateEstimatedVdppRewards = (
     // VERY basic simulation: Reward is higher if deposit moves price closer to desired
     const { currentPrice, desiredPrice, tokenA, tokenB } = pool;
 
-    // Simulate price impact (again, highly simplified)
+    // Simulate price impact (simplified)
     // Adding liquidity typically pushes price towards the ratio of deposit
     const depositRatio = amountB > 0 ? amountA / amountB : currentPrice; // Ratio A/B of the deposit
     const impactFactor = 0.1; // How much the deposit influences the price (arbitrary)
@@ -217,7 +217,6 @@ const Liquidity: React.FC<LiquidityProps> = ({ selectedPool, userBalances, onAdd
               borderRadius: 3,
               boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
               overflow: 'hidden' // Prevent content overflow during tab transition
-              // backgroundColor: 'background.paper', // Default
             }}
           >
         <Tabs

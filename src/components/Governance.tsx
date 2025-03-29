@@ -29,7 +29,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 // --- End dnd-kit Imports ---
 
-// --- Import Gauge components from MUI X-Charts ---
+// --- Gauge components ---
 import {
   GaugeContainer,
   GaugeReferenceArc,
@@ -222,7 +222,7 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
     return sorted;
   }, [proposals, filterPoolId, sortDirection]);
 
-  // --- State for DND Order (Based on processed proposals) ---
+  // --- State for DND Order ---
   const [orderedProposalIds, setOrderedProposalIds] = useState<string[]>(() =>
     processedProposals.map(p => p.id.toString())
   );

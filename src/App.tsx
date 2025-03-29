@@ -114,7 +114,7 @@ function SidebarFooterAccount({ mini }: SidebarFooterProps) {
 const SAMPLE_POOLS: Pool[] = [
   { id: 1, name: "ETH/DAI Pool", tokenA: "ETH", tokenB: "DAI", currentPrice: 2000, desiredPrice: 2100, baseFee: 0.003 },
   { id: 2, name: "BTC/USDT Pool", tokenA: "BTC", tokenB: "USDT", currentPrice: 30000, desiredPrice: 30000, baseFee: 0.003 },
-  { id: 3, name: "UNI/USDC Pool", tokenA: "UNI", tokenB: "USDC", currentPrice: 5, desiredPrice: 5.5, baseFee: 0.01 }, // Higher base fee example
+  { id: 3, name: "UNI/USDC Pool", tokenA: "UNI", tokenB: "USDC", currentPrice: 5, desiredPrice: 5.5, baseFee: 0.01 },
 ];
 
 const INITIAL_PROPOSALS: Proposal[] = [
@@ -198,7 +198,7 @@ const App: React.FC = () => {
         setTimeout(() => {
           const user: User = {
             address,
-            name: `User ${address.substring(0, 6)}...${address.substring(address.length - 4)}`, // Better formatting
+            name: `User ${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
           };
           setSession({ user });
           setUserBalances(INITIAL_BALANCES); // Set mock balances on login
@@ -215,7 +215,7 @@ const App: React.FC = () => {
   }, [setLoading, showSnackbar]); // Add dependencies
 
   // --- Navigation Structure ---
-  const NAVIGATION: Navigation = useMemo(() => [ // Use useMemo if structure could change (rarely)
+  const NAVIGATION: Navigation = useMemo(() => [
     {
       segment: 'dashboard',
       title: 'Dashboard',
@@ -333,7 +333,7 @@ const App: React.FC = () => {
 
   const handleRemoveLiquidity = useCallback((tokenA: string, tokenB: string, amountA: number, amountB: number) => {
       setLoading('removeLiquidity', true);
-      // NOTE: In reality, removing liquidity involves LP tokens, not just base tokens.
+      // In reality, removing liquidity involves LP tokens, not just base tokens.
       // This simulation is simplified.
       setTimeout(() => {
           const success = Math.random() > 0.05;

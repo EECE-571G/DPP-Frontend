@@ -20,7 +20,7 @@ interface DashboardProps {
   userBalances: Record<string, number | string>;
 }
 
-// Helper to format balance (you might want a more robust one)
+// Helper to format balance
 const formatBalance = (
   balance: number | string | undefined,
   decimals = 4

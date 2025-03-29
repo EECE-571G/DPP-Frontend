@@ -69,7 +69,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, isLoading }) =
                 fullWidth
                 onClick={handleConnect}
                 disabled={isLoading || !mnemonic.trim()} // Disable if loading or empty
-                sx={{ mt: 1, mb: 3, py: 1.5 }} // Add padding
+                sx={{ mt: 1, mb: 3, py: 1.5 }}
                 startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null} // Show spinner
             >
                 {isLoading ? 'Connecting...' : 'Connect Wallet'}

@@ -49,7 +49,7 @@ const calculateDynamicFee = (
     const priceBefore = currentPrice;
     let priceAfter: number;
 
-    // Simulate price impact (VERY basic simulation - real AMM math is complex)
+    // Simulate price impact (simulation)
     // This assumes selling tokenA pushes price down, selling tokenB pushes price up
     const impactFactor = 0.001 * sellAmount; // Arbitrary impact factor
 
@@ -240,21 +240,21 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
                     placeholder="0.0"
                     value={sellAmountStr}
                     onChange={(e) => setSellAmountStr(e.target.value)}
-                    fullWidth // Take full width within the flex container
+                    fullWidth
                     InputProps={{
-                        sx: { borderRadius: 2, pr: 0 }, // Style input, remove right padding for select
+                        sx: { borderRadius: 2, pr: 0 },
                         endAdornment: (
-                        <InputAdornment position="end" sx={{ mr: -0.5 }}> {/* Adjust margin */}
+                        <InputAdornment position="end" sx={{ mr: -0.5 }}>
                           <Select
                             value={sellToken || ''}
                             onChange={handleSellTokenChange}
-                            variant="standard" // Cleaner look
+                            variant="standard"
                             disableUnderline
                             sx={{
-                                minWidth: 100, // Ensure enough space
+                                minWidth: 100,
                                 fontWeight: 500,
-                                mr: 1.5, // Margin for spacing
-                                '.MuiSelect-select': { py: 1.8 } // Align text vertically
+                                mr: 1.5,
+                                '.MuiSelect-select': { py: 1.8 }
                              }}
                           >
                             <MenuItem value={selectedPool.tokenA}>
