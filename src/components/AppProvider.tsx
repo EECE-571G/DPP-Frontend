@@ -116,7 +116,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   session,
   authentication,
 }) => {
-  const [mode, setMode] = useState<PaletteMode>('dark');
+  const getDefaultMode = () => {
+    if (window && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark' as PaletteMode;
+    }
+    return 'light' as PaletteMode;
+  };
+  const [mode, setMode] = useState<PaletteMode>(getDefaultMode());
 
   const colorMode = useMemo<ColorMode>(
     () => ({
