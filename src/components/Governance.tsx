@@ -191,43 +191,60 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
   // --- End Event Handlers ---
 
   return (
-    <Box p={3}>
+    <Box sx={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      mt: 4,
+    }}>
       <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3 }}>
           Governance
       </Typography>
 
-      {/* --- Create Proposal Card (No changes) --- */}
-      <Paper elevation={2} sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+      <Box sx={{ 
+        mt: 4, 
+        width: '100%',
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        justifyContent: 'center',
+        alignItems: { xs: 'center', md: 'flex-start' },
+        gap: 4,
+      }}>
+        <Box sx={{ width: { xs: '100%', md: '35%' } }}>
+          {/* --- Create Proposal Card --- */}
+        <Paper elevation={2} sx={{ p: 3, mb: 4, borderRadius: 2 }}>
          {/* ... Form Content ... */}
-         <Typography variant="h6" gutterBottom>Create New Proposal</Typography>
-         <FormControl fullWidth margin="normal">
-           <InputLabel id="create-pool-select-label">Target Pool</InputLabel>
-           <Select
-             labelId="create-pool-select-label" label="Target Pool"
-             value={createPoolId}
-             onChange={(e: SelectChangeEvent) => setCreatePoolId(e.target.value)}
-             disabled={loadingStates['createProposal']}
-           >
-             {pools.map((pool) => ( <MenuItem key={pool.id} value={pool.id.toString()}> {pool.name} ({pool.tokenA}/{pool.tokenB}) </MenuItem> ))}
-           </Select>
-         </FormControl>
-         <TextField label="Proposed Desired Price" type="number" fullWidth margin="normal" value={proposedPriceStr} onChange={(e) => setProposedPriceStr(e.target.value)} disabled={loadingStates['createProposal']} InputProps={{ inputProps: { min: 0 } }} />
-         <TextField label="Description / Justification" fullWidth margin="normal" multiline rows={3} value={description} onChange={(e) => setDescription(e.target.value)} disabled={loadingStates['createProposal']} inputProps={{ maxLength: 200 }} />
-         <Button variant="contained" color="primary" onClick={handleCreateProposal} disabled={loadingStates['createProposal']} sx={{ mt: 2 }} startIcon={loadingStates['createProposal'] ? <CircularProgress size={20} color="inherit" /> : null} > {loadingStates['createProposal'] ? 'Submitting...' : 'Create Proposal'} </Button>
-      </Paper>
+          <Typography variant="h6" gutterBottom>Create New Proposal</Typography>
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="create-pool-select-label">Target Pool</InputLabel>
+            <Select
+              labelId="create-pool-select-label" label="Target Pool"
+              value={createPoolId}
+              onChange={(e: SelectChangeEvent) => setCreatePoolId(e.target.value)}
+              disabled={loadingStates['createProposal']}
+            >
+              {pools.map((pool) => ( <MenuItem key={pool.id} value={pool.id.toString()}> {pool.name} ({pool.tokenA}/{pool.tokenB}) </MenuItem> ))}
+            </Select>
+          </FormControl>
+          <TextField label="Proposed Desired Price" type="number" fullWidth margin="normal" value={proposedPriceStr} onChange={(e) => setProposedPriceStr(e.target.value)} disabled={loadingStates['createProposal']} InputProps={{ inputProps: { min: 0 } }} />
+          <TextField label="Description / Justification" fullWidth margin="normal" multiline rows={3} value={description} onChange={(e) => setDescription(e.target.value)} disabled={loadingStates['createProposal']} inputProps={{ maxLength: 200 }} />
+          <Button variant="contained" color="primary" onClick={handleCreateProposal} disabled={loadingStates['createProposal']} sx={{ mt: 2 }} startIcon={loadingStates['createProposal'] ? <CircularProgress size={20} color="inherit" /> : null} > {loadingStates['createProposal'] ? 'Submitting...' : 'Create Proposal'} </Button>
+        </Paper>
+        </Box>
+        <Box sx={{ width: { xs: '100%', md: '65%' } }}>
 
-      {/* --- Active Proposals Section --- */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems="center" mb={2}>
-         <Typography variant="h5">Active Proposals</Typography>
-         {/* Filter & Sort Controls */}
-         <Stack direction="row" spacing={1} alignItems="center">
-             {/* Pool Filter */}
-             <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="filter-pool-label">Filter by Pool</InputLabel>
-                <Select labelId="filter-pool-label" label="Filter by Pool" value={filterPoolId} onChange={handleFilterChange} >
-                    <MenuItem value="all"><em>All Pools</em></MenuItem>
-                    {pools.map((pool) => ( <MenuItem key={pool.id} value={pool.id.toString()}> {pool.name} </MenuItem> ))}
-                </Select>
+        {/* --- Active Proposals Section --- */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h5">Active Proposals</Typography>
+          {/* Filter & Sort Controls */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            {/* Pool Filter */}
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel id="filter-pool-label">Filter by Pool</InputLabel>
+              <Select labelId="filter-pool-label" label="Filter by Pool" value={filterPoolId} onChange={handleFilterChange} >
+                <MenuItem value="all"><em>All Pools</em></MenuItem>
+                  {pools.map((pool) => ( <MenuItem key={pool.id} value={pool.id.toString()}> {pool.name} </MenuItem> ))}
+              </Select>
             </FormControl>
             {/* Sort Buttons */}
             <ButtonGroup variant="outlined" size="small" aria-label="Sort proposals by price">
@@ -253,7 +270,6 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
          </Stack>
       </Stack>
 
-
       {/* Draggable List */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} >
         <SortableContext items={orderedProposalIds} strategy={verticalListSortingStrategy} >
@@ -274,12 +290,13 @@ const Governance: React.FC<GovernanceProps> = ({ pools, proposals, addProposal, 
                 />
                 {index < displayProposals.length - 1 && <Divider component="li" variant="inset"/>}
               </React.Fragment>
-            ))}
-          </List>
-        </SortableContext>
-      </DndContext>
-      {/* --- End Draggable List --- */}
-
+              ))}
+            </List>
+          </SortableContext>
+        </DndContext>
+        {/* --- End Draggable List --- */}
+        </Box>
+      </Box>
     </Box>
   );
 };

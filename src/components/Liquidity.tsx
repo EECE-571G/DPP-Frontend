@@ -197,8 +197,18 @@ const Liquidity: React.FC<LiquidityProps> = ({ selectedPool, userBalances, onAdd
   const removeBUsd = toUsd(tokenB, removeAmountBStr); // Calculated B
 
   return (
-    <Box sx={{ mt: 4, width: '100%', display: 'flex', justifyContent: 'center' }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        mt: 4,
+      }}
+    >
       {/* Wrap main Card with Fade for appearance animation */}
+      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'medium' }}>
+        Liquidity Management
+      </Typography>
       <Fade in={true} timeout={500}>
           <Card
             sx={{
