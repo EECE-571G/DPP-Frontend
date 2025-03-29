@@ -208,7 +208,7 @@ const Swap: React.FC<SwapProps> = ({ selectedPool, userBalances, onSwap, isLoadi
         mt: 4,
       }}
     >
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'medium' }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
         Swap Tokens
       </Typography>
       {/* Wrap Card with Fade for appearance animation */}

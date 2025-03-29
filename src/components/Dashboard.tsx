@@ -21,7 +21,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ pools, selectedPool, onSelectPool }) => {
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3 }}>
+      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}>
         Pool Dashboard
       </Typography>
 

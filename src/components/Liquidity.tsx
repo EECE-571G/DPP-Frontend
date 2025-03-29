@@ -206,7 +206,7 @@ const Liquidity: React.FC<LiquidityProps> = ({ selectedPool, userBalances, onAdd
       }}
     >
       {/* Wrap main Card with Fade for appearance animation */}
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'medium' }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
         Liquidity Management
       </Typography>
       <Fade in={true} timeout={500}>
