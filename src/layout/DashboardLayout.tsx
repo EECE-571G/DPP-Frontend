@@ -116,7 +116,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="div" sx={{fontWeight: 'bold'}}>
             Desired Price Pool
           </Typography>
           <Box sx={{ flexGrow: 1 }} />

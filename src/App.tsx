@@ -359,7 +359,7 @@ const App: React.FC = () => {
 
     switch (segment) {
       case 'dashboard':
-        return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} />;
+        return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
       case 'swap':
         return <Swap
                     selectedPool={selectedPool}
@@ -384,9 +384,8 @@ const App: React.FC = () => {
                     loadingStates={isLoading} // Pass all loading states for voting buttons etc.
                 />;
       default:
-        // Navigate to dashboard if path is unknown, or show a 404
-        // router.navigate('/dashboard'); // Option 1: Redirect
-        return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} />; // Option 2: Show dashboard
+        // Navigate to dashboard if path is unknown
+        return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
     }
   };
 
