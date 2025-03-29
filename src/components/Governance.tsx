@@ -146,7 +146,7 @@ function SortableProposalItem({ proposal, isVoting, voteOnProposal, getPoolName 
           </Typography>
         }
         secondary={
-          <>
+          <Box component="div" sx={{ width: '100%' }}>
             <Typography
               component="span"
               variant="body2"
@@ -187,8 +187,9 @@ function SortableProposalItem({ proposal, isVoting, voteOnProposal, getPoolName 
                 </Button>
               </Grid>
             </Grid>
-          </>
+          </Box>
         }
+        secondaryTypographyProps={{ component: 'div' }}
       />
     </ListItem>
   );
