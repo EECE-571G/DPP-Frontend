@@ -31,7 +31,7 @@ import {
   AccountPreviewProps
 } from './components/Account';
 
-// --- Sidebar Account Components (Remain the same) ---
+// --- Sidebar Account Components ---
 function AccountSidebarPreview(props: AccountPreviewProps & { mini: boolean }) {
   const { handleClick, open, mini } = props;
   return (
@@ -212,7 +212,7 @@ const App: React.FC = () => {
         showSnackbar('Wallet disconnected', 'info');
       },
     };
-  }, [setLoading, showSnackbar]); // Add dependencies
+  }, [setLoading, showSnackbar]);
 
   // --- Navigation Structure ---
   const NAVIGATION: Navigation = useMemo(() => [

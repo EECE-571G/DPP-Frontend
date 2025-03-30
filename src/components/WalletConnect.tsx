@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { Paper, Typography, TextField, Button, Box, CircularProgress } from '@mui/material'; // Import Box & CircularProgress
+import { Paper, Typography, TextField, Button, Box, CircularProgress } from '@mui/material';
 
 interface WalletConnectProps {
   onConnect: (address: string) => void;
-  isLoading: boolean; // Add isLoading prop
+  isLoading: boolean;
 }
 
 const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, isLoading }) => {
   const [mnemonic, setMnemonic] = useState("");
 
   const handleConnect = () => {
-    // Basic validation (length check) - improve if needed
+    // Basic validation (length check)
     const words = mnemonic.trim().split(/\s+/);
     if (words.length !== 16) { // Example uses 16 words
       alert("Please enter a valid 16-word mnemonic phrase. For example: 'apple banana cherry date egg fruit grape honey ice juice kiwi lemon mango nut orange peach'");
@@ -18,7 +18,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, isLoading }) =
     }
     if (isLoading) return; // Prevent multiple clicks
 
-    // Simulate a wallet address (in production, you would derive this)
+    // Simulate a wallet address
     // Simple hash-like function for pseudo-randomness based on input
     let hash = 0;
     for (let i = 0; i < mnemonic.length; i++) {

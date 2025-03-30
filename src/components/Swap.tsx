@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { Pool } from './AppProvider'; // Import Pool
+import { Pool } from './AppProvider';
 
 // Mock USD prices (replace with oracle later)
 const MOCK_TOKEN_PRICES: Record<string, number> = {
