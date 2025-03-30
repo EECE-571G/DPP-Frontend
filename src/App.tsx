@@ -360,8 +360,8 @@ const App: React.FC = () => {
                  ...prev,
                  [lpTokenSymbol]: Math.max(0, currentLp - lpAmount),
                  // Cannot accurately add back without pool state
-                 // [tokenA]: (prev[tokenA] ?? 0) + estA,
-                 // [tokenB]: (prev[tokenB] ?? 0) + estB,
+                 [tokenA]: (prev[tokenA] ?? 0) + estA,
+                 [tokenB]: (prev[tokenB] ?? 0) + estB,
              };
          });
         setIsLoading(prev => ({ ...prev, removeLiquidity: false }));
@@ -411,7 +411,7 @@ const App: React.FC = () => {
         <>
             <WalletConnect
                 onConnect={authentication.signIn}
-                isLoading={isLoading['connectWallet']}
+                isProcessing={isLoading['connectWallet']}
             />
             {/* Snackbar for connection errors if needed */}
             <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
