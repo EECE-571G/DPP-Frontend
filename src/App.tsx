@@ -3,9 +3,19 @@ import WalletConnect from './components/WalletConnect';
 import Dashboard from './components/Dashboard';
 import Swap from './components/Swap';
 import Liquidity from './components/Liquidity';
-import Governance from './components/Governance';
-import DashboardLayout, { SidebarFooterProps } from './layout/DashboardLayout';
-import { AppProvider, Session, Router, Navigation, Pool, Proposal, User } from './components/AppProvider';
+import Governance from './components/Governance/Governance';
+import DashboardLayout from './layout/DashboardLayout';
+import { AppProvider } from './contexts/AppProvider';
+import {
+  Session,
+  Router,
+  Navigation,
+  Pool,
+  Proposal,
+  User,
+  SidebarFooterProps,
+  AccountPreviewProps
+} from './types';
 
 // MUI Components
 import Typography from '@mui/material/Typography';
@@ -28,8 +38,7 @@ import {
   AccountPreview,
   AccountPopoverFooter,
   SignOutButton,
-  AccountPreviewProps
-} from './components/Account';
+} from './components/Account/Account';
 
 // --- Sidebar Account Components ---
 function AccountSidebarPreview(props: AccountPreviewProps & { mini: boolean }) {
@@ -185,7 +194,7 @@ const App: React.FC = () => {
     return {
       pathname,
       searchParams: new URLSearchParams(), // Keep simple for now
-      navigate: (path) => setPathname(path),
+      navigate: (path: string) => setPathname(path),
     };
   }, [pathname]);
 
@@ -331,27 +340,34 @@ const App: React.FC = () => {
       }, 2500);
   }, [setLoading, showSnackbar]);
 
-  const handleRemoveLiquidity = useCallback((tokenA: string, tokenB: string, amountA: number, amountB: number) => {
-      setLoading('removeLiquidity', true);
-      // In reality, removing liquidity involves LP tokens, not just base tokens.
-      // This simulation is simplified.
-      setTimeout(() => {
-          const success = Math.random() > 0.05;
-          if (success) {
-               // Simulate getting tokens back
-              setUserBalances(prev => ({
-                  ...prev,
-                  [tokenA]: (prev[tokenA] || 0) + amountA,
-                  [tokenB]: (prev[tokenB] || 0) + amountB,
-                  // Simulate burning LP tokens later
-              }));
-              showSnackbar(`Removed ${amountA.toFixed(4)} ${tokenA} and ${amountB.toFixed(4)} ${tokenB} liquidity (Simulated)`, 'success');
-          } else {
-              showSnackbar('Remove liquidity failed (Simulated Error)', 'error');
-          }
-          setLoading('removeLiquidity', false);
-      }, 2500);
-  }, [setLoading, showSnackbar]);
+  const handleRemoveLiquidity = (tokenA: string, tokenB: string, lpAmount: number) => {
+    console.log('Simulating Remove Liquidity:', { tokenA, tokenB, lpAmount });
+    setIsLoading(prev => ({ ...prev, removeLiquidity: true }));
+    // Simulate async operation
+    setTimeout(() => {
+        // ** TODO: Update actual balances based on LP amount removed **
+        // This requires more complex logic based on pool reserves / LP token value
+        // For now, we just log and stop loading
+         setUserBalances(prev => {
+             const lpTokenSymbol = `LP-${tokenA}/${tokenB}`;
+             const currentLp = prev[lpTokenSymbol] ?? 0;
+             // Rough estimation for demo - DO NOT USE IN PRODUCTION
+             const fraction = lpAmount / (currentLp || 1); // Avoid division by zero
+             const estA = (prev[tokenA] ?? 0) * fraction * 0.5; // Fake return
+             const estB = (prev[tokenB] ?? 0) * fraction * 0.5; // Fake return
+
+             return {
+                 ...prev,
+                 [lpTokenSymbol]: Math.max(0, currentLp - lpAmount),
+                 // Cannot accurately add back without pool state
+                 // [tokenA]: (prev[tokenA] ?? 0) + estA,
+                 // [tokenB]: (prev[tokenB] ?? 0) + estB,
+             };
+         });
+        setIsLoading(prev => ({ ...prev, removeLiquidity: false }));
+        // Show success feedback
+    }, 1500);
+  };
 
   // --- Render Content ---
   const renderContent = () => {
