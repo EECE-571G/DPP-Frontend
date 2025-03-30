@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
+
+// Components & Layout
 import WalletConnect from './components/WalletConnect';
 import Dashboard from './components/Dashboard';
 import Swap from './components/Swap';
@@ -6,6 +8,14 @@ import Liquidity from './components/Liquidity';
 import Governance from './components/Governance/Governance';
 import DashboardLayout from './layout/DashboardLayout';
 import { AppProvider } from './contexts/AppProvider';
+import {
+  Account,
+  AccountPreview,
+  AccountPopoverFooter,
+  SignOutButton,
+} from './components/Account/Account';
+
+// Types
 import {
   Session,
   Router,
@@ -16,6 +26,17 @@ import {
   SidebarFooterProps,
   AccountPreviewProps
 } from './types';
+
+// Utilities & Mock Data
+import {
+    MOCK_POOLS,
+    MOCK_PROPOSALS,
+    MOCK_USER_BALANCES,
+    MOCK_TOKEN_PRICES,
+    // MOCK_USER,
+} from './utils/mockData';
+
+import { formatBalance } from './utils/formatters';
 
 // MUI Components
 import Typography from '@mui/material/Typography';
@@ -32,13 +53,6 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GavelIcon from '@mui/icons-material/Gavel';
 
-// Account components
-import {
-  Account,
-  AccountPreview,
-  AccountPopoverFooter,
-  SignOutButton,
-} from './components/Account/Account';
 
 // --- Sidebar Account Components ---
 function AccountSidebarPreview(props: AccountPreviewProps & { mini: boolean }) {
@@ -94,7 +108,7 @@ function SidebarFooterAccount({ mini }: SidebarFooterProps) {
               elevation: 0,
               sx: {
                 overflow: 'visible',
-                filter: (theme: { palette: { mode: string; }; }) =>
+                filter: (theme) =>
                   `drop-shadow(0px 2px 8px ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.32)'})`,
                 mt: 1,
                 '&::before': {
@@ -119,28 +133,6 @@ function SidebarFooterAccount({ mini }: SidebarFooterProps) {
 }
 // --- End Sidebar Account Components ---
 
-// --- Mock Data ---
-const SAMPLE_POOLS: Pool[] = [
-  { id: 1, name: "ETH/DAI Pool", tokenA: "ETH", tokenB: "DAI", currentPrice: 2000, desiredPrice: 2100, baseFee: 0.003 },
-  { id: 2, name: "BTC/USDT Pool", tokenA: "BTC", tokenB: "USDT", currentPrice: 30000, desiredPrice: 30000, baseFee: 0.003 },
-  { id: 3, name: "UNI/USDC Pool", tokenA: "UNI", tokenB: "USDC", currentPrice: 5, desiredPrice: 5.5, baseFee: 0.01 },
-];
-
-const INITIAL_PROPOSALS: Proposal[] = [
-    { id: 1, poolId: 1, proposer: '0x123...', proposedDesiredPrice: 2150, description: 'Adjust ETH/DAI desired price slightly higher', votes: { yes: 150, no: 20 }, status: 'active'},
-    { id: 2, poolId: 3, proposer: '0x456...', proposedDesiredPrice: 6, description: 'Increase UNI/USDC target to $6', votes: { yes: 500, no: 120 }, status: 'active'},
-];
-
-const INITIAL_BALANCES: Record<string, number> = {
-    ETH: 10,
-    DAI: 5000,
-    BTC: 0.5,
-    USDT: 10000,
-    UNI: 1000,
-    USDC: 2000,
-    vDPP: 500, // User's governance token balance
-};
-// --- End Mock Data ---
 
 // --- Snackbar State Type ---
 interface SnackbarState {
@@ -154,11 +146,10 @@ interface SnackbarState {
 const App: React.FC = () => {
   const [pathname, setPathname] = useState('/dashboard');
   const [session, setSession] = useState<Session | null>(null);
-  const [selectedPool, setSelectedPool] = useState<Pool | null>(SAMPLE_POOLS[0]); // Default to first pool
-  const [pools] = useState<Pool[]>(SAMPLE_POOLS); // Read-only for now
-  const [proposals, setProposals] = useState<Proposal[]>(INITIAL_PROPOSALS);
-  const [userBalances, setUserBalances] = useState<Record<string, number>>({}); // Start empty, set on login
-
+  const [pools] = useState<Pool[]>(MOCK_POOLS);
+  const [selectedPool, setSelectedPool] = useState<Pool | null>(MOCK_POOLS[0] ?? null); // Default to first pool if exists
+  const [proposals, setProposals] = useState<Proposal[]>(MOCK_PROPOSALS);
+  const [userBalances, setUserBalances] = useState<Record<string, number>>({});
   // --- Loading States ---
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({
       connectWallet: false,
@@ -166,7 +157,7 @@ const App: React.FC = () => {
       addLiquidity: false,
       removeLiquidity: false,
       createProposal: false,
-      vote: false, // Will use vote_ID later
+      // vote: false, // Keep track of individual votes below
   });
 
   // --- Snackbar State ---
@@ -185,6 +176,7 @@ const App: React.FC = () => {
 
   // --- Loading State Helper ---
   const setLoading = useCallback((key: string, value: boolean) => {
+      // console.log(`Setting loading ${key}: ${value}`); // Debugging log
       setIsLoading(prev => ({ ...prev, [key]: value }));
   }, []);
 
@@ -203,28 +195,30 @@ const App: React.FC = () => {
     return {
       signIn: (address: string) => {
         setLoading('connectWallet', true);
-        // Simulate async wallet connection
         setTimeout(() => {
+          // Construct user object (can use MOCK_USER or generate dynamically)
           const user: User = {
             address,
             name: `User ${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+            // image: MOCK_USER.image,
           };
           setSession({ user });
-          setUserBalances(INITIAL_BALANCES); // Set mock balances on login
+          // Set balances using the imported mock data
+          setUserBalances(MOCK_USER_BALANCES);
           setLoading('connectWallet', false);
           showSnackbar(`Wallet ${user.name} connected!`, 'success');
-        }, 1000); // 1 second delay
+        }, 1000);
       },
       signOut: () => {
         setSession(null);
-        setUserBalances({}); // Clear balances on logout
+        setUserBalances({});
         showSnackbar('Wallet disconnected', 'info');
       },
     };
   }, [setLoading, showSnackbar]);
 
   // --- Navigation Structure ---
-  const NAVIGATION: Navigation = useMemo(() => [
+    const NAVIGATION: Navigation = useMemo(() => [
     {
       segment: 'dashboard',
       title: 'Dashboard',
@@ -249,133 +243,161 @@ const App: React.FC = () => {
 
   // --- Governance Actions (Simulated) ---
   const addProposal = useCallback((poolId: number, proposedPrice: number, description: string) => {
-    if (!session?.user.address) return; // Need user logged in
+    if (!session?.user.address) {
+        showSnackbar('Please connect wallet to create proposal', 'warning');
+        return;
+    };
     setLoading('createProposal', true);
 
-    // Simulate transaction
     setTimeout(() => {
         const newProposal: Proposal = {
-            id: proposals.length + 1 + Math.floor(Math.random() * 1000), // More unique ID
+            id: Date.now(),
             poolId,
             proposer: session.user.address,
             proposedDesiredPrice: proposedPrice,
             description,
             votes: { yes: 0, no: 0 },
             status: 'active',
+            // endBlock: // Add mock endBlock if needed
         };
-        setProposals(prev => [...prev, newProposal]);
+        setProposals(prev => [newProposal, ...prev]);
         setLoading('createProposal', false);
         showSnackbar('Proposal created successfully!', 'success');
-    }, 1500); // Simulate block time
-  }, [proposals.length, session, setLoading, showSnackbar]);
+    }, 1500);
+  }, [session, setLoading, showSnackbar]);
 
   const voteOnProposal = useCallback((id: number, vote: "yes" | "no") => {
-    setLoading(`vote_${id}`, true); // Loading state per proposal vote
+     if (!session?.user.address) {
+        showSnackbar('Please connect wallet to vote', 'warning');
+        return;
+    };
+    const voteKey = `vote_${id}`;
+    setLoading(voteKey, true);
 
-    // Simulate transaction
     setTimeout(() => {
         setProposals(prevProposals => prevProposals.map(proposal => {
             if (proposal.id === id && proposal.status === 'active') {
-                // Simulate adding 1 vote (would be token-weighted later)
+                // Simulate adding user's vDPP balance as voting power
+                const votingPower = userBalances['vDPP'] || 1; // Default to 1 if no vDPP balance
                 return {
                     ...proposal,
                     votes: {
                         ...proposal.votes,
-                        [vote]: proposal.votes[vote] + 1 // Simple increment for now
+                        [vote]: proposal.votes[vote] + votingPower
                     }
                 };
             }
             return proposal;
         }));
-        setLoading(`vote_${id}`, false);
+        setLoading(voteKey, false);
         showSnackbar(`Voted '${vote}' on proposal #${id}`, 'success');
-    }, 1000); // Simulate block time
-  }, [setLoading, showSnackbar]);
+    }, 1000);
+  }, [session, userBalances, setLoading, showSnackbar]);
 
 
   // --- Swap Action (Simulated) ---
-  const handleSwap = useCallback((sellToken: string, buyToken: string, sellAmount: number, expectedBuyAmount: number) => {
+  const handleSwap = useCallback(async (sellToken: string, buyToken: string, sellAmount: number, expectedBuyAmount: number) => {
       setLoading('swap', true);
-      setTimeout(() => {
-          // Simulate success/failure (e.g., 5% chance of failure)
-          const success = Math.random() > 0.05;
-          if (success) {
-              // Update balances (simple simulation)
-              setUserBalances(prev => ({
-                  ...prev,
-                  [sellToken]: (prev[sellToken] || 0) - sellAmount,
-                  [buyToken]: (prev[buyToken] || 0) + expectedBuyAmount,
-              }));
-              showSnackbar(`Swapped ${sellAmount.toFixed(4)} ${sellToken} for ${expectedBuyAmount.toFixed(4)} ${buyToken}`, 'success');
-          } else {
-              showSnackbar('Swap failed (Simulated Error)', 'error');
-          }
-          setLoading('swap', false);
-      }, 2000); // Longer delay for swap
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Use Promise for async simulation
+
+      const success = Math.random() > 0.05; // 95% success rate
+      if (success) {
+          setUserBalances(prev => ({
+              ...prev,
+              [sellToken]: (prev[sellToken] ?? 0) - sellAmount,
+              [buyToken]: (prev[buyToken] ?? 0) + expectedBuyAmount,
+          }));
+          showSnackbar(`Swapped ${formatBalance(sellAmount, 4)} ${sellToken} for ${formatBalance(expectedBuyAmount, 4)} ${buyToken}`, 'success');
+      } else {
+          showSnackbar('Swap failed (Simulated Error - Price Moved?)', 'error');
+      }
+      setLoading('swap', false);
+
   }, [setLoading, showSnackbar]);
 
   // --- Liquidity Actions (Simulated) ---
-  const handleAddLiquidity = useCallback((tokenA: string, tokenB: string, amountA: number, amountB: number) => {
+  const handleAddLiquidity = useCallback(async (tokenA: string, tokenB: string, amountA: number, amountB: number) => {
       setLoading('addLiquidity', true);
-      setTimeout(() => {
-          const success = Math.random() > 0.05;
-          if (success) {
-              setUserBalances(prev => ({
-                  ...prev,
-                  [tokenA]: (prev[tokenA] || 0) - amountA,
-                  [tokenB]: (prev[tokenB] || 0) - amountB,
-                  // Simulate receiving LP tokens or rewards later
-              }));
-               // Simulate getting some vDPP reward
-              const simulatedReward = (amountA + amountB) * 0.01; // Totally arbitrary reward logic based on total amount
-               setUserBalances(prev => ({
-                   ...prev,
-                   vDPP: (prev.vDPP || 0) + simulatedReward
-               }));
-              showSnackbar(`Added ${amountA.toFixed(4)} ${tokenA} and ${amountB.toFixed(4)} ${tokenB} liquidity. Got ${simulatedReward.toFixed(2)} vDPP (Simulated).`, 'success');
-          } else {
-              showSnackbar('Add liquidity failed (Simulated Error)', 'error');
-          }
-          setLoading('addLiquidity', false);
-      }, 2500);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const success = Math.random() > 0.05;
+      if (success) {
+            // Simulate receiving LP tokens (crude example)
+            const lpTokenSymbol = `LP-${tokenA}/${tokenB}`;
+            // Very basic LP amount simulation - DO NOT USE IN PRODUCTION
+            const newLpAmount = Math.sqrt(amountA * amountB) * 0.1;
+
+            // Simulate getting some vDPP reward based on USD value (example)
+            const valueA = (MOCK_TOKEN_PRICES[tokenA] || 0) * amountA;
+            const valueB = (MOCK_TOKEN_PRICES[tokenB] || 0) * amountB;
+            const simulatedReward = (valueA + valueB) * 0.005; // Smaller reward factor example
+
+            setUserBalances(prev => ({
+                ...prev,
+                [tokenA]: (prev[tokenA] ?? 0) - amountA,
+                [tokenB]: (prev[tokenB] ?? 0) - amountB,
+                [lpTokenSymbol]: (prev[lpTokenSymbol] ?? 0) + newLpAmount,
+                vDPP: (prev.vDPP ?? 0) + simulatedReward
+            }));
+          showSnackbar(`Added liquidity. Received ~${formatBalance(newLpAmount, 6)} LP & ${formatBalance(simulatedReward, 2)} vDPP (Simulated).`, 'success');
+      } else {
+          showSnackbar('Add liquidity failed (Simulated Error)', 'error');
+      }
+      setLoading('addLiquidity', false);
   }, [setLoading, showSnackbar]);
 
-  const handleRemoveLiquidity = (tokenA: string, tokenB: string, lpAmount: number) => {
-    console.log('Simulating Remove Liquidity:', { tokenA, tokenB, lpAmount });
-    setIsLoading(prev => ({ ...prev, removeLiquidity: true }));
-    // Simulate async operation
-    setTimeout(() => {
-        // ** TODO: Update actual balances based on LP amount removed **
-        // This requires more complex logic based on pool reserves / LP token value
-        // For now, we just log and stop loading
-         setUserBalances(prev => {
-             const lpTokenSymbol = `LP-${tokenA}/${tokenB}`;
-             const currentLp = prev[lpTokenSymbol] ?? 0;
-             // Rough estimation for demo - DO NOT USE IN PRODUCTION
-             const fraction = lpAmount / (currentLp || 1); // Avoid division by zero
-             const estA = (prev[tokenA] ?? 0) * fraction * 0.5; // Fake return
-             const estB = (prev[tokenB] ?? 0) * fraction * 0.5; // Fake return
+  const handleRemoveLiquidity = useCallback(async (tokenA: string, tokenB: string, lpAmount: number) => {
+    setLoading('removeLiquidity', true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-             return {
-                 ...prev,
-                 [lpTokenSymbol]: Math.max(0, currentLp - lpAmount),
-                 // Cannot accurately add back without pool state
-                 [tokenA]: (prev[tokenA] ?? 0) + estA,
-                 [tokenB]: (prev[tokenB] ?? 0) + estB,
-             };
-         });
-        setIsLoading(prev => ({ ...prev, removeLiquidity: false }));
-        // Show success feedback
-    }, 1500);
-  };
+    const lpTokenSymbol = `LP-${tokenA}/${tokenB}`;
+    const currentLp = userBalances[lpTokenSymbol] ?? 0;
+
+    if (lpAmount > currentLp) {
+        showSnackbar('Cannot remove more LP tokens than you own (Simulated Check)', 'error');
+        setLoading('removeLiquidity', false);
+        return;
+    }
+
+    // ** SIMULATION of getting tokens back **
+    // This needs real pool data (reserves) for accuracy. Faking it:
+    // const poolRatio = MOCK_POOLS.find(p => p.tokenA === tokenA && p.tokenB === tokenB)?.currentPrice ?? 1; // Example fallback
+    // Assume LP value is somewhat proportional (highly inaccurate)
+    const estimatedValuePerLp = 10; // Totally fake value
+    const totalValueToRemove = lpAmount * estimatedValuePerLp;
+    const valueOfA = totalValueToRemove / 2; // Split value 50/50 for demo
+    const valueOfB = totalValueToRemove / 2;
+    const amountA_returned = valueOfA / (MOCK_TOKEN_PRICES[tokenA] || 1);
+    const amountB_returned = valueOfB / (MOCK_TOKEN_PRICES[tokenB] || 1);
+    // ** END SIMULATION **
+
+     setUserBalances(prev => ({
+         ...prev,
+         [lpTokenSymbol]: Math.max(0, currentLp - lpAmount),
+         [tokenA]: (prev[tokenA] ?? 0) + amountA_returned,
+         [tokenB]: (prev[tokenB] ?? 0) + amountB_returned,
+     }));
+
+    showSnackbar(`Removed ${formatBalance(lpAmount, 6)} LP. Received ~${formatBalance(amountA_returned, 4)} ${tokenA} & ${formatBalance(amountB_returned, 4)} ${tokenB} (Simulated).`, 'success');
+    setLoading('removeLiquidity', false);
+  }, [userBalances, setLoading, showSnackbar]);
+
 
   // --- Render Content ---
   const renderContent = () => {
-    const segment = pathname.substring(1); // Remove leading '/'
+    const segment = pathname.substring(1);
 
+    // Pass the specific loading states needed by each component
     switch (segment) {
       case 'dashboard':
-        return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
+        return <Dashboard
+                    pools={pools}
+                    selectedPool={selectedPool}
+                    onSelectPool={setSelectedPool}
+                    userBalances={userBalances}
+                    // Pass loading states if Dashboard shows them
+                />;
       case 'swap':
         return <Swap
                     selectedPool={selectedPool}
@@ -393,14 +415,27 @@ const App: React.FC = () => {
                 />;
       case 'governance':
         return <Governance
-                    pools={pools} // Pass pools for context if needed
+                    pools={pools}
                     proposals={proposals}
                     addProposal={addProposal}
                     voteOnProposal={voteOnProposal}
-                    loadingStates={isLoading} // Pass all loading states for voting buttons etc.
+                    // Pass only relevant loading states to Governance
+                    loadingStates={{
+                        createProposal: isLoading['createProposal'],
+                        // Include specific vote loading keys if needed by Governance UI directly
+                        // Or let Governance manage its own internal voting state based on the callback
+                        // For simplicity, passing all might be okay for now, but filtering is better
+                        ...Object.entries(isLoading)
+                                .filter(([key]) => key.startsWith('vote_'))
+                                .reduce((acc, [key, value]) => { acc[key] = value; return acc; }, {} as Record<string, boolean>),
+                    }}
+                    currentUserAddress={session?.user.address} // Pass user address if needed
                 />;
       default:
-        // Navigate to dashboard if path is unknown
+        // Redirect unknown paths to dashboard
+        if (pathname !== '/dashboard') {
+            router.navigate('/dashboard');
+        }
         return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
     }
   };
@@ -413,7 +448,7 @@ const App: React.FC = () => {
                 onConnect={authentication.signIn}
                 isProcessing={isLoading['connectWallet']}
             />
-            {/* Snackbar for connection errors if needed */}
+            {/* Snackbar for connection errors etc. */}
             <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
                 <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
                     {snackbar.message}
@@ -423,8 +458,8 @@ const App: React.FC = () => {
     );
   }
 
+  // Render main application layout if session exists
   return (
-    // Pass empty object for theme, it's created within AppProvider now
     <AppProvider
       navigation={NAVIGATION}
       router={router}
@@ -434,20 +469,20 @@ const App: React.FC = () => {
     >
       <DashboardLayout
         slots={{
-          sidebarFooter: SidebarFooterAccount
-          // toolbarAccount could be added here if needed
+          sidebarFooter: SidebarFooterAccount,
+          toolbarContent: undefined, // Can add a toolbar account button here later
         }}
       >
-        {/* Wrap the main content area with Fade for page transitions */}
-        <Fade in={true} key={pathname} timeout={500}>
-            {/* The Box wrapper is useful if Fade needs a single child */}
+        {/* Wrap the main content area with Fade for simple page transitions */}
+        <Fade in={true} key={pathname} timeout={300}>
+            {/* Box wrapper ensures Fade has a single child */}
             <Box>
               {renderContent()}
             </Box>
         </Fade>
       </DashboardLayout>
 
-       {/* Global Snackbar for feedback */}
+       {/* Global Snackbar */}
        <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
            <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
                {snackbar.message}
