@@ -9,12 +9,12 @@ import {
     ListItemIcon,
     Tooltip,
     Fade,
-    Divider,
+    // Divider,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
 import { useAppContext } from '../contexts/AppProvider';
-import LogoutIcon from '@mui/icons-material/Logout';
+// import LogoutIcon from '@mui/icons-material/Logout';
 
 // Helper to shorten address
 const shortenAddress = (address: string | undefined, chars = 4): string => {
