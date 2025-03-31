@@ -14,10 +14,12 @@ const MetaMaskIcon = () => (
 );
 
 interface WalletConnectProps {
-  // Keep onConnect simple: it just receives the connected address
-  onConnect: (address: string) => void;
-  // isProcessing indicates if the parent component is busy after connection attempt
-  isProcessing: boolean;
+    onConnect: (
+        primaryAddress: string,
+        allAccounts: string[] | null,
+        type: 'metamask' | 'simulated'
+      ) => void;
+      isProcessing: boolean;
 }
 
 const EXAMPLE_MNEMONIC = "apple banana cherry date egg fruit grape honey ice juice kiwi lemon mango nut orange peach"; // 16 words
@@ -71,7 +73,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, isProcessing }
         const simulatedAddress = "0x" + Math.abs(hash).toString(16).padStart(40, 'a').substring(0, 40);
         // --- End Simulation ---
 
-        onConnect(simulatedAddress);
+        onConnect(simulatedAddress, null, 'simulated');
         setIsSimulatingLoading(false);
         // isProcessing state comes from the parent and indicates work after onConnect
     }, 500); // Simulate network delay
@@ -92,8 +94,9 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, isProcessing }
            // Request account access
            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
 
+        //   console.log("MetaMask accounts:", accounts);
            if (accounts && accounts.length > 0) {
-               onConnect(accounts[0]); // Send the first connected account address
+            onConnect(accounts[0], accounts, 'metamask');
            } else {
                setError("No accounts found. Please ensure your wallet is set up correctly.");
            }

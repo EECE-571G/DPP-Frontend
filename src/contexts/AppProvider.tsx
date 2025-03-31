@@ -2,20 +2,7 @@ import React, { createContext, useContext, ReactNode, useState, useMemo } from '
 import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { Navigation, Router, Session, Authentication, ColorMode } from '../types';
-
-// Define the shape of the context value
-interface AppContextType {
-  navigation: Navigation;
-  router: Router;
-  theme: ReturnType<typeof createTheme>;
-  window?: Window; // Keep for potential future use (e.g., responsive hooks)
-  session: Session | null;
-  authentication: Authentication;
-  colorMode: ColorMode;
-  // Add other global state/functions if needed later
-  // e.g., global loading states, error handlers
-}
+import { Navigation, Router, Session, Authentication, ColorMode, AppContextType } from '../types';
 
 // Create the context
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -37,6 +24,7 @@ interface AppProviderProps {
   children: ReactNode;
   session: Session | null;
   authentication: Authentication;
+  availableAccounts: string[] | null;
 }
 
 // The Provider Component
@@ -47,6 +35,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   children,
   session,
   authentication,
+  availableAccounts,
 }) => {
   // --- Theme / Color Mode ---
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -83,7 +72,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({
     session,
     authentication,
     colorMode,
-  }), [navigation, router, theme, window, session, authentication, colorMode]);
+    availableAccounts,
+  }), [navigation, router, theme, window, session, authentication, colorMode, availableAccounts]);
 
   return (
     <AppContext.Provider value={contextValue}>

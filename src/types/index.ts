@@ -1,5 +1,5 @@
 import React from 'react';
-import { PaletteMode } from '@mui/material/styles';
+import { createTheme, PaletteMode } from '@mui/material/styles';
 
 // --- General App Structure ---
 export interface NavigationItem {
@@ -29,6 +29,7 @@ export interface User {
   email?: string; // Less likely needed for Web3, but keeping for flexibility
   address: string; // Primary identifier from wallet
   image?: string; // e.g., ENS avatar
+  type: 'metamask' | 'simulated';
 }
 
 export interface Session {
@@ -36,8 +37,13 @@ export interface Session {
 }
 
 export interface Authentication {
-  signIn: (address: string) => void; // Simulates sign-in with address
+  signIn: (
+    primaryAddress: string,
+    allAccounts: string[] | null,
+    type: 'metamask' | 'simulated'
+  ) => void;
   signOut: () => void;
+  switchAccount: (newAddress: string) => void;
 }
 
 // --- Pool Data ---
@@ -64,7 +70,7 @@ export interface ProposalVote {
   no: number; // Represents voting power
 }
 
-export type ProposalStatus = 'pending' | 'active' | 'succeeded' | 'defeated' | 'executed'; // Added 'executed'
+export type ProposalStatus = 'pending' | 'active' | 'succeeded' | 'defeated' | 'executed';
 
 export interface Proposal {
   id: number; // Unique identifier for the proposal
@@ -91,4 +97,15 @@ export interface AccountPreviewProps {
 // Sidebar Footer Props for DashboardLayout
 export interface SidebarFooterProps {
   mini: boolean; // Is the sidebar minimized?
+}
+
+export interface AppContextType {
+  navigation: Navigation;
+  router: Router;
+  theme: ReturnType<typeof createTheme>;
+  window?: Window;
+  session: Session | null;
+  authentication: Authentication;
+  colorMode: ColorMode;
+  availableAccounts: string[] | null;
 }

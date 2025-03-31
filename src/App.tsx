@@ -14,6 +14,7 @@ import {
   AccountPopoverFooter,
   SignOutButton,
 } from './components/Account/Account';
+import AppBarAccount from './components/AppBarAccount';
 
 // Types
 import {
@@ -146,6 +147,7 @@ interface SnackbarState {
 const App: React.FC = () => {
   const [pathname, setPathname] = useState('/dashboard');
   const [session, setSession] = useState<Session | null>(null);
+  const [availableAccounts, setAvailableAccounts] = useState<string[] | null>(null);
   const [pools] = useState<Pool[]>(MOCK_POOLS);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(MOCK_POOLS[0] ?? null); // Default to first pool if exists
   const [proposals, setProposals] = useState<Proposal[]>(MOCK_PROPOSALS);
@@ -191,31 +193,62 @@ const App: React.FC = () => {
   }, [pathname]);
 
   // --- Authentication Simulation ---
-  const authentication = useMemo(() => {
-    return {
-      signIn: (address: string) => {
-        setLoading('connectWallet', true);
-        setTimeout(() => {
-          // Construct user object (can use MOCK_USER or generate dynamically)
-          const user: User = {
-            address,
-            name: `User ${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
-            // image: MOCK_USER.image,
-          };
-          setSession({ user });
-          // Set balances using the imported mock data
-          setUserBalances(MOCK_USER_BALANCES);
-          setLoading('connectWallet', false);
-          showSnackbar(`Wallet ${user.name} connected!`, 'success');
-        }, 1000);
-      },
-      signOut: () => {
-        setSession(null);
-        setUserBalances({});
-        showSnackbar('Wallet disconnected', 'info');
-      },
-    };
-  }, [setLoading, showSnackbar]);
+  const authentication = useMemo(() => ({
+    signIn: (
+        primaryAddress: string,
+        allAccounts: string[] | null,
+        type: 'metamask' | 'simulated'
+    ) => {
+      setLoading('connectWallet', true);
+      // Simulate processing delay
+      setTimeout(() => {
+        const user: User = {
+          address: primaryAddress,
+          name: `Wallet ${type === 'metamask' ? 'MetaMask' : 'Simulated'}`,
+          type: type,
+        };
+        setSession({ user });
+        setAvailableAccounts(allAccounts);
+
+        // Set balances (Use mock for both types in this example)
+        // In a real app, fetch balances for primaryAddress if type is 'metamask'
+        setUserBalances(MOCK_USER_BALANCES);
+
+        setLoading('connectWallet', false);
+        showSnackbar(`Wallet ${user.name} connected via ${type === 'metamask' ? 'MetaMask' : 'Simulation'}!`, 'success');
+      }, 500);
+    },
+    signOut: () => {
+      setSession(null);
+      setAvailableAccounts(null); // Clear available accounts on sign out
+      setUserBalances({});
+      showSnackbar('Wallet disconnected', 'info');
+    },
+    // New function to switch active account
+    switchAccount: (newAddress: string) => {
+        if (session && session.user.type === 'metamask' && availableAccounts?.includes(newAddress)) {
+            // console.log(`Switching account to: ${newAddress}`);
+            // Update the user object in the session
+            setSession(prevSession => prevSession ? ({
+                ...prevSession,
+                user: { ...prevSession.user, address: newAddress }
+            }) : null);
+
+            // ** Important: In a real app, trigger balance fetching for the newAddress here **
+            // For this mock setup, we can just keep the MOCK_USER_BALANCES or clear/reset them
+            // setUserBalances({}); // Option 1: Clear balances
+            // setUserBalances(MOCK_USER_BALANCES); // Option 2: Keep mock balances (simpler for demo)
+            showSnackbar(`Switched to account ${shortenAddress(newAddress)}`, 'info');
+            // Optionally navigate the user somewhere, e.g., back to dashboard
+            // router.navigate('/dashboard');
+        } else {
+            console.warn("Account switching failed: Invalid state or address.");
+            showSnackbar('Failed to switch account', 'error');
+        }
+    },
+  }),
+  [setLoading, showSnackbar, session, availableAccounts]
+);
 
   // --- Navigation Structure ---
     const NAVIGATION: Navigation = useMemo(() => [
@@ -466,11 +499,12 @@ const App: React.FC = () => {
       window={window}
       session={session}
       authentication={authentication}
+      availableAccounts={availableAccounts}
     >
       <DashboardLayout
         slots={{
           sidebarFooter: SidebarFooterAccount,
-          toolbarContent: undefined, // Can add a toolbar account button here later
+          toolbarContent: AppBarAccount,
         }}
       >
         {/* Wrap the main content area with Fade for simple page transitions */}
@@ -491,5 +525,10 @@ const App: React.FC = () => {
     </AppProvider>
   );
 };
+
+const shortenAddress = (address: string | undefined, chars = 4): string => {
+  if (!address) return '';
+  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
+}
 
 export default App;

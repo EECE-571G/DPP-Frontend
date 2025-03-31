@@ -91,7 +91,10 @@ export const MOCK_USER_BALANCES: Record<string, number> = {
 
 // Mock User for Session
 export const MOCK_USER: User = {
-    address: '0xAbCdEfGhIjKlMnOpQrStUvWxYz1234567890aBcDeF',
-    name: 'Satoshi Nakamoto', // Example name
-    image: undefined, // ENS/avatar image URL
+  address: '0xAbCdEfGhIjKlMnOpQrStUvWxYz1234567890aBcDeF',
+  name: 'Satoshi Nakamoto', // Example name
+  email: '',
+  image: undefined,
+  type: 'simulated',
+
 };
