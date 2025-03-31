@@ -265,7 +265,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         {/* Optional Sidebar Footer */}
         {SidebarFooter && (
           <Box sx={{ marginTop: 'auto', mb: 1 }}>
-             <Divider sx={{ mb: 1 }}/>
+             {/* <Divider sx={{ mb: 1 }}/> */}
             <SidebarFooter mini={!open} />
           </Box>
         )}
