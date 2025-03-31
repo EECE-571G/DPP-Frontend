@@ -7,6 +7,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { useAppContext } from '../../contexts/AppProvider';
 import { AccountPreviewProps } from '../../types';
+import { shortenAddress } from '../../utils/formatters';
 
 export const AccountPreview: React.FC<AccountPreviewProps> = ({
   handleClick,
@@ -23,12 +24,6 @@ export const AccountPreview: React.FC<AccountPreviewProps> = ({
       if (name) return name[0].toUpperCase();
       if (address) return address.substring(2, 4).toUpperCase();
       return '?';
-  }
-
-  // Helper function to shorten address
-  const shortenAddress = (address: string, chars = 6): string => {
-      if (!address) return '';
-      return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
   }
 
   return (

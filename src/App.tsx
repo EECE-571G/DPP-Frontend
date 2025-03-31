@@ -37,7 +37,7 @@ import {
     // MOCK_USER,
 } from './utils/mockData';
 
-import { formatBalance } from './utils/formatters';
+import { formatBalance, shortenAddress } from './utils/formatters';
 
 // MUI Components
 import Typography from '@mui/material/Typography';
@@ -204,7 +204,7 @@ const App: React.FC = () => {
       setTimeout(() => {
         const user: User = {
           address: primaryAddress,
-          name: `Wallet ${type === 'metamask' ? 'MetaMask' : 'Simulated'}`,
+          name: `${type === 'metamask' ? 'MetaMask' : 'Simulated'}`,
           type: type,
         };
         setSession({ user });
@@ -525,10 +525,5 @@ const App: React.FC = () => {
     </AppProvider>
   );
 };
-
-const shortenAddress = (address: string | undefined, chars = 4): string => {
-  if (!address) return '';
-  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
-}
 
 export default App;

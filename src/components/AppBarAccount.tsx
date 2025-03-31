@@ -14,13 +14,8 @@ import {
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
 import { useAppContext } from '../contexts/AppProvider';
+import { shortenAddress } from '../utils/formatters';
 // import LogoutIcon from '@mui/icons-material/Logout';
-
-// Helper to shorten address
-const shortenAddress = (address: string | undefined, chars = 4): string => {
-    if (!address) return '';
-    return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
-}
 
 // Helper to generate simple blockie-like background
 const generateAvatarColor = (address: string): string => {
@@ -93,7 +88,7 @@ const AppBarAccount: React.FC = () => {
                          {user.address.substring(2, 4).toUpperCase()}
                     </Avatar> */}
                     <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 'bold' }} noWrap>
-                        {"Current Account: " + shortenAddress(user.address)}
+                        {(user.type === 'metamask' ? 'Metamask' : 'Simulation') + " Account: " + shortenAddress(user.address)}
                     </Typography>
                 </Button>
             </Tooltip>
