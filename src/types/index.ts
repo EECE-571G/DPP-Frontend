@@ -80,7 +80,7 @@ export interface Proposal {
   description: string; // Justification or details about the proposal
   endBlock?: number; // Block number when voting ends
   status: ProposalStatus;
-  totalVotingPowerCommitted?: number; // Example: total vDPP power used in votes
+  votingPowerCommitted?: number; // Example: total vDPP power used in votes
 }
 
 // --- Component-Specific Props ---

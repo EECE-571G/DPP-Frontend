@@ -53,7 +53,7 @@ export const MOCK_PROPOSALS: Proposal[] = [
     description: 'Adjust ETH/DAI target slightly higher due to recent market trends.',
     status: 'active',
     endBlock: 18000000,
-    totalVotingPowerCommitted: 17500,
+    votingPowerCommitted: 17500,
   },
   {
     id: 102,
@@ -63,7 +63,7 @@ export const MOCK_PROPOSALS: Proposal[] = [
     description: 'Increase BTC target to reflect bullish sentiment.',
     status: 'active',
     endBlock: 18005000,
-    totalVotingPowerCommitted: 17500,
+    votingPowerCommitted: 17500,
   },
   {
     id: 100,
@@ -73,7 +73,7 @@ export const MOCK_PROPOSALS: Proposal[] = [
     description: 'Previous attempt to lower the ETH/DAI target.',
     status: 'defeated',
     endBlock: 17900000,
-    totalVotingPowerCommitted: 17000,
+    votingPowerCommitted: 17000,
   },
 ];
 

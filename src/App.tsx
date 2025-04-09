@@ -153,7 +153,7 @@ const App: React.FC = () => {
       swap: false,
       addLiquidity: false,
       removeLiquidity: false,
-      delegate: false,
+      delegateVotes: false,
   });
 
   // --- Snackbar State ---
@@ -302,7 +302,7 @@ const App: React.FC = () => {
         showSnackbar('Please connect wallet to delegate', 'warning');
         throw new Error('User not connected');
     }
-    const delegateKey = 'delegate';
+    const delegateKey = 'delegateVotes';
     setLoading(delegateKey, true);
     try {
         await new Promise(resolve => setTimeout(resolve, 1200));

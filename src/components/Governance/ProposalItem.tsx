@@ -53,7 +53,7 @@ const ProposalItem: React.FC<ProposalItemProps> = ({
                         secondary={`Proposed: ${formatBalance(proposal.proposedDesiredPrice, 4)} | By: ${shortenAddress(proposal.proposer)}`}
                     />
                     <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
-                        {formatBalance(proposal.totalVotingPowerCommitted ?? 0, 0)} vDPP
+                        {formatBalance(proposal.votingPowerCommitted ?? 0, 0)} vDPP
                     </Typography>
                 </ListItemButton>
             </ListItem>

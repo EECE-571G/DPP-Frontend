@@ -29,7 +29,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({
 
     const handleDelegateClick = async () => {
         setDelegateError(null);
-        if (!delegateTarget || delegatePowerNum <= 0 || loadingStates['delegate']) return;
+        if (!delegateTarget || delegatePowerNum <= 0 || loadingStates['delegateVotes']) return;
 
         if (!/^0x[a-fA-F0-9]{40}$/.test(delegateTarget)) {
             setDelegateError('Invalid target address format.');
@@ -69,7 +69,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({
                 onChange={(e) => setDelegateTarget(e.target.value.trim())}
                 placeholder="0x..."
                 sx={{ mb: 2 }}
-                disabled={loadingStates['delegate']}
+                disabled={loadingStates['delegateVotes']}
                 InputLabelProps={{ shrink: true }}
             />
             <TextField
@@ -81,7 +81,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({
                 onChange={(e) => setDelegatePowerStr(e.target.value)}
                 placeholder="0.0"
                 sx={{ mb: 2 }}
-                disabled={loadingStates['delegate']}
+                disabled={loadingStates['delegateVotes']}
                 InputProps={{ inputProps: { min: 0, step: "any", max: vDPPBalance } }}
                 InputLabelProps={{ shrink: true }}
             />
@@ -89,10 +89,10 @@ const DelegationForm: React.FC<DelegationFormProps> = ({
                 variant="contained"
                 fullWidth
                 onClick={handleDelegateClick}
-                disabled={!canDelegate || loadingStates['delegate']}
+                disabled={!canDelegate || loadingStates['delegateVotes']}
                 size="large"
             >
-                {loadingStates['delegate'] ? <CircularProgress size={24} color="inherit" /> : 'Delegate Power'}
+                {loadingStates['delegateVotes'] ? <CircularProgress size={24} color="inherit" /> : 'Delegate Power'}
             </Button>
         </Paper>
     );
