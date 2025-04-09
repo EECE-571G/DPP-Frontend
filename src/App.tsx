@@ -436,7 +436,6 @@ const App: React.FC = () => {
                 />;
       case 'governance':
         return <Governance
-                      pools={pools}
                       proposals={proposals}
                       governanceStatus={governanceStatus}
                       userBalances={userBalances}
