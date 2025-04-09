@@ -269,33 +269,31 @@ const App: React.FC = () => {
 
   // --- Governance Actions (Simulated) ---
   const handleVoteWithRange = useCallback(async (proposalId: number, lower: number, upper: number, power: number) => {
-    if (!session?.user.address) {
-        showSnackbar('Please connect wallet to vote', 'warning');
-        throw new Error('User not connected');
-    }
     const voteKey = `vote_${proposalId}`;
     setLoading(voteKey, true);
 
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+    try {
+        if (!session?.user.address) {
+            showSnackbar('Please connect wallet to vote', 'warning');
+            throw new Error('User not connected');
+        }
 
-    const success = Math.random() > 0.1; // 90% success rate
-    if (success) {
-        // NOTE: We are NOT updating the proposals state here with vote details
-        // because aggregation/display of range votes is complex for this frontend simulation.
-        // We just log it and show success.
-        console.log(`Simulated vote on Proposal #${proposalId}:
-            User: ${session.user.address}
-            Range: [${lower}, ${upper}]
-            Power: ${power} vDPP`);
-        showSnackbar(`Successfully voted on proposal #${proposalId} (Simulated)`, 'success');
-    } else {
-        showSnackbar(`Vote on proposal #${proposalId} failed (Simulated Error)`, 'error');
-        throw new Error('Simulated vote failure');
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+
+        const success = Math.random() > 0.1; // 90% success rate
+        if (success) {
+            console.log(`Simulated vote on Proposal #${proposalId}: User: ${session.user.address} Range: [${lower}, ${upper}] Power: ${power} vDPP`);
+            showSnackbar(`Successfully voted on proposal #${proposalId} (Simulated)`, 'success');
+        } else {
+            showSnackbar(`Vote on proposal #${proposalId} failed (Simulated Error)`, 'error');
+            throw new Error('Simulated vote failure');
+        }
+    } catch (error: any) {
+         console.error(`Vote failed for proposal ${proposalId}:`, error.message);
+    } finally {
+        setLoading(voteKey, false);
     }
-
-    setLoading(voteKey, false);
-
-  }, [session, setLoading, showSnackbar]);
+}, [session, setLoading, showSnackbar]);
 
   const handleDelegate = useCallback(async (targetAddress: string, amount: number) => {
      if (!session?.user.address) {
