@@ -78,11 +78,9 @@ export interface Proposal {
   proposer: string; // Address of the proposer
   proposedDesiredPrice: number; // The new desired price being proposed
   description: string; // Justification or details about the proposal
-  votes: ProposalVote;
-  endBlock?: number; // Block number when voting ends (more common than timestamp in contracts)
+  endBlock?: number; // Block number when voting ends
   status: ProposalStatus;
-  // Add creation block/timestamp, execution details, etc.
-  // creationBlock?: number;
+  totalVotingPowerCommitted?: number; // Example: total vDPP power used in votes
 }
 
 // --- Component-Specific Props ---

@@ -1,345 +1,405 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Box, Typography, Paper, TextField, Button, MenuItem, Select, FormControl, InputLabel,
-  CircularProgress, SelectChangeEvent, List, ListItem, ListItemText, Grid, Tooltip,
-  ButtonGroup, Stack
+    Box,
+    Typography,
+    Paper,
+    Grid,
+    TextField,
+    Button,
+    CircularProgress,
+    List,
+    ListItem,
+    ListItemButton,
+    ListItemText,
+    ListItemIcon,
+    Collapse,
+    Tooltip,
+    Alert,
+    Stack,
 } from '@mui/material';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { BarChart } from '@mui/x-charts/BarChart';
+import HowToVoteIcon from '@mui/icons-material/HowToVote';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import PendingIcon from '@mui/icons-material/Pending';
+import GavelIcon from '@mui/icons-material/Gavel';
+import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import SendIcon from '@mui/icons-material/Send';
 
-// Import types and components
 import { Proposal, Pool, ProposalStatus } from '../../types';
-import { SortableProposalItem } from './SortableProposalItem';
-
-// dnd-kit Imports
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { formatBalance, shortenAddress } from '../../utils/formatters';
 
 interface GovernanceProps {
-  pools: Pool[];
-  proposals: Proposal[]; // Expecting the full list of proposals
-  addProposal: (poolId: number, proposedPrice: number, description: string) => void; // Function to add proposal
-  voteOnProposal: (id: number, vote: "yes" | "no") => void; // Function to vote
-  // Loading states for specific actions (more granular)
-  loadingStates: {
-      createProposal?: boolean; // Loading state for creating proposal
-      [voteLoadingKey: string]: boolean | undefined; // Dynamic keys like 'vote_101'
-  };
-  currentUserAddress?: string; // Needed if proposals have proposer info shown/used
+    pools: Pool[];
+    proposals: Proposal[];
+    governanceStatus: number[]; // The array of 21 integers
+    userBalances: Record<string, number>;
+    currentUserAddress?: string;
+    voteWithRange: (proposalId: number, lower: number, upper: number, power: number) => Promise<void> | void; // New voting action
+    delegateVotes: (targetAddress: string, amount: number) => Promise<void> | void;
+    loadingStates: Record<string, boolean>;
 }
 
-// Helper type for sorting direction
-type SortDirection = 'none' | 'asc' | 'desc';
-type SortableField = 'id' | 'price';
+// Helper to get status icon and color
+const getStatusProps = (status: ProposalStatus): { icon: React.ReactElement} => {
+    switch (status) {
+      case 'active': return { icon: <HowToVoteIcon color='primary' /> };
+      case 'pending': return { icon: <PendingIcon color='warning' /> };
+      case 'succeeded': return { icon: <CheckCircleIcon color='success' /> };
+      case 'defeated': return { icon: <CancelIcon color='error' /> };
+      case 'executed': return { icon: <GavelIcon color='secondary' /> };
+      default: return { icon: <PendingIcon color='disabled' /> };
+    }
+};
 
+// Helper component for info boxes
+const InfoBox: React.FC<{ title: string; children: React.ReactNode; }> = ({ title, children }) => (
+     <Paper elevation={1} sx={{ p: 2, textAlign: 'center', height: '100%' }}>
+        <Typography variant="overline" color="text.secondary" display="block" gutterBottom sx={{ lineHeight: 1.2 }}>
+            {title}
+        </Typography>
+        <Typography variant="h6" component="div" sx={{ wordBreak: 'break-word' }}>
+            {children}
+        </Typography>
+    </Paper>
+);
+
+// Main Governance Component
 const Governance: React.FC<GovernanceProps> = ({
-    pools,
     proposals,
-    addProposal,
-    voteOnProposal,
-    loadingStates
+    governanceStatus,
+    userBalances,
+    currentUserAddress,
+    voteWithRange,
+    delegateVotes,
+    loadingStates,
 }) => {
-  // --- State for Creation Form ---
-  const [createPoolId, setCreatePoolId] = useState<string>(pools[0]?.id.toString() || "");
-  const [proposedPriceStr, setProposedPriceStr] = useState("");
-  const [description, setDescription] = useState("");
+    // --- Delegation State ---
+    const [delegateTarget, setDelegateTarget] = useState('');
+    const [delegatePowerStr, setDelegatePowerStr] = useState('');
+    const [delegateError, setDelegateError] = useState<string | null>(null);
 
-  // --- State for Filtering & Sorting ---
-  const [filterPoolId, setFilterPoolId] = useState<string>("all"); // "all" or a pool ID string
-  const [filterStatus, setFilterStatus] = useState<ProposalStatus | 'all'>('active'); // Filter by status
-  const [sortBy, setSortBy] = useState<SortableField>('id'); // Field to sort by
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc"); // Sort direction
+    // --- Voting State ---
+    const [selectedProposalId, setSelectedProposalId] = useState<number | null>(null);
+    const [voteLowerStr, setVoteLowerStr] = useState('');
+    const [voteUpperStr, setVoteUpperStr] = useState('');
+    const [votePowerStr, setVotePowerStr] = useState('');
+    const [voteError, setVoteError] = useState<string | null>(null);
 
-  // --- Memoized Proposal Processing (Filter -> Sort) ---
-  const processedProposals = useMemo(() => {
-    // 1. Filter
-    let filtered = proposals.filter(p => {
-        const poolMatch = filterPoolId === "all" || p.poolId.toString() === filterPoolId;
-        const statusMatch = filterStatus === 'all' || p.status === filterStatus;
-        return poolMatch && statusMatch;
-    });
+    const vDPPBalance = userBalances['vDPP'] ?? 0;
 
-    // 2. Sort
-    let sorted = [...filtered]; // Create a new array for sorting
-    sorted.sort((a, b) => {
-        let compareA: number | string;
-        let compareB: number | string;
+    // --- Delegation Logic ---
+    const delegatePowerNum = parseFloat(delegatePowerStr) || 0;
+    const handleDelegateClick = async () => {
+        setDelegateError(null);
+        if (!delegateTarget || delegatePowerNum <= 0 || loadingStates['delegate']) return;
 
-        if (sortBy === 'price') {
-            compareA = a.proposedDesiredPrice;
-            compareB = b.proposedDesiredPrice;
-        } else { // Default to sorting by ID
-            compareA = a.id;
-            compareB = b.id;
+        if (!/^0x[a-fA-F0-9]{40}$/.test(delegateTarget)) {
+            setDelegateError('Invalid target address format.');
+            return;
+        }
+        if (delegatePowerNum > vDPPBalance) {
+            setDelegateError('Cannot delegate more vDPP than you have.');
+            return;
         }
 
-        if (compareA < compareB) return sortDirection === 'asc' ? -1 : 1;
-        if (compareA > compareB) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-    });
+        try {
+            await delegateVotes(delegateTarget, delegatePowerNum);
+            setDelegateTarget('');
+            setDelegatePowerStr('');
+        } catch (error: any) {
+            console.error("Delegation failed:", error);
+            setDelegateError(`Delegation failed: ${error.message || String(error)}`);
+        }
+    };
+    const canDelegate = delegateTarget && delegatePowerNum > 0 && delegatePowerNum <= vDPPBalance && /^0x[a-fA-F0-9]{40}$/.test(delegateTarget);
 
-    return sorted;
-  }, [proposals, filterPoolId, filterStatus, sortBy, sortDirection]);
 
-  // --- State for Drag-and-Drop Order ---
-  // Stores the IDs of the *processed* proposals in their current draggable order
-  const [orderedProposalIds, setOrderedProposalIds] = useState<string[]>([]);
+    // --- Voting Logic ---
+    const voteLowerNum = parseFloat(voteLowerStr);
+    const voteUpperNum = parseFloat(voteUpperStr);
+    const votePowerNum = parseFloat(votePowerStr) || 0;
 
-  // Update DND order state whenever the underlying processed proposals change
-  useEffect(() => {
-    setOrderedProposalIds(processedProposals.map(p => p.id.toString()));
-  }, [processedProposals]); // Re-run when filtering/sorting changes the list
+    const handleVoteSubmit = async (proposalId: number) => {
+        setVoteError(null);
+        const voteKey = `vote_${proposalId}`;
+        if (loadingStates[voteKey] || !proposalId) return;
 
-  // Map ordered IDs back to proposal objects for rendering the draggable list
-  const displayProposals = useMemo(() => {
-    const proposalMap = new Map(proposals.map(p => [p.id.toString(), p]));
-    // Map the ordered IDs back to the full proposal objects
-    return orderedProposalIds
-        .map(id => proposalMap.get(id))
-        .filter((p): p is Proposal => !!p); // Type guard to filter out undefined
-  }, [orderedProposalIds, proposals]);
+        if (isNaN(voteLowerNum) || isNaN(voteUpperNum) || votePowerNum <= 0) {
+            setVoteError('Please enter valid numbers for lower bound, upper bound, and power.');
+            return;
+        }
+        if (voteLowerNum > voteUpperNum) {
+            setVoteError('Lower bound cannot be greater than upper bound.');
+            return;
+        }
+        if (votePowerNum > vDPPBalance) {
+            setVoteError('Voting power cannot exceed your vDPP balance.');
+            return;
+        }
 
-  // --- dnd-kit Setup ---
-  const sensors = useSensors(
-    // Use PointerSensor for drag detection with a slight delay/distance
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 }, // Require moving 8px before drag starts
-    })
-    // Add KeyboardSensor if keyboard navigation/sorting is needed
-  );
+        // Note: "Locking based on status" logic is assumed to be handled by the backend/contract.
+        // The frontend only ensures power <= balance.
 
-  // Drag End Handler for dnd-kit
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    // Ensure we have both active (dragged) and over (target) elements,
-    // and they are not the same element.
-    if (over && active.id !== over.id) {
-      setOrderedProposalIds((items) => {
-        const oldIndex = items.indexOf(active.id as string);
-        const newIndex = items.indexOf(over.id as string);
-        // Use arrayMove utility to update the order immutably
-        return arrayMove(items, oldIndex, newIndex);
-      });
-    }
-  }, []);
+        try {
+            await voteWithRange(proposalId, voteLowerNum, voteUpperNum, votePowerNum);
+            // Clear inputs on success
+            setVoteLowerStr('');
+            setVoteUpperStr('');
+            setVotePowerStr('');
+        } catch (error: any) {
+            console.error("Voting failed:", error);
+            setVoteError(`Vote submission failed: ${error.message || String(error)}`);
+        }
+    };
 
-  // --- Event Handlers ---
-  const handleCreateProposal = () => {
-    const poolIdNum = parseInt(createPoolId, 10);
-    const proposedPriceNum = parseFloat(proposedPriceStr);
+    // Reset vote form when proposal selection changes
+    React.useEffect(() => {
+        setVoteLowerStr('');
+        setVoteUpperStr('');
+        setVotePowerStr('');
+        setVoteError(null);
+    }, [selectedProposalId]);
 
-    // Simple validation
-    if (!createPoolId || isNaN(poolIdNum)) { alert("Please select a valid pool."); return; }
-    if (!proposedPriceStr || isNaN(proposedPriceNum) || proposedPriceNum <= 0) { alert("Please enter a valid positive desired price."); return; }
-    if (!description.trim()) { alert("Please provide a short description or reason for the proposal."); return; }
 
-    addProposal(poolIdNum, proposedPriceNum, description.trim());
-    // Clear fields after submission attempt
-    setProposedPriceStr("");
-    setDescription("");
-  };
+    // --- Data for Status Chart ---
+    const chartData = useMemo(() => governanceStatus.map((value, index) => ({
+        id: index, // Required by BarChart series
+        value: value,
+        label: `Param ${index + 1}` // For tooltip/axis label
+    })), [governanceStatus]);
+    const chartXAxis = [{ scaleType: 'band' as const, dataKey: 'label' }]; // Use label as category
+    const chartSeries = [{ dataKey: 'value', label: 'Status Value', color: '#6fa8dc' }]; // Use value for bar height
 
-  const handleFilterPoolChange = (event: SelectChangeEvent) => {
-    setFilterPoolId(event.target.value);
-  };
 
-  const handleFilterStatusChange = (event: SelectChangeEvent) => {
-    setFilterStatus(event.target.value as ProposalStatus | 'all');
-  };
+    // Mock Meta Data (Replace with real data if available)
+    const mockMeta = {
+        id: 'Epoch 15',
+        time: '2d 5h left',
+        stage: 'Voting Phase'
+    };
 
-  // Toggle sort direction or change sort field
-  const handleSort = (field: SortableField) => {
-      if (field === sortBy) {
-          // Cycle direction: asc -> desc -> none (or back to desc?) -> asc
-          setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-      } else {
-          // Set new field and default to descending
-          setSortBy(field);
-          setSortDirection('desc');
-      }
-  };
-
-  // Helper to get pool name for display
-  const getPoolName = useCallback((poolId: number): string => {
-    return pools.find(p => p.id === poolId)?.name ?? `Pool #${poolId}`;
-  }, [pools]); // Depends on pools array
-
-  // Helper to check loading state for a specific vote action
-  const isVoting = useCallback((proposalId: number): boolean => {
-    return loadingStates[`vote_${proposalId}`] ?? false;
-  }, [loadingStates]);
-
-  const isCreating = loadingStates['createProposal'] ?? false;
-
-  return (
-    <Box sx={{ p: { xs: 2, sm: 3 } }}> {/* Responsive padding */}
-      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}>
-        DPP Governance
-      </Typography>
-
-      {/* Layout: Form on left/top, List on right/bottom */}
-      <Grid container spacing={4}>
-        {/* Create Proposal Form Section */}
-        <Grid item xs={12} md={4}>
-           <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-              Create New Proposal
+    return (
+        <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
+                Governance Center
             </Typography>
-          <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
-            <FormControl fullWidth margin="normal" variant="outlined">
-              <InputLabel id="create-pool-select-label">Target Pool</InputLabel>
-              <Select
-                labelId="create-pool-select-label"
-                label="Target Pool"
-                value={createPoolId}
-                onChange={(e: SelectChangeEvent) => setCreatePoolId(e.target.value)}
-                disabled={isCreating || pools.length === 0}
-              >
-                 {pools.length === 0 && <MenuItem value="" disabled>No pools available</MenuItem>}
-                {pools.map((pool) => (
-                  <MenuItem key={pool.id} value={pool.id.toString()}>
-                    {pool.name} ({pool.tokenA}/{pool.tokenB})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Proposed Desired Price"
-              type="number"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              value={proposedPriceStr}
-              onChange={(e) => setProposedPriceStr(e.target.value)}
-              disabled={isCreating}
-              InputProps={{ inputProps: { min: 0, step: "any" } }} // Allow decimals
-            />
-            <TextField
-              label="Description / Justification"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              multiline
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={isCreating}
-              inputProps={{ maxLength: 250 }}
-              helperText={`${description.length}/250 characters`}
-            />
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleCreateProposal}
-              disabled={isCreating || !createPoolId || !proposedPriceStr || !description.trim()}
-              sx={{ mt: 2, width: '100%', py: 1.5 }}
-              startIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : null}
-            >
-              {isCreating ? 'Submitting...' : 'Create Proposal'}
-            </Button>
-          </Paper>
-        </Grid>
 
-        {/* Proposals List Section */}
-        <Grid item xs={12} md={8}>
-          {/* Header and Controls */}
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            spacing={2}
-            justifyContent="space-between"
-            alignItems={{ xs: 'stretch', sm: 'center' }}
-            mb={2}
-          >
-            <Typography variant="h5">Proposals</Typography>
-            {/* Filter and Sort Controls */}
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1}>
-                {/* Status Filter */}
-                <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <InputLabel id="filter-status-label">Status</InputLabel>
-                    <Select labelId="filter-status-label" label="Status" value={filterStatus} onChange={handleFilterStatusChange}>
-                        <MenuItem value="all">All Statuses</MenuItem>
-                        <MenuItem value="pending">Pending</MenuItem>
-                        <MenuItem value="active">Active</MenuItem>
-                        <MenuItem value="succeeded">Succeeded</MenuItem>
-                        <MenuItem value="defeated">Defeated</MenuItem>
-                        <MenuItem value="executed">Executed</MenuItem>
-                    </Select>
-                </FormControl>
-              {/* Pool Filter */}
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <InputLabel id="filter-pool-label">Filter Pool</InputLabel>
-                <Select labelId="filter-pool-label" label="Filter Pool" value={filterPoolId} onChange={handleFilterPoolChange}>
-                  <MenuItem value="all">All Pools</MenuItem>
-                  {pools.map((pool) => (
-                    <MenuItem key={pool.id} value={pool.id.toString()}>
-                      {pool.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              {/* Sort Buttons */}
-              <ButtonGroup variant="outlined" size="small" aria-label="Sort proposals">
-                 <Tooltip title={sortBy === 'id' ? `Sort by ID (${sortDirection === 'asc' ? 'Ascending' : 'Descending'})` : 'Sort by ID'}>
-                    <Button onClick={() => handleSort('id')} variant={sortBy === 'id' ? 'contained' : 'outlined'}>
-                      ID {sortBy === 'id' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
-                    </Button>
-                  </Tooltip>
-                 <Tooltip title={sortBy === 'price' ? `Sort by Price (${sortDirection === 'asc' ? 'Ascending' : 'Descending'})` : 'Sort by Price'}>
-                    <Button onClick={() => handleSort('price')} variant={sortBy === 'price' ? 'contained' : 'outlined'}>
-                      Price {sortBy === 'price' && (sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />)}
-                    </Button>
-                  </Tooltip>
-              </ButtonGroup>
-            </Stack>
-          </Stack>
+            {/* Top Row: Meta, Voting Power, Balance */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                 <Grid item xs={12} sm={4}>
+                    <InfoBox title="Meta (Mock)">
+                        ID: {mockMeta.id}<br/>
+                        Time: {mockMeta.time}<br/>
+                        Stage: {mockMeta.stage}
+                    </InfoBox>
+                 </Grid>
+                 <Grid item xs={6} sm={4}>
+                    <InfoBox title="Your Voting Power">
+                        {formatBalance(vDPPBalance, 2)} vDPP
+                    </InfoBox>
+                 </Grid>
+                 <Grid item xs={6} sm={4}>
+                    <InfoBox title="vDPP Balance">
+                        {formatBalance(vDPPBalance, 2)}
+                    </InfoBox>
+                 </Grid>
+            </Grid>
 
-          {/* Draggable Proposals List */}
-          <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-              >
-                  {/* Provide context for sortable items */}
-                  <SortableContext items={orderedProposalIds} strategy={verticalListSortingStrategy}>
-                      <List sx={{ bgcolor: 'background.paper', p: 0 }}>
-                          {displayProposals.length === 0 && (
-                          <ListItem sx={{ pl: 2, py: 3 }}>
-                              <ListItemText
-                                  primary="No proposals found"
-                                  secondary="Try adjusting the filters or wait for new proposals."
-                                  sx={{ textAlign: 'center', color: 'text.secondary' }}
-                              />
-                          </ListItem>
-                          )}
-                          {/* Render the sortable items */}
-                          {displayProposals.map((proposal) => (
-                              <SortableProposalItem
-                                  key={proposal.id}
-                                  proposal={proposal}
-                                  isVoting={isVoting}
-                                  voteOnProposal={voteOnProposal}
-                                  getPoolName={getPoolName}
-                              />
-                          ))}
-                      </List>
-                  </SortableContext>
-              </DndContext>
-          </Paper>
-        </Grid>
-      </Grid>
-    </Box>
-  );
+            {/* Status Bar Chart Display */}
+            <Paper elevation={1} sx={{ p: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                    Governance Status Parameters
+                </Typography>
+                <Box sx={{ height: 300, width: '100%' }}>
+                   {chartData.length > 0 ? (
+                        <BarChart
+                            dataset={chartData} // Use dataset prop
+                            xAxis={chartXAxis}
+                            series={chartSeries}
+                            // layout="horizontal" // Optional: if you want horizontal bars
+                            slotProps={{
+                                legend: { hidden: true }, // Hide legend if only one series
+                            }}
+                            margin={{ top: 10, right: 10, bottom: 60, left: 40 }} // Adjust margin for labels
+                            sx={{
+                                // Optional: Rotate labels if they overlap
+                                '& .MuiChartsAxis-bottom .MuiChartsAxis-tickLabel': {
+                                    transform: 'rotate(-30deg)',
+                                    textAnchor: 'end',
+                                },
+                            }}
+                        />
+                   ) : (
+                        <Typography>No status data available.</Typography>
+                   )}
+
+                </Box>
+                <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1, textAlign: 'center' }}>
+                    Note: Visual representation of the 21 status parameters. Locking logic based on these is handled by the protocol.
+                </Typography>
+            </Paper>
+
+            {/* Proposals List & Voting Area */}
+            <Grid container spacing={3}>
+                {/* Proposals List */}
+                <Grid item xs={12} md={6}>
+                    <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
+                        <Typography variant="h6" gutterBottom>
+                            Proposals
+                        </Typography>
+                        <List dense sx={{ maxHeight: 'calc(100% - 40px)', overflow: 'auto' }}> {/* Adjust max height */}
+                            {proposals.length === 0 && <ListItem><ListItemText primary="No proposals found." /></ListItem>}
+                            {proposals.map(proposal => {
+                                const statusProps = getStatusProps(proposal.status);
+                                const isSelected = selectedProposalId === proposal.id;
+
+                                return (
+                                    <React.Fragment key={proposal.id}>
+                                        <ListItem
+                                            disablePadding
+                                            sx={{ display: 'block', mb: 0.5 }}
+                                        >
+                                          <ListItemButton
+                                                onClick={() => setSelectedProposalId(proposal.id === selectedProposalId ? null : proposal.id)}
+                                                selected={isSelected}
+                                                sx={{ borderRadius: 1, '&.Mui-selected': { bgcolor: 'action.hover' } }}
+                                            >
+                                            <ListItemIcon sx={{ minWidth: 35 }}>
+                                                <Tooltip title={proposal.status.toUpperCase()}>
+                                                  {statusProps.icon}                                                
+                                                </Tooltip>
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary={`#${proposal.id}: ${proposal.description.substring(0, 45)}${proposal.description.length > 45 ? '...' : ''}`}
+                                                secondary={`Proposed: ${formatBalance(proposal.proposedDesiredPrice, 4)} | By: ${shortenAddress(proposal.proposer)}`}
+                                            />
+                                             <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                                                {formatBalance(proposal.totalVotingPowerCommitted ?? 0, 0)} vDPP
+                                            </Typography>
+                                            </ListItemButton>
+
+                                        </ListItem>
+                                        {/* Voting Actions Collapse */}
+                                        <Collapse in={isSelected} timeout="auto" unmountOnExit>
+                                            <Box sx={{ pl: 5, pr: 1, py: 2, borderLeft: `2px solid`, borderColor: 'divider', ml: 2 }}>
+                                                <Typography variant="body2" gutterBottom>
+                                                    {proposal.description}
+                                                </Typography>
+                                                 <Typography variant="body1" gutterBottom>
+                                                    Pool Target Price Proposal: <strong>{formatBalance(proposal.proposedDesiredPrice, 6)}</strong>
+                                                </Typography>
+
+                                                {proposal.status === 'active' && currentUserAddress && (
+                                                    <Box component="form" noValidate autoComplete="off" sx={{ mt: 2 }}>
+                                                        <Typography variant="subtitle2" gutterBottom>Cast Your Vote:</Typography>
+                                                        {voteError && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setVoteError(null)}>{voteError}</Alert>}
+                                                        <Stack spacing={1.5}>
+                                                             <TextField
+                                                                label="Lower Bound (Desired Price Range)"
+                                                                type="number"
+                                                                size="small"
+                                                                value={voteLowerStr}
+                                                                onChange={(e) => setVoteLowerStr(e.target.value)}
+                                                                disabled={loadingStates[`vote_${proposal.id}`]}
+                                                                InputProps={{ inputProps: { step: "any" } }}
+                                                            />
+                                                            <TextField
+                                                                label="Upper Bound (Desired Price Range)"
+                                                                type="number"
+                                                                size="small"
+                                                                value={voteUpperStr}
+                                                                onChange={(e) => setVoteUpperStr(e.target.value)}
+                                                                disabled={loadingStates[`vote_${proposal.id}`]}
+                                                                InputProps={{ inputProps: { step: "any" } }}
+                                                            />
+                                                            <TextField
+                                                                label={`Voting Power (Max: ${formatBalance(vDPPBalance, 2)} vDPP)`}
+                                                                type="number"
+                                                                size="small"
+                                                                value={votePowerStr}
+                                                                onChange={(e) => setVotePowerStr(e.target.value)}
+                                                                disabled={loadingStates[`vote_${proposal.id}`]}
+                                                                 InputProps={{ inputProps: { min: 0, step: "any", max: vDPPBalance } }}
+                                                            />
+                                                            <Button
+                                                                variant="contained"
+                                                                size="medium"
+                                                                onClick={() => handleVoteSubmit(proposal.id)}
+                                                                disabled={loadingStates[`vote_${proposal.id}`] || !voteLowerStr || !voteUpperStr || !votePowerStr}
+                                                                startIcon={loadingStates[`vote_${proposal.id}`] ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                                                            >
+                                                                Submit Vote
+                                                            </Button>
+                                                        </Stack>
+                                                        <Typography variant="caption" display="block" color="text.secondary" sx={{mt: 1}}>
+                                                            Your voting power will be locked according to protocol rules.
+                                                        </Typography>
+                                                    </Box>
+                                                )}
+                                                {proposal.status !== 'active' && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Voting has ended for this proposal.</Typography>
+                                                )}
+                                                {!currentUserAddress && proposal.status === 'active' && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Connect wallet to vote.</Typography>
+                                                )}
+                                            </Box>
+                                        </Collapse>
+                                    </React.Fragment>
+                                )
+                            })}
+                        </List>
+                    </Paper>
+                </Grid>
+
+                {/* Delegation */}
+                <Grid item xs={12} md={6}>
+                    <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
+                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                            <PersonAddAlt1Icon sx={{ mr: 1 }} /> Delegate Your Voting Power
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            You can delegate your vDPP voting power to another address. You retain ownership of your tokens.
+                        </Typography>
+                         {delegateError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDelegateError(null)}>{delegateError}</Alert>}
+                        <TextField
+                            label="Target Address"
+                            variant="outlined"
+                            fullWidth
+                            value={delegateTarget}
+                            onChange={(e) => setDelegateTarget(e.target.value.trim())}
+                            placeholder="0x..."
+                            sx={{ mb: 2 }}
+                            disabled={loadingStates['delegate']}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                        <TextField
+                            label={`Amount of vDPP to Delegate (Max: ${formatBalance(vDPPBalance, 2)})`}
+                            variant="outlined"
+                            type="number"
+                            fullWidth
+                            value={delegatePowerStr}
+                            onChange={(e) => setDelegatePowerStr(e.target.value)}
+                            placeholder="0.0"
+                            sx={{ mb: 2 }}
+                            disabled={loadingStates['delegate']}
+                            InputProps={{ inputProps: { min: 0, step: "any", max: vDPPBalance } }}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                        <Button
+                            variant="contained"
+                            fullWidth
+                            onClick={handleDelegateClick}
+                            disabled={!canDelegate || loadingStates['delegate']}
+                            size="large"
+                        >
+                            {loadingStates['delegate'] ? <CircularProgress size={24} color="inherit" /> : 'Delegate Power'}
+                        </Button>
+                    </Paper>
+                </Grid>
+            </Grid>
+        </Box>
+    );
 };
 
 export default Governance;
