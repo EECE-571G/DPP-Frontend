@@ -304,16 +304,19 @@ const App: React.FC = () => {
     }
     const delegateKey = 'delegate';
     setLoading(delegateKey, true);
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    const success = Math.random() > 0.1;
-    if (success) {
-        console.log(`Simulated delegation of ${amount} vDPP to ${targetAddress} by ${session.user.address}`);
-        showSnackbar(`Successfully delegated ${formatBalance(amount, 2)} vDPP to ${shortenAddress(targetAddress)} (Simulated)`, 'success');
-    } else {
-        showSnackbar('Delegation Failed (Simulated Error)', 'error');
-        throw new Error('Simulated delegation failure');
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const success = Math.random() > 0.1;
+        if (success) {
+            console.log(`Simulated delegation of ${amount} vDPP to ${targetAddress} by ${session.user.address}`);
+            showSnackbar(`Successfully delegated ${formatBalance(amount, 2)} vDPP to ${shortenAddress(targetAddress)} (Simulated)`, 'success');
+        } else {
+            showSnackbar('Delegation Failed (Simulated Error)', 'error');
+            throw new Error('Simulated delegation failure');
+        }
+    } finally {
+        setLoading(delegateKey, false);
     }
-    setLoading(delegateKey, false);
 }, [session, setLoading, showSnackbar]);
 
   // --- Swap Action (Simulated) ---
