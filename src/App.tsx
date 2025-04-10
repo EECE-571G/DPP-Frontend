@@ -34,19 +34,13 @@ import {
     MOCK_PROPOSALS,
     MOCK_USER_BALANCES,
     MOCK_TOKEN_PRICES,
-    // MOCK_USER,
+    MOCK_GOVERNANCE_STATUS,
 } from './utils/mockData';
 
 import { formatBalance, shortenAddress } from './utils/formatters';
 
 // MUI Components
-import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
-import Stack from '@mui/material/Stack';
-import Snackbar from '@mui/material/Snackbar';
-import Alert, { AlertColor } from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Fade from '@mui/material/Fade';
+import { Typography, Divider, Stack, Snackbar, Alert, Box, Fade, AlertColor } from '@mui/material';
 
 // MUI Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -152,14 +146,14 @@ const App: React.FC = () => {
   const [selectedPool, setSelectedPool] = useState<Pool | null>(MOCK_POOLS[0] ?? null); // Default to first pool if exists
   const [proposals, setProposals] = useState<Proposal[]>(MOCK_PROPOSALS);
   const [userBalances, setUserBalances] = useState<Record<string, number>>({});
+  const [governanceStatus] = useState<number[]>(MOCK_GOVERNANCE_STATUS);
   // --- Loading States ---
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({
       connectWallet: false,
       swap: false,
       addLiquidity: false,
       removeLiquidity: false,
-      createProposal: false,
-      // vote: false, // Keep track of individual votes below
+      delegateVotes: false,
   });
 
   // --- Snackbar State ---
@@ -178,7 +172,6 @@ const App: React.FC = () => {
 
   // --- Loading State Helper ---
   const setLoading = useCallback((key: string, value: boolean) => {
-      // console.log(`Setting loading ${key}: ${value}`); // Debugging log
       setIsLoading(prev => ({ ...prev, [key]: value }));
   }, []);
 
@@ -187,7 +180,7 @@ const App: React.FC = () => {
   const router = useMemo<Router>(() => {
     return {
       pathname,
-      searchParams: new URLSearchParams(), // Keep simple for now
+      searchParams: new URLSearchParams(),
       navigate: (path: string) => setPathname(path),
     };
   }, [pathname]);
@@ -275,58 +268,56 @@ const App: React.FC = () => {
   ], []);
 
   // --- Governance Actions (Simulated) ---
-  const addProposal = useCallback((poolId: number, proposedPrice: number, description: string) => {
+  const handleVoteWithRange = useCallback(async (proposalId: number, lower: number, upper: number, power: number) => {
+    const voteKey = `vote_${proposalId}`;
+
+    // --- Check Session FIRST ---
     if (!session?.user.address) {
-        showSnackbar('Please connect wallet to create proposal', 'warning');
-        return;
-    };
-    setLoading('createProposal', true);
-
-    setTimeout(() => {
-        const newProposal: Proposal = {
-            id: Date.now(),
-            poolId,
-            proposer: session.user.address,
-            proposedDesiredPrice: proposedPrice,
-            description,
-            votes: { yes: 0, no: 0 },
-            status: 'active',
-            // endBlock: // Add mock endBlock if needed
-        };
-        setProposals(prev => [newProposal, ...prev]);
-        setLoading('createProposal', false);
-        showSnackbar('Proposal created successfully!', 'success');
-    }, 1500);
-  }, [session, setLoading, showSnackbar]);
-
-  const voteOnProposal = useCallback((id: number, vote: "yes" | "no") => {
-     if (!session?.user.address) {
         showSnackbar('Please connect wallet to vote', 'warning');
         return;
-    };
-    const voteKey = `vote_${id}`;
+    }
+
+    // --- Proceed with voting logic if connected ---
     setLoading(voteKey, true);
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
 
-    setTimeout(() => {
-        setProposals(prevProposals => prevProposals.map(proposal => {
-            if (proposal.id === id && proposal.status === 'active') {
-                // Simulate adding user's vDPP balance as voting power
-                const votingPower = userBalances['vDPP'] || 1; // Default to 1 if no vDPP balance
-                return {
-                    ...proposal,
-                    votes: {
-                        ...proposal.votes,
-                        [vote]: proposal.votes[vote] + votingPower
-                    }
-                };
-            }
-            return proposal;
-        }));
+        const success = Math.random() > 0.1; // 90% success rate
+        if (success) {
+            console.log(`Simulated vote...`);
+            showSnackbar(`Successfully voted...`, 'success');
+        } else {
+            showSnackbar(`Vote on proposal #${proposalId} failed (Simulated Error)`, 'error');
+            throw new Error('Simulated vote failure');
+        }
+    } catch (error: any) {
+        console.error(`Vote operation failed for proposal ${proposalId}:`, error.message);
+    } finally {
         setLoading(voteKey, false);
-        showSnackbar(`Voted '${vote}' on proposal #${id}`, 'success');
-    }, 1000);
-  }, [session, userBalances, setLoading, showSnackbar]);
+    }
+  }, [session, showSnackbar, setLoading]);
 
+  const handleDelegate = useCallback(async (targetAddress: string, amount: number) => {
+     if (!session?.user.address) {
+        showSnackbar('Please connect wallet to delegate', 'warning');
+        throw new Error('User not connected');
+    }
+    const delegateKey = 'delegateVotes';
+    setLoading(delegateKey, true);
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const success = Math.random() > 0.1;
+        if (success) {
+            console.log(`Simulated delegation of ${amount} vDPP to ${targetAddress} by ${session.user.address}`);
+            showSnackbar(`Successfully delegated ${formatBalance(amount, 2)} vDPP to ${shortenAddress(targetAddress)} (Simulated)`, 'success');
+        } else {
+            showSnackbar('Delegation Failed (Simulated Error)', 'error');
+            throw new Error('Simulated delegation failure');
+        }
+    } finally {
+        setLoading(delegateKey, false);
+    }
+}, [session, setLoading, showSnackbar]);
 
   // --- Swap Action (Simulated) ---
   const handleSwap = useCallback(async (sellToken: string, buyToken: string, sellAmount: number, expectedBuyAmount: number) => {
@@ -448,22 +439,14 @@ const App: React.FC = () => {
                 />;
       case 'governance':
         return <Governance
-                    pools={pools}
-                    proposals={proposals}
-                    addProposal={addProposal}
-                    voteOnProposal={voteOnProposal}
-                    // Pass only relevant loading states to Governance
-                    loadingStates={{
-                        createProposal: isLoading['createProposal'],
-                        // Include specific vote loading keys if needed by Governance UI directly
-                        // Or let Governance manage its own internal voting state based on the callback
-                        // For simplicity, passing all might be okay for now, but filtering is better
-                        ...Object.entries(isLoading)
-                                .filter(([key]) => key.startsWith('vote_'))
-                                .reduce((acc, [key, value]) => { acc[key] = value; return acc; }, {} as Record<string, boolean>),
-                    }}
-                    currentUserAddress={session?.user.address} // Pass user address if needed
-                />;
+                      proposals={proposals}
+                      governanceStatus={governanceStatus}
+                      userBalances={userBalances}
+                      voteWithRange={handleVoteWithRange}
+                      delegateVotes={handleDelegate}
+                      loadingStates={isLoading}
+                      currentUserAddress={session?.user.address}
+                  />;
       default:
         // Redirect unknown paths to dashboard
         if (pathname !== '/dashboard') {

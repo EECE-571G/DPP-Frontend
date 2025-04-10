@@ -51,9 +51,9 @@ export const MOCK_PROPOSALS: Proposal[] = [
     proposer: '0x1234...abcd',
     proposedDesiredPrice: 2010,
     description: 'Adjust ETH/DAI target slightly higher due to recent market trends.',
-    votes: { yes: 15000, no: 2500 },
     status: 'active',
-    endBlock: 18000000, // Example block number
+    endBlock: 18000000,
+    votingPowerCommitted: 17500,
   },
   {
     id: 102,
@@ -61,19 +61,19 @@ export const MOCK_PROPOSALS: Proposal[] = [
     proposer: '0x5678...efgh',
     proposedDesiredPrice: 31000,
     description: 'Increase BTC target to reflect bullish sentiment.',
-    votes: { yes: 8000, no: 9500 },
     status: 'active',
     endBlock: 18005000,
+    votingPowerCommitted: 17500,
   },
-    {
-    id: 100, // Example of a past proposal
-    poolId: 1, // ETH/DAI
+  {
+    id: 100,
+    poolId: 1,
     proposer: '0x9abc...wxyz',
     proposedDesiredPrice: 1950,
     description: 'Previous attempt to lower the ETH/DAI target.',
-    votes: { yes: 5000, no: 12000 },
-    status: 'defeated', // Example status
+    status: 'defeated',
     endBlock: 17900000,
+    votingPowerCommitted: 17000,
   },
 ];
 
@@ -96,5 +96,6 @@ export const MOCK_USER: User = {
   email: '',
   image: undefined,
   type: 'simulated',
-
 };
+
+export const MOCK_GOVERNANCE_STATUS: number[] = Array.from({ length: 21 }, (_, i) => Math.floor(Math.random() * 1000) + i * 50);
