@@ -1,8 +1,7 @@
-// src/hooks/useAppActions.ts
 import { useCallback } from 'react';
-import type { Session } from '../types'; // Adjust path
-import { formatBalance, shortenAddress } from '../utils/formatters'; // Adjust path
-import { MOCK_TOKEN_PRICES } from '../utils/mockData'; // Adjust path
+import type { Session } from '../types';
+import { formatBalance, shortenAddress } from '../utils/formatters'; 
+import { MOCK_TOKEN_PRICES } from '../utils/mockData';
 
 interface UseAppActionsProps {
     setLoading: (key: string, value: boolean) => void; // From useLoadingState

@@ -5,8 +5,8 @@ import {
     AccountPreview,
     AccountPopoverFooter,
     SignOutButton,
-} from './Account'; // Assuming these are in the same folder or adjust path
-import type { AccountPreviewProps, SidebarFooterProps } from '../../types'; // Adjust path
+} from './Account';
+import type { AccountPreviewProps, SidebarFooterProps } from '../../types';
 
 // --- Sidebar Account Components ---
 function AccountSidebarPreview(props: AccountPreviewProps & { mini: boolean }) {

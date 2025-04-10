@@ -1,4 +1,3 @@
-// src/App.tsx
 import React, { useState, useMemo } from 'react';
 
 // Components & Layout
@@ -20,7 +19,6 @@ import {
     MOCK_POOLS,
     MOCK_PROPOSALS,
     MOCK_USER_BALANCES,
-    // MOCK_TOKEN_PRICES, // Now used within useAppActions hook
     MOCK_GOVERNANCE_STATUS,
 } from './utils/mockData';
 

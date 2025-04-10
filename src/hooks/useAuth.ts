@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from 'react';
-import type { Session, User } from '../types'; // Adjust path
-import { shortenAddress } from '../utils/formatters'; // Adjust path
+import type { Session, User } from '../types';
+import { shortenAddress } from '../utils/formatters';
 
 interface UseAuthProps {
     setSession: React.Dispatch<React.SetStateAction<Session | null>>;
