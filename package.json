@@ -37,7 +37,7 @@
     "eject": "react-scripts eject",
     "extract-abis": "node scripts/extract-abis.js",
     "generate-types": "npm run extract-abis && typechain --target ethers-v6 --out-dir src/types/contracts './src/abis/**/*.json'",
-    "install-with-legacy": "npm install --legacy-peer-deps"
+    "install-deps": "npm install --legacy-peer-deps"
   },
   "eslintConfig": {
     "extends": [
@@ -60,6 +60,7 @@
   "devDependencies": {
     "@typechain/ethers-v6": "^0.5.1",
     "@types/react-grid-layout": "^1.3.5",
-    "typechain": "^8.3.2"
+    "typechain": "^8.3.2",
+    "typescript": "^5.0.4"
   }
 }
