@@ -22,318 +22,17 @@ import {
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
-import { Pool } from '../types';
 import { MOCK_TOKEN_PRICES } from '../utils/mockData';
 import { formatBalance, formatPercent } from '../utils/formatters';
 import { calculateDynamicFee } from '../utils/simulations';
 
-interface SwapProps {
-  selectedPool: Pool | null;
-  userBalances: Record<string, number>; // Assuming numbers
-  onSwap: (sellToken: string, buyToken: string, sellAmount: number, expectedBuyAmount: number) => Promise<void> | void; // Can be async
-  isLoading: boolean; // General loading state for the swap action
-  isPoolLoading?: boolean; // Indicate if pool data itself is loading
-}
+// Context and Action Hook Imports
+import { usePoolsContext } from '../contexts/PoolsContext';
+import { useBalancesContext } from '../contexts/BalancesContext';
+import { useLoadingContext } from '../contexts/LoadingContext';
+import { useSwapActions } from '../hooks/useSwapActions';
 
-const Swap: React.FC<SwapProps> = ({
-    selectedPool,
-    userBalances,
-    onSwap,
-    isLoading,
-    isPoolLoading = false
-}) => {
-  // --- State ---
-  const [sellAmountStr, setSellAmountStr] = useState(""); // Input string for sell amount
-  const [sellToken, setSellToken] = useState<string | null>(null); // Symbol of token to sell
-  const [buyToken, setBuyToken] = useState<string | null>(null); // Symbol of token to buy
-
-  // Derived states
-  const sellAmountNum = useMemo(() => parseFloat(sellAmountStr) || 0, [sellAmountStr]);
-  const [buyAmountNum, setBuyAmountNum] = useState(0); // Calculated buy amount (after fee)
-  const [usdValues, setUsdValues] = useState({ sell: 0, buy: 0 }); // Estimated USD values
-  const [dynamicFee, setDynamicFee] = useState({ feePercentage: 0, explanation: '' }); // Calculated fee info
-  const [isRotating, setIsRotating] = useState(false); // State for swap icon animation
-  const [errorMsg, setErrorMsg] = useState<string | null>(null); // Error messages
-
-  // --- Effects ---
-
-  // Reset state when the selected pool changes
-  useEffect(() => {
-    if (selectedPool) {
-      // Default to swapping A for B
-      setSellToken(selectedPool.tokenA);
-      setBuyToken(selectedPool.tokenB);
-      setSellAmountStr(""); // Clear amounts
-      setErrorMsg(null); // Clear errors
-    } else {
-      // Clear tokens if no pool is selected
-      setSellToken(null);
-      setBuyToken(null);
-    }
-    // Also reset dependent calculations
-    setBuyAmountNum(0);
-    setDynamicFee({ feePercentage: selectedPool?.baseFee ?? 0, explanation: 'Base Fee' });
-    setUsdValues({ sell: 0, buy: 0 });
-  }, [selectedPool]);
-
-  // Calculate Buy Amount, Fee, and USD values whenever inputs change
-  useEffect(() => {
-    // Ensure necessary data is available
-    if (!selectedPool || !sellToken || !buyToken || sellAmountNum <= 0) {
-      setBuyAmountNum(0);
-      setDynamicFee({ feePercentage: selectedPool?.baseFee ?? 0, explanation: 'Base Fee' });
-      setUsdValues({ sell: 0, buy: 0 });
-      return;
-    }
-
-    const { currentPrice, tokenA, tokenB } = selectedPool;
-    const ratioAB = currentPrice; // Price: 1 A = ratioAB B
-    let buyAmountBeforeFee = 0;
-
-    // Determine the raw conversion amount based on which token is being sold
-    if (sellToken === tokenA && buyToken === tokenB) {
-      buyAmountBeforeFee = sellAmountNum * ratioAB; // Sell A, get B
-    } else if (sellToken === tokenB && buyToken === tokenA) {
-       // Sell B, get A. Calculate A = B / ratioAB
-      buyAmountBeforeFee = ratioAB !== 0 ? sellAmountNum / ratioAB : 0;
-    } else {
-        // This case should ideally not happen if token selection is restricted to pool tokens
-        console.warn("Swap tokens do not match selected pool tokens.");
-        setBuyAmountNum(0);
-        return;
-    }
-
-    // Calculate the dynamic fee based on the sell action
-    const feeInfo = calculateDynamicFee(sellAmountNum, sellToken, selectedPool);
-    setDynamicFee(feeInfo);
-
-    // Apply the calculated fee to the *buy* amount
-    const feeAmount = buyAmountBeforeFee * feeInfo.feePercentage;
-    const buyAmountAfterFee = buyAmountBeforeFee - feeAmount;
-    setBuyAmountNum(buyAmountAfterFee > 0 ? buyAmountAfterFee : 0); // Ensure buy amount isn't negative
-
-    // --- Calculate USD values (using mock prices) ---
-    const sellUsd = (MOCK_TOKEN_PRICES[sellToken] || 0) * sellAmountNum;
-    // Calculate buy USD based on the net amount received
-    const buyUsd = (MOCK_TOKEN_PRICES[buyToken] || 0) * buyAmountAfterFee;
-    setUsdValues({ sell: sellUsd > 0 ? sellUsd : 0, buy: buyUsd > 0 ? buyUsd : 0 });
-
-  }, [sellAmountNum, sellToken, buyToken, selectedPool]); // Dependencies for calculation
-
-
-  // --- Handlers ---
-
-  // Flip Sell/Buy Tokens with Animation
-  const handleSwapTokens = useCallback(() => {
-    if (isRotating) return; // Prevent spamming during animation
-
-    setIsRotating(true); // Trigger animation
-    // Swap the tokens
-    setSellToken(buyToken);
-    setBuyToken(sellToken);
-    // Swap the amounts shown in the input fields as well
-    setSellAmountStr(buyAmountNum > 0 ? buyAmountNum.toFixed(6) : ""); // Use calculated buy amount as new sell input
-
-    // Reset animation state after duration
-    setTimeout(() => setIsRotating(false), 300); // Match CSS transition duration
-  }, [sellToken, buyToken, buyAmountNum, isRotating]); // Include buyAmountNum
-
-  // Set sell amount to max available balance
-   const handleSetMaxSell = () => {
-       if (!sellToken) return;
-       const balance = userBalances[sellToken] ?? 0;
-       setSellAmountStr(balance.toString());
-       setErrorMsg(null); // Clear error when setting max
-   };
-
-  // Execute Swap Action
-  const handlePerformSwap = async () => {
-    setErrorMsg(null); // Clear previous errors
-    if (!selectedPool || !sellToken || !buyToken || sellAmountNum <= 0 || buyAmountNum <= 0 || isLoading) return;
-
-    const sellBalance = userBalances[sellToken] ?? 0;
-    if (sellAmountNum > sellBalance) {
-        setErrorMsg(`Insufficient ${sellToken} balance. You need ${formatBalance(sellAmountNum, 6)} but have ${formatBalance(sellBalance, 6)}.`);
-        return;
-    }
-
-    try {
-        // Call the provided onSwap handler (can be async)
-        await onSwap(sellToken, buyToken, sellAmountNum, buyAmountNum);
-        // Clear input field on successful initiation
-        setSellAmountStr("");
-    } catch (error: any) {
-        console.error("Swap Error:", error);
-        setErrorMsg(error.message || "Swap failed. Please try again."); // Display error
-    }
-  };
-
-  // Handle Token Selection Changes (prevent selecting the same token for buy/sell)
-  const handleTokenChange = (event: SelectChangeEvent<string>, type: 'sell' | 'buy') => {
-      const newToken = event.target.value;
-      if (type === 'sell') {
-          if (newToken === buyToken) { // If trying to select the 'buy' token
-              handleSwapTokens(); // Swap them instead
-          } else {
-              setSellToken(newToken);
-          }
-      } else { // type === 'buy'
-          if (newToken === sellToken) { // If trying to select the 'sell' token
-              handleSwapTokens(); // Swap them instead
-          } else {
-              setBuyToken(newToken);
-          }
-      }
-       setErrorMsg(null); // Clear error on token change
-  };
-
-  // --- Derived Data for Rendering ---
-  const sellBalance = userBalances[sellToken || ''] ?? 0;
-  const buyBalance = userBalances[buyToken || ''] ?? 0;
-  // Determine if the swap button should be enabled
-  const canSwap = selectedPool && sellToken && buyToken && sellAmountNum > 0 && buyAmountNum >= 0 && sellAmountNum <= sellBalance; // buyAmount can be 0 if fee is 100%
-
-
-  // --- Render Logic ---
-
-  if (isPoolLoading) {
-      return (
-           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
-                <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-                   Swap Tokens
-                </Typography>
-               <Card sx={{ width: "100%", maxWidth: 460, borderRadius: 3, p: 1 }}>
-                    <CardContent sx={{ p: 3 }}>
-                        <Skeleton variant="rounded" height={80} sx={{ mb: 2 }}/>
-                        <Skeleton variant="circular" width={40} height={40} sx={{ margin: 'auto', my: 1 }}/>
-                        <Skeleton variant="rounded" height={80} sx={{ mb: 3 }}/>
-                        <Skeleton variant="rounded" height={50}/>
-                    </CardContent>
-               </Card>
-           </Box>
-      )
-  }
-
-
-  if (!selectedPool) {
-    return (
-        <Box sx={{ p:3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '30vh' }}>
-            <Typography variant="h6" color="text.secondary" align="center">
-                Please select a pool from the Dashboard to swap tokens.
-            </Typography>
-        </Box>
-    );
-  }
-
-  // Available tokens for selection dropdowns
-  const poolTokens = [selectedPool.tokenA, selectedPool.tokenB];
-
-  return (
-    <Box
-      sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}
-    >
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-        Swap Tokens
-      </Typography>
-      <Fade in={true} timeout={500}>
-          <Card
-            elevation={1}
-            sx={{
-              width: "100%",
-              maxWidth: 460,
-              borderRadius: 3,
-              p: 1,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-
-               {/* Error Message Display */}
-                {errorMsg && (
-                    <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ mb: 2 }}>
-                        {errorMsg}
-                    </Alert>
-                )}
-
-              {/* --- SELL Section --- */}
-              <SwapInputSection
-                    label="Sell"
-                    token={sellToken}
-                    amountStr={sellAmountStr}
-                    balance={sellBalance}
-                    usdValue={usdValues.sell}
-                    onAmountChange={(e) => { setSellAmountStr(e.target.value); setErrorMsg(null); }}
-                    onTokenChange={(e) => handleTokenChange(e, 'sell')}
-                    onSetMax={handleSetMaxSell}
-                    poolTokens={poolTokens}
-                    disabled={isLoading}
-              />
-
-              {/* --- Swap Icon Button --- */}
-              <Box sx={{ display: "flex", justifyContent: "center", my: 0.5 }}>
-                <IconButton onClick={handleSwapTokens} aria-label="Swap sell and buy tokens" disabled={isLoading || isRotating}>
-                  <SwapVertIcon sx={{
-                      transform: isRotating ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.3s ease-in-out',
-                      color: 'primary.main'
-                  }}/>
-                </IconButton>
-              </Box>
-
-              {/* --- BUY Section --- */}
-              <SwapInputSection
-                    label="Buy (Estimated)"
-                    token={buyToken}
-                    // Display formatted buy amount, disable input
-                    amountStr={buyAmountNum > 0 ? buyAmountNum.toFixed(6) : ""}
-                    balance={buyBalance}
-                    usdValue={usdValues.buy}
-                    onTokenChange={(e) => handleTokenChange(e, 'buy')}
-                    poolTokens={poolTokens}
-                    disabled={isLoading}
-                    readOnly={true} // Make buy amount read-only
-              />
-
-              {/* --- Fee and Price Info Display --- */}
-              {sellAmountNum > 0 && buyAmountNum >= 0 && (
-                  <Box sx={{ my: 2, p: 1.5, borderRadius: 1, bgcolor: 'action.hover', textAlign: 'center' }}>
-                       <Tooltip title={dynamicFee.explanation} placement="top">
-                            <Typography variant="caption" color="text.secondary" component="span" sx={{cursor: 'help'}}>
-                                Est. Fee: {formatPercent(dynamicFee.feePercentage, 3)} {/* Show 3 decimal places for fee */}
-                                <InfoOutlinedIcon fontSize="inherit" sx={{ ml: 0.5, verticalAlign: 'middle' }}/>
-                           </Typography>
-                       </Tooltip>
-                        {/* Show effective price */}
-                        <Typography variant="caption" color="text.secondary" display="block" >
-                           Price: 1 {sellToken} ≈ {formatBalance(buyAmountNum / sellAmountNum, 6)} {buyToken}
-                        </Typography>
-                  </Box>
-              )}
-
-
-              {/* --- Action Button --- */}
-              <Button
-                variant="contained"
-                fullWidth
-                onClick={handlePerformSwap}
-                disabled={!canSwap || isLoading}
-                size="large"
-                sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
-              >
-                {isLoading
-                    ? <CircularProgress size={24} color="inherit" />
-                    : (sellAmountNum > sellBalance ? 'Insufficient Balance' : 'Swap')
-                }
-              </Button>
-            </CardContent>
-          </Card>
-      </Fade>
-    </Box>
-  );
-};
-
-
-// --- Helper Component: Swap Input Section ---
+// Helper Component (SwapInputSection)
 interface SwapInputSectionProps {
     label: string;
     token: string | null;
@@ -362,7 +61,7 @@ const SwapInputSection: React.FC<SwapInputSectionProps> = ({
              <Grid item>
                  <Typography variant="caption" color="text.secondary">
                     Balance: {formatBalance(balance, 4)}
-                    {onSetMax && ( // Only show Max if handler is provided (i.e., for Sell section)
+                    {onSetMax && (
                         <Link component="button" variant="caption" onClick={onSetMax} disabled={disabled} sx={{ ml: 0.5 }}>
                             Max
                         </Link>
@@ -371,7 +70,7 @@ const SwapInputSection: React.FC<SwapInputSectionProps> = ({
              </Grid>
         </Grid>
         <TextField
-            type={readOnly ? "text" : "number"} // Use text if readonly to prevent spinners
+            type={readOnly ? "text" : "number"}
             variant="outlined"
             placeholder="0.0"
             value={amountStr}
@@ -380,7 +79,7 @@ const SwapInputSection: React.FC<SwapInputSectionProps> = ({
             disabled={disabled}
             InputProps={{
                 readOnly: readOnly,
-                sx: { borderRadius: 2, pr: 0, bgcolor: readOnly ? 'action.disabledBackground' : undefined }, // Style readonly
+                sx: { borderRadius: 2, pr: 0, bgcolor: readOnly ? 'action.disabledBackground' : undefined },
                 inputProps: readOnly ? undefined : { min: 0, step: "any" },
                 endAdornment: (
                 <InputAdornment position="end" sx={{ mr: -0.5 }}>
@@ -391,12 +90,11 @@ const SwapInputSection: React.FC<SwapInputSectionProps> = ({
                         disableUnderline
                         disabled={disabled}
                         sx={{
-                            minWidth: 90, // Adjusted width
+                            minWidth: 90,
                             fontWeight: 500,
                             mr: 1.5,
                             '.MuiSelect-select': { py: 1.5, pr: '24px !important' }
                             }}
-                        // MenuProps={{ sx: { maxHeight: 200 } }} // Limit dropdown height if needed
                     >
                         {poolTokens.length === 0 && <MenuItem value="" disabled>N/A</MenuItem>}
                         {poolTokens.map(poolToken => (
@@ -414,5 +112,220 @@ const SwapInputSection: React.FC<SwapInputSectionProps> = ({
         </Typography>
     </Box>
 );
+
+
+const Swap: React.FC = () => {
+  // --- Get state from Contexts ---
+  const { selectedPool, isLoadingPools, errorPools } = usePoolsContext();
+  const { userBalances, isLoadingBalances, errorBalances } = useBalancesContext();
+  const { isLoading: loadingStates } = useLoadingContext(); // Get the loading map
+  const { handleSwap } = useSwapActions(); // Get swap action handler
+
+  // --- Local Component State ---
+  const [sellAmountStr, setSellAmountStr] = useState("");
+  const [sellToken, setSellToken] = useState<string | null>(null);
+  const [buyToken, setBuyToken] = useState<string | null>(null);
+  const [buyAmountNum, setBuyAmountNum] = useState(0);
+  const [usdValues, setUsdValues] = useState({ sell: 0, buy: 0 });
+  const [dynamicFee, setDynamicFee] = useState({ feePercentage: 0, explanation: '' });
+  const [isRotating, setIsRotating] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Derived states
+  const sellAmountNum = useMemo(() => parseFloat(sellAmountStr) || 0, [sellAmountStr]);
+  const isLoadingSwap = loadingStates['swap'] ?? false;
+
+  // --- Effects ---
+  useEffect(() => {
+    if (selectedPool) {
+      setSellToken(selectedPool.tokenA);
+      setBuyToken(selectedPool.tokenB);
+      setSellAmountStr("");
+      setErrorMsg(null);
+    } else {
+      setSellToken(null);
+      setBuyToken(null);
+    }
+    setBuyAmountNum(0);
+    setDynamicFee({ feePercentage: selectedPool?.baseFee ?? 0, explanation: 'Base Fee' });
+    setUsdValues({ sell: 0, buy: 0 });
+  }, [selectedPool]);
+
+  useEffect(() => {
+    if (!selectedPool || !sellToken || !buyToken || sellAmountNum <= 0) {
+      setBuyAmountNum(0);
+      setDynamicFee({ feePercentage: selectedPool?.baseFee ?? 0, explanation: 'Base Fee' });
+      setUsdValues({ sell: 0, buy: 0 });
+      return;
+    }
+    const { currentPrice, tokenA, tokenB } = selectedPool;
+    const ratioAB = currentPrice;
+    let buyAmountBeforeFee = 0;
+    if (sellToken === tokenA && buyToken === tokenB) {
+      buyAmountBeforeFee = sellAmountNum * ratioAB;
+    } else if (sellToken === tokenB && buyToken === tokenA) {
+      buyAmountBeforeFee = ratioAB !== 0 ? sellAmountNum / ratioAB : 0;
+    } else {
+        console.warn("Swap tokens mismatch.");
+        setBuyAmountNum(0); return;
+    }
+    const feeInfo = calculateDynamicFee(sellAmountNum, sellToken, selectedPool);
+    setDynamicFee(feeInfo);
+    const feeAmount = buyAmountBeforeFee * feeInfo.feePercentage;
+    const buyAmountAfterFee = buyAmountBeforeFee - feeAmount;
+    setBuyAmountNum(buyAmountAfterFee > 0 ? buyAmountAfterFee : 0);
+    const sellUsd = (MOCK_TOKEN_PRICES[sellToken] || 0) * sellAmountNum;
+    const buyUsd = (MOCK_TOKEN_PRICES[buyToken] || 0) * buyAmountAfterFee;
+    setUsdValues({ sell: sellUsd > 0 ? sellUsd : 0, buy: buyUsd > 0 ? buyUsd : 0 });
+  }, [sellAmountNum, sellToken, buyToken, selectedPool]);
+
+  // --- Handlers ---
+  const handleSwapTokens = useCallback(() => {
+    if (isRotating || isLoadingSwap) return;
+    setIsRotating(true);
+    setSellToken(buyToken);
+    setBuyToken(sellToken);
+    setSellAmountStr(buyAmountNum > 0 ? buyAmountNum.toFixed(6) : "");
+    setTimeout(() => setIsRotating(false), 300);
+  }, [sellToken, buyToken, buyAmountNum, isRotating, isLoadingSwap]);
+
+   const handleSetMaxSell = () => {
+       if (!sellToken) return;
+       const balance = userBalances[sellToken] ?? 0;
+       setSellAmountStr(balance.toString());
+       setErrorMsg(null);
+   };
+
+  const handlePerformSwap = async () => {
+    setErrorMsg(null);
+    if (!selectedPool || !sellToken || !buyToken || sellAmountNum <= 0 || buyAmountNum < 0 || isLoadingSwap) return; // Allow buyAmount 0
+
+    const sellBalance = userBalances[sellToken] ?? 0;
+    if (sellAmountNum > sellBalance) {
+        setErrorMsg(`Insufficient ${sellToken} balance. You need ${formatBalance(sellAmountNum, 6)} but have ${formatBalance(sellBalance, 6)}.`);
+        return;
+    }
+
+    try {
+        // Call the action hook handler
+        const success = await handleSwap(sellToken, buyToken, sellAmountNum, buyAmountNum);
+        if (success) {
+           setSellAmountStr(""); // Clear input on successful initiation
+        }
+        // Error handling is managed within the hook (snackbar)
+    } catch (error: any) {
+        // This catch might be redundant if the hook handles errors, but good for safety
+        console.error("Swap initiation failed:", error);
+        setErrorMsg(error.message || "Swap failed. Please try again.");
+    }
+  };
+
+  const handleTokenChange = (event: SelectChangeEvent<string>, type: 'sell' | 'buy') => {
+      const newToken = event.target.value;
+      setErrorMsg(null);
+      if (type === 'sell') {
+          if (newToken === buyToken) handleSwapTokens();
+          else setSellToken(newToken);
+      } else {
+          if (newToken === sellToken) handleSwapTokens();
+          else setBuyToken(newToken);
+      }
+  };
+
+  // --- Derived Data for Rendering ---
+  const sellBalance = userBalances[sellToken || ''] ?? 0;
+  const buyBalance = userBalances[buyToken || ''] ?? 0;
+  const canSwap = selectedPool && sellToken && buyToken && sellAmountNum > 0 && buyAmountNum >= 0 && sellAmountNum <= sellBalance;
+
+  // --- Render Logic ---
+  if (isLoadingPools || isLoadingBalances) { // Show skeleton if essential data is loading
+      return (
+           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
+                <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Swap Tokens</Typography>
+               <Card sx={{ width: "100%", maxWidth: 460, borderRadius: 3, p: 1 }}>
+                    <CardContent sx={{ p: 3 }}>
+                        <Skeleton variant="rounded" height={80} sx={{ mb: 2 }}/>
+                        <Skeleton variant="circular" width={40} height={40} sx={{ margin: 'auto', my: 1 }}/>
+                        <Skeleton variant="rounded" height={80} sx={{ mb: 3 }}/>
+                        <Skeleton variant="rounded" height={50}/>
+                    </CardContent>
+               </Card>
+           </Box>
+      )
+  }
+
+  if (!selectedPool) {
+    return (
+        <Box sx={{ p:3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '30vh' }}>
+             {errorPools ? (
+                 <Alert severity="error">Error loading pools: {errorPools}</Alert>
+             ) : (
+                 <Typography variant="h6" color="text.secondary" align="center">
+                     Please select a pool from the Dashboard to swap tokens.
+                 </Typography>
+             )}
+        </Box>
+    );
+  }
+
+  // Display balance loading error if relevant
+   const renderBalanceError = errorBalances && !isLoadingBalances && (
+       <Alert severity="warning" sx={{ mb: 2 }}>Could not load balances: {errorBalances}</Alert>
+   );
+
+  const poolTokens = [selectedPool.tokenA, selectedPool.tokenB];
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Swap Tokens</Typography>
+      <Fade in={true} timeout={500}>
+          <Card elevation={1} sx={{ width: "100%", maxWidth: 460, borderRadius: 3, p: 1, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                {renderBalanceError}
+                {errorMsg && <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ mb: 2 }}>{errorMsg}</Alert>}
+
+              {/* Sell Section */}
+              <SwapInputSection
+                    label="Sell" token={sellToken} amountStr={sellAmountStr} balance={sellBalance}
+                    usdValue={usdValues.sell} onAmountChange={(e) => { setSellAmountStr(e.target.value); setErrorMsg(null); }}
+                    onTokenChange={(e) => handleTokenChange(e, 'sell')} onSetMax={handleSetMaxSell}
+                    poolTokens={poolTokens} disabled={isLoadingSwap}
+              />
+              {/* Swap Icon */}
+              <Box sx={{ display: "flex", justifyContent: "center", my: 0.5 }}>
+                <IconButton onClick={handleSwapTokens} aria-label="Swap sell and buy tokens" disabled={isLoadingSwap || isRotating}>
+                  <SwapVertIcon sx={{ transform: isRotating ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease-in-out', color: 'primary.main' }}/>
+                </IconButton>
+              </Box>
+              {/* Buy Section */}
+              <SwapInputSection
+                    label="Buy (Estimated)" token={buyToken} amountStr={buyAmountNum > 0 ? buyAmountNum.toFixed(6) : ""}
+                    balance={buyBalance} usdValue={usdValues.buy} onTokenChange={(e) => handleTokenChange(e, 'buy')}
+                    poolTokens={poolTokens} disabled={isLoadingSwap} readOnly={true}
+              />
+              {/* Fee Info */}
+              {sellAmountNum > 0 && buyAmountNum >= 0 && (
+                  <Box sx={{ my: 2, p: 1.5, borderRadius: 1, bgcolor: 'action.hover', textAlign: 'center' }}>
+                       <Tooltip title={dynamicFee.explanation} placement="top">
+                            <Typography variant="caption" color="text.secondary" component="span" sx={{cursor: 'help'}}>
+                                Est. Fee: {formatPercent(dynamicFee.feePercentage, 3)}
+                                <InfoOutlinedIcon fontSize="inherit" sx={{ ml: 0.5, verticalAlign: 'middle' }}/>
+                           </Typography>
+                       </Tooltip>
+                        <Typography variant="caption" color="text.secondary" display="block" >
+                           Price: 1 {sellToken} ≈ {formatBalance(buyAmountNum / sellAmountNum, 6)} {buyToken}
+                        </Typography>
+                  </Box>
+              )}
+              {/* Action Button */}
+              <Button variant="contained" fullWidth onClick={handlePerformSwap} disabled={!canSwap || isLoadingSwap} size="large" sx={{ borderRadius: 2, py: 1.5, mt: 1 }}>
+                {isLoadingSwap ? <CircularProgress size={24} color="inherit" /> : (sellAmountNum > sellBalance ? 'Insufficient Balance' : 'Swap')}
+              </Button>
+            </CardContent>
+          </Card>
+      </Fade>
+    </Box>
+  );
+};
 
 export default Swap;

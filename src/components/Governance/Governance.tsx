@@ -1,42 +1,44 @@
 import React, { useState } from 'react';
-import { Box, Typography, Grid } from '@mui/material';
+import { Box, Typography, Grid, CircularProgress, Alert } from '@mui/material';
 
-import { Proposal } from '../../types';
+// Context Imports
+import { useGovernanceContext } from '../../contexts/GovernanceContext';
+import { useBalancesContext } from '../../contexts/BalancesContext';
+// import { useAuthContext } from '../../contexts/AuthContext';
+
+// Child Component Imports
 import GovernanceInfoBar from './GovernanceInfoBar';
 import GovernanceStatusChart from './GovernanceStatusChart';
 import ProposalList from './ProposalList';
 import DelegationForm from './DelegationForm';
 
-interface GovernanceProps {
-  proposals: Proposal[];
-  governanceStatus: number[];
-  userBalances: Record<string, number>;
-  currentUserAddress?: string;
-  voteWithRange: (proposalId: number, lower: number, upper: number, power: number) => Promise<void> | void;
-  delegateVotes: (targetAddress: string, amount: number) => Promise<void> | void;
-  loadingStates: Record<string, boolean>;
-  metaData: { id: string; time: string; stage: string };
-}
+const Governance: React.FC = () => {
+    // --- Get state from Contexts ---
+    const { proposals, governanceStatus, metaData, isLoadingProposals, isLoadingGovernanceData, errorProposals, errorGovernanceData } = useGovernanceContext();
+    const { userBalances, isLoadingBalances, errorBalances } = useBalancesContext();
+    // const { session } = useAuthContext();
 
-// Main Governance Component
-const Governance: React.FC<GovernanceProps> = ({
-    proposals,
-    governanceStatus,
-    userBalances,
-    currentUserAddress,
-    voteWithRange,
-    delegateVotes,
-    loadingStates,
-    metaData,
-}) => {
-    // State only needed across components: selected proposal ID
+    // --- Local State ---
     const [selectedProposalId, setSelectedProposalId] = useState<number | null>(null);
 
+    // --- Derived State ---
     const vDPPBalance = userBalances['vDPP'] ?? 0;
+    // const currentUserAddress = session?.user.address;
+    const isLoading = isLoadingProposals || isLoadingGovernanceData || isLoadingBalances;
+    const displayError = errorProposals || errorGovernanceData || errorBalances;
 
     const handleSelectProposal = (id: number | null) => {
         setSelectedProposalId(id);
     };
+
+    // --- Render Logic ---
+    if (isLoading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
@@ -44,8 +46,13 @@ const Governance: React.FC<GovernanceProps> = ({
                 Governance Center
             </Typography>
 
-            {/* Top Row */}
-            <GovernanceInfoBar vDPPBalance={vDPPBalance} metaData={metaData} />
+            {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading governance data: {displayError}</Alert>}
+
+            {/* Top Row - Pass only needed data */}
+            <GovernanceInfoBar
+                vDPPBalance={vDPPBalance}
+                metaData={metaData ?? { id: 'N/A', time: 'N/A', stage: 'Loading...' }}
+            />
 
             {/* Status Chart */}
             <GovernanceStatusChart governanceStatus={governanceStatus} />
@@ -58,20 +65,16 @@ const Governance: React.FC<GovernanceProps> = ({
                         proposals={proposals}
                         selectedProposalId={selectedProposalId}
                         onSelectProposal={handleSelectProposal}
-                        currentUserAddress={currentUserAddress}
-                        vDPPBalance={vDPPBalance}
-                        voteWithRange={voteWithRange}
-                        loadingStates={loadingStates}
+                        // Pass necessary props down to ProposalItem/VoteForm if they don't use context directly
+                        // currentUserAddress={currentUserAddress} // Pass if ProposalItem needs it directly
+                        // vDPPBalance={vDPPBalance} // Pass if needed by children that don't use context
                     />
                 </Grid>
 
                 {/* Delegation */}
                 <Grid item xs={12} md={6}>
-                    <DelegationForm
-                        vDPPBalance={vDPPBalance}
-                        delegateVotes={delegateVotes}
-                        loadingStates={loadingStates}
-                    />
+                    {/* DelegationForm now uses context directly */}
+                    <DelegationForm />
                 </Grid>
             </Grid>
         </Box>
