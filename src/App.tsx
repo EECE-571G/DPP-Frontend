@@ -20,6 +20,7 @@ import {
     MOCK_PROPOSALS,
     MOCK_USER_BALANCES,
     MOCK_GOVERNANCE_STATUS,
+    MOCK_GOVERNANCE_METADATA,
 } from './utils/mockData';
 
 // Hooks
@@ -49,6 +50,7 @@ const App: React.FC = () => {
     const [selectedPool, setSelectedPool] = useState<Pool | null>(MOCK_POOLS[0] ?? null);
     const [proposals, setProposals] = useState<Proposal[]>(MOCK_PROPOSALS);
     const [governanceStatus] = useState<number[]>(MOCK_GOVERNANCE_STATUS);
+    const [metaData] = useState(MOCK_GOVERNANCE_METADATA);
 
     // --- Custom Hooks ---
     const { isLoading, setLoading } = useLoadingState(); // Get loading state and setter
@@ -98,7 +100,7 @@ const App: React.FC = () => {
             case 'liquidity':
                 return <Liquidity selectedPool={selectedPool} userBalances={userBalances} onAddLiquidity={actions.handleAddLiquidity} onRemoveLiquidity={actions.handleRemoveLiquidity} loadingStates={{ add: isLoading['addLiquidity'], remove: isLoading['removeLiquidity'] }} />;
             case 'governance':
-                return <Governance proposals={proposals} governanceStatus={governanceStatus} userBalances={userBalances} voteWithRange={actions.handleVoteWithRange} delegateVotes={actions.handleDelegate} loadingStates={isLoading} currentUserAddress={session?.user.address} />;
+                return <Governance proposals={proposals} governanceStatus={governanceStatus} userBalances={userBalances} voteWithRange={actions.handleVoteWithRange} delegateVotes={actions.handleDelegate} loadingStates={isLoading} currentUserAddress={session?.user.address} metaData={metaData} />;
             default:
                  // Redirect unknown paths to dashboard
                  if (pathname !== '/dashboard') {

@@ -99,3 +99,9 @@ export const MOCK_USER: User = {
 };
 
 export const MOCK_GOVERNANCE_STATUS: number[] = Array.from({ length: 21 }, (_, i) => Math.floor(Math.random() * 1000) + i * 50);
+
+export const MOCK_GOVERNANCE_METADATA = {
+  id: 'Epoch 15',
+  time: '2d 5h',
+  stage: 'Voting Phase'
+};

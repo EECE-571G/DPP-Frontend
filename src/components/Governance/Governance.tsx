@@ -15,6 +15,7 @@ interface GovernanceProps {
   voteWithRange: (proposalId: number, lower: number, upper: number, power: number) => Promise<void> | void;
   delegateVotes: (targetAddress: string, amount: number) => Promise<void> | void;
   loadingStates: Record<string, boolean>;
+  metaData: { id: string; time: string; stage: string };
 }
 
 // Main Governance Component
@@ -26,18 +27,12 @@ const Governance: React.FC<GovernanceProps> = ({
     voteWithRange,
     delegateVotes,
     loadingStates,
+    metaData,
 }) => {
     // State only needed across components: selected proposal ID
     const [selectedProposalId, setSelectedProposalId] = useState<number | null>(null);
 
     const vDPPBalance = userBalances['vDPP'] ?? 0;
-
-    // Mock Meta Data (Keep here or lift to App.tsx if needed globally)
-    const mockMeta = {
-        id: 'Epoch 15',
-        time: '2d 5h',
-        stage: 'Voting Phase'
-    };
 
     const handleSelectProposal = (id: number | null) => {
         setSelectedProposalId(id);
@@ -50,7 +45,7 @@ const Governance: React.FC<GovernanceProps> = ({
             </Typography>
 
             {/* Top Row */}
-            <GovernanceInfoBar vDPPBalance={vDPPBalance} mockMeta={mockMeta} />
+            <GovernanceInfoBar vDPPBalance={vDPPBalance} metaData={metaData} />
 
             {/* Status Chart */}
             <GovernanceStatusChart governanceStatus={governanceStatus} />

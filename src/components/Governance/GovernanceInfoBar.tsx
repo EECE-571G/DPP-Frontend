@@ -15,7 +15,7 @@ import { formatBalance } from '../../utils/formatters';
 
 interface GovernanceInfoBarProps {
     vDPPBalance: number;
-    mockMeta: { id: string; time: string; stage: string };
+    metaData: { id: string; time: string; stage: string };
 }
 
 // Define MetaItem
@@ -36,7 +36,7 @@ const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string }
 );
 
 
-const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalance, mockMeta }) => {
+const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalance, metaData }) => {
     return (
         <Grid container spacing={2} sx={{ mb: 3 }}>
             {/* Meta Section */}
@@ -56,15 +56,15 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalance, mock
                     <Grid container spacing={1} alignItems="center" justifyContent="flex-start">
                         {/* Grid item for ID */}
                         <Grid item xs={12} sm={4} > {/* Takes full width on xs, 1/3 on sm+ */}
-                            <MetaItem icon={<TagIcon fontSize="small" />} label="ID" value={mockMeta.id} />
+                            <MetaItem icon={<TagIcon fontSize="small" />} label="ID" value={metaData.id} />
                         </Grid>
                         {/* Grid item for Time Left */}
                         <Grid item xs={12} sm={4} > {/* Takes full width on xs, 1/3 on sm+ */}
-                            <MetaItem icon={<AccessTimeIcon fontSize="small" />} label="Time Left" value={mockMeta.time} />
+                            <MetaItem icon={<AccessTimeIcon fontSize="small" />} label="Time Left" value={metaData.time} />
                         </Grid>
                         {/* Grid item for Stage */}
                         <Grid item xs={12} sm={4} > {/* Takes full width on xs, 1/3 on sm+ */}
-                            <MetaItem icon={<FlagIcon fontSize="small" />} label="Stage" value={mockMeta.stage} />
+                            <MetaItem icon={<FlagIcon fontSize="small" />} label="Stage" value={metaData.stage} />
                         </Grid>
                     </Grid>
                 </Paper>
