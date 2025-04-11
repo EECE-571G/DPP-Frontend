@@ -23,7 +23,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 // Import context and components
 import { useAppContext } from '../contexts/AppProvider';
 import ThemeToggleButton from '../components/ThemeToggle';
-import { SidebarFooterProps, NavigationItem } from '../types';
+import { NavigationItem } from '../types';
 
 // --- Constants ---
 const drawerWidth = 210;
@@ -115,7 +115,6 @@ interface DashboardLayoutProps {
   children: ReactNode;
   slots?: {
     toolbarContent?: React.ComponentType;
-    sidebarFooter?: React.ComponentType<SidebarFooterProps>;
   };
 }
 
@@ -138,7 +137,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Get slot components
   const ToolbarContent = slots.toolbarContent;
-  const SidebarFooter = slots.sidebarFooter;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -246,13 +244,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             );
           })}
         </List>
-
-        {/* Sidebar Footer */}
-        {SidebarFooter && (
-          <Box sx={{ marginTop: 'auto', mb: 1 }}>
-            <SidebarFooter mini={!open} />
-          </Box>
-        )}
       </Drawer>
 
       {/* Main Content Area */}

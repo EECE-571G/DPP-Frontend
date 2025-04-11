@@ -2,24 +2,22 @@ import React, { useState } from 'react';
 import {
     Box,
     Button,
-    Avatar,
     Menu,
     MenuItem,
     Typography,
     ListItemIcon,
     Tooltip,
     Fade,
-    // Divider,
+    Divider,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { useAppContext } from '../contexts/AppProvider';
 import { shortenAddress } from '../utils/formatters';
-// import LogoutIcon from '@mui/icons-material/Logout';
 
 // Helper to generate simple blockie-like background
 const generateAvatarColor = (address: string): string => {
-    // Simple hash function for color generation (not cryptographically secure)
     let hash = 0;
     for (let i = 0; i < address.length; i++) {
         hash = address.charCodeAt(i) + ((hash << 5) - hash);
@@ -36,24 +34,9 @@ const AppBarAccount: React.FC = () => {
 
     const user = session?.user;
 
-    // Only render if logged in via metamask and multiple accounts are available
-    if (!user || user.type !== 'metamask' || !availableAccounts || availableAccounts.length <= 1) {
-        // Optionally render a simpler display for single metamask account or simulation
-        if (user) {
-            return (
-                <Tooltip title={`Connected: ${user.address}`}>
-                     <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, p: 1, borderRadius: 1, '&:hover': { bgcolor: 'action.hover'} }}>
-                        <Avatar sx={{ width: 32, height: 32, bgcolor: generateAvatarColor(user.address), fontSize: '0.8rem' }}>
-                            {user.address.substring(2, 4).toUpperCase()}
-                        </Avatar>
-                        <Typography variant="body2" sx={{ ml: 1, display: { xs: 'none', sm: 'block' } }} noWrap>
-                            {shortenAddress(user.address)}
-                        </Typography>
-                    </Box>
-                </Tooltip>
-            );
-        }
-        return null; // Or render nothing if no user
+    // Render nothing if the user is not logged in
+    if (!user) {
+        return null;
     }
 
     const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -71,34 +54,48 @@ const AppBarAccount: React.FC = () => {
         handleClose();
     };
 
+    const handleSignOut = () => {
+        authentication.signOut();
+        handleClose(); // Close the menu after signing out
+    };
+
+    // Determine if account switching is possible
+    const canSwitchAccounts = user.type === 'metamask' && availableAccounts && availableAccounts.length > 1;
+
     return (
         <>
-            <Tooltip title="Switch Account">
+            {/* Tooltip clarifies action: Connect info or Switch/Manage */}
+            <Tooltip title={canSwitchAccounts ? "Switch Account / Disconnect" : `Connected: ${shortenAddress(user.address)}`}>
                 <Button
-                    id="account-switch-button"
-                    aria-controls={open ? 'account-switch-menu' : undefined}
+                    id="account-button"
+                    aria-controls={open ? 'account-menu' : undefined}
                     aria-haspopup="true"
                     aria-expanded={open ? 'true' : undefined}
                     onClick={handleClick}
                     color="inherit"
-                    sx={{ textTransform: 'none', ml: 1, borderRadius: 1 }}
-                    endIcon={<KeyboardArrowDownIcon />}
+                    sx={{
+                        textTransform: 'none',
+                        ml: 1,
+                        borderRadius: 1,
+                        p: {xs: 0.5, sm: 1}, // Adjust padding slightly
+                        minWidth: 'auto' // Allow button to shrink
+                    }}
+                    // Show dropdown icon only if menu has items (switch or disconnect)
+                    endIcon={canSwitchAccounts ? <KeyboardArrowDownIcon /> : null}
                 >
-                    {/* <Avatar sx={{ width: 32, height: 32, mr: 1, bgcolor: generateAvatarColor(user.address), fontSize: '0.8rem' }}>
-                         {user.address.substring(2, 4).toUpperCase()}
-                    </Avatar> */}
-                    <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 'bold' }} noWrap>
-                        {(user.type === 'metamask' ? 'Metamask' : 'Simulation') + " Account: " + shortenAddress(user.address)}
+                    {/* Always show shortened address on larger screens */}
+                    <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }} noWrap>
+                        {shortenAddress(user.address)}
                     </Typography>
                 </Button>
             </Tooltip>
             <Menu
-                id="account-switch-menu"
+                id="account-menu"
                 anchorEl={anchorEl}
                 open={open}
                 onClose={handleClose}
                 MenuListProps={{
-                    'aria-labelledby': 'account-switch-button',
+                    'aria-labelledby': 'account-button',
                 }}
                 TransitionComponent={Fade}
                 anchorOrigin={{
@@ -109,39 +106,51 @@ const AppBarAccount: React.FC = () => {
                     vertical: 'top',
                     horizontal: 'right',
                 }}
-                 slotProps={{ paper: { sx: { minWidth: 250, mt: 1 }}}}
+                 slotProps={{ paper: { sx: { minWidth: 250, mt: 1, maxWidth: 350 }}}}
             >
-                <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', color: 'text.secondary' }}>
-                    Available Accounts
-                </Typography>
-                {availableAccounts.map((account) => (
-                    <MenuItem
-                        key={account}
-                        selected={account === user.address}
-                        onClick={() => handleSwitchAccount(account)}
-                        sx={{ justifyContent: 'space-between' }} // Push check icon to the right
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                             {/* <Avatar sx={{ width: 24, height: 24, mr: 1.5, bgcolor: generateAvatarColor(account), fontSize: '0.7rem' }}>
-                                {account.substring(2, 4).toUpperCase()}
-                            </Avatar> */}
-                            {(account)}
-                        </Box>
-                        {account === user.address && (
-                            <ListItemIcon sx={{ minWidth: 'auto' }}>
-                                <CheckIcon fontSize="small" color="primary" />
-                            </ListItemIcon>
-                        )}
-                    </MenuItem>
-                ))}
-                {/* Add disconnect button here if desired */}
-                {/* <Divider />
-                <MenuItem onClick={authentication.signOut} sx={{ color: 'error.main' }}>
-                    <ListItemIcon sx={{ minWidth: 'auto', mr: 1 }}>
-                        <LogoutIcon fontSize="small" color="error" />
+                {/* Account Info Header */}
+                <Box sx={{ px: 2, py: 1.5 }}>
+                    <Typography variant="body1" fontWeight="medium" noWrap>
+                        {user.name || (user.type === 'metamask' ? 'MetaMask User' : 'Simulated User')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap sx={{ wordBreak: 'break-all'}}>
+                        {user.address}
+                    </Typography>
+                </Box>
+                <Divider />
+
+                {/* Account Switching Section (only if applicable) */}
+                {canSwitchAccounts && (
+                    <>
+                        <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', color: 'text.secondary' }}>
+                            Available Accounts
+                        </Typography>
+                        {availableAccounts.map((account) => (
+                            <MenuItem
+                                key={account}
+                                selected={account === user.address}
+                                onClick={() => handleSwitchAccount(account)}
+                                sx={{ justifyContent: 'space-between' }}
+                            >
+                                <Typography variant="body2" noWrap sx={{ mr: 2 }}>{account}</Typography>
+                                {account === user.address && (
+                                    <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                        <CheckIcon fontSize="small" color="primary" />
+                                    </ListItemIcon>
+                                )}
+                            </MenuItem>
+                        ))}
+                        <Divider />
+                    </>
+                )}
+
+                {/* Disconnect Button */}
+                <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
+                    <ListItemIcon sx={{ minWidth: 'auto', mr: 1.5, color: 'error.main' }}>
+                        <LogoutIcon fontSize="small" />
                     </ListItemIcon>
                     Disconnect
-                </MenuItem> */}
+                </MenuItem>
             </Menu>
         </>
     );

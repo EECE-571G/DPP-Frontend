@@ -10,7 +10,6 @@ import Governance from './components/Governance/Governance';
 import DashboardLayout from './layout/DashboardLayout';
 import { AppProvider } from './contexts/AppProvider';
 import AppBarAccount from './components/AppBarAccount';
-import { SidebarFooterAccount } from './components/Account/SiderbarAccount';
 
 // Types
 import { Navigation } from './types';
@@ -109,7 +108,6 @@ const App: React.FC = () => {
         >
             <DashboardLayout
                 slots={{
-                    sidebarFooter: SidebarFooterAccount,
                     toolbarContent: AppBarAccount,
                 }}
             >

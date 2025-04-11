@@ -79,18 +79,6 @@ export interface Proposal {
 
 // --- Component-Specific Props ---
 
-// Account Preview Specific Props
-export interface AccountPreviewProps {
-  handleClick: (event: React.MouseEvent<HTMLElement>) => void;
-  open: boolean; // Is the popover open?
-  variant?: 'condensed' | 'expanded'; // Controls layout style
-}
-
-// Sidebar Footer Props for DashboardLayout
-export interface SidebarFooterProps {
-  mini: boolean; // Is the sidebar minimized?
-}
-
 export interface AppContextType {
   navigation: Navigation;
   theme: ReturnType<typeof createTheme>;
