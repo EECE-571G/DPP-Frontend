@@ -158,7 +158,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
           {/* App Title */}
           <Typography variant="h6" noWrap component="div" sx={{fontWeight: 'bold', flexGrow: { xs: 1, sm: 0 }}}>
-            DPP Frontend
+            Desired Price Pool
           </Typography>
           {/* Spacer */}
           <Box sx={{ flexGrow: 1 }} />
