@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Components & Layout
 import WalletConnect from './components/WalletConnect';
@@ -9,10 +10,10 @@ import Governance from './components/Governance/Governance';
 import DashboardLayout from './layout/DashboardLayout';
 import { AppProvider } from './contexts/AppProvider';
 import AppBarAccount from './components/AppBarAccount';
-import { SidebarFooterAccount } from './components/Account/SiderbarAccount'; // Import the extracted component
+import { SidebarFooterAccount } from './components/Account/SiderbarAccount';
 
 // Types
-import { Session, Router, Navigation, Pool, Proposal } from './types';
+import { Session, Navigation, Pool, Proposal } from './types';
 
 // Utilities & Mock Data
 import {
@@ -32,7 +33,7 @@ import { useAppActions } from './hooks/useAppActions';
 // MUI Components
 import { Snackbar, Alert, Box, Fade } from '@mui/material';
 
-// MUI Icons (Consider moving to a central export if used widely)
+// MUI Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -40,7 +41,6 @@ import GavelIcon from '@mui/icons-material/Gavel';
 
 const App: React.FC = () => {
     // --- Core State ---
-    const [pathname, setPathname] = useState('/dashboard');
     const [session, setSession] = useState<Session | null>(null);
     const [availableAccounts, setAvailableAccounts] = useState<string[] | null>(null);
     const [userBalances, setUserBalances] = useState<Record<string, number>>({});
@@ -53,9 +53,9 @@ const App: React.FC = () => {
     const [metaData] = useState(MOCK_GOVERNANCE_METADATA);
 
     // --- Custom Hooks ---
-    const { isLoading, setLoading } = useLoadingState(); // Get loading state and setter
-    const { snackbar, showSnackbar, handleCloseSnackbar } = useSnackbar(); // Get snackbar state and controls
-    const authentication = useAuth({ // Get auth functions
+    const { isLoading, setLoading } = useLoadingState();
+    const { snackbar, showSnackbar, handleCloseSnackbar } = useSnackbar();
+    const authentication = useAuth({
         setSession,
         setAvailableAccounts,
         setUserBalances,
@@ -63,9 +63,9 @@ const App: React.FC = () => {
         showSnackbar,
         session,
         availableAccounts,
-        mockUserBalances: MOCK_USER_BALANCES // Pass mock data
+        mockUserBalances: MOCK_USER_BALANCES
     });
-    const actions = useAppActions({ // Get action handlers
+    const actions = useAppActions({
         setLoading,
         showSnackbar,
         setUserBalances,
@@ -74,11 +74,7 @@ const App: React.FC = () => {
     });
 
     // --- Router Implementation ---
-    const router = useMemo<Router>(() => ({
-        pathname,
-        searchParams: new URLSearchParams(), // Keep simple or replace with lib
-        navigate: (path: string) => setPathname(path),
-    }), [pathname]);
+    const location = useLocation();
 
     // --- Navigation Structure ---
     const NAVIGATION: Navigation = useMemo(() => [
@@ -87,30 +83,6 @@ const App: React.FC = () => {
         { segment: 'liquidity', title: 'Liquidity', icon: <AccountBalanceWalletIcon /> },
         { segment: 'governance', title: 'Governance', icon: <GavelIcon /> },
     ], []);
-
-    // --- Render Content ---
-    const renderContent = () => {
-        const segment = pathname.substring(1);
-
-        switch (segment) {
-            case 'dashboard':
-                return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
-            case 'swap':
-                return <Swap selectedPool={selectedPool} userBalances={userBalances} onSwap={actions.handleSwap} isLoading={isLoading['swap']} />;
-            case 'liquidity':
-                return <Liquidity selectedPool={selectedPool} userBalances={userBalances} onAddLiquidity={actions.handleAddLiquidity} onRemoveLiquidity={actions.handleRemoveLiquidity} loadingStates={{ add: isLoading['addLiquidity'], remove: isLoading['removeLiquidity'] }} />;
-            case 'governance':
-                return <Governance proposals={proposals} governanceStatus={governanceStatus} userBalances={userBalances} voteWithRange={actions.handleVoteWithRange} delegateVotes={actions.handleDelegate} loadingStates={isLoading} currentUserAddress={session?.user.address} metaData={metaData} />;
-            default:
-                 // Redirect unknown paths to dashboard
-                 if (pathname !== '/dashboard') {
-                     router.navigate('/dashboard');
-                     // Return null or dashboard momentarily while redirect happens
-                     return null;
-                 }
-                return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
-        }
-    };
 
     // --- Conditional Rendering: Wallet Connect vs Main App ---
     if (!session) {
@@ -132,23 +104,46 @@ const App: React.FC = () => {
 
     // --- Render Main Application Layout ---
     return (
-        <AppProvider // Consider if AppProvider context is actively used
+        <AppProvider
             navigation={NAVIGATION}
-            router={router}
-            window={window} // Pass window object if needed by context consumers
+            window={window}
             session={session}
             authentication={authentication}
             availableAccounts={availableAccounts}
         >
+            {/* DashboardLayout now wraps the Routes */}
             <DashboardLayout
                 slots={{
-                    sidebarFooter: SidebarFooterAccount, // Use the imported component
+                    sidebarFooter: SidebarFooterAccount,
                     toolbarContent: AppBarAccount,
                 }}
             >
-                <Fade in={true} key={pathname} timeout={300}>
-                    <Box> {/* Wrapper for Fade */}
-                        {renderContent()}
+                {/* Use Routes for page content */}
+                <Fade in={true} key={location.pathname} timeout={300}>
+                     {/* Wrapper needed for Fade */}
+                     <Box>
+                        <Routes>
+                            <Route
+                                path="/dashboard"
+                                element={<Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />}
+                            />
+                            <Route
+                                path="/swap"
+                                element={<Swap selectedPool={selectedPool} userBalances={userBalances} onSwap={actions.handleSwap} isLoading={isLoading['swap']} />}
+                            />
+                            <Route
+                                path="/liquidity"
+                                element={<Liquidity selectedPool={selectedPool} userBalances={userBalances} onAddLiquidity={actions.handleAddLiquidity} onRemoveLiquidity={actions.handleRemoveLiquidity} loadingStates={{ add: isLoading['addLiquidity'], remove: isLoading['removeLiquidity'] }} />}
+                            />
+                            <Route
+                                path="/governance"
+                                element={<Governance proposals={proposals} governanceStatus={governanceStatus} userBalances={userBalances} voteWithRange={actions.handleVoteWithRange} delegateVotes={actions.handleDelegate} loadingStates={isLoading} currentUserAddress={session?.user.address} metaData={metaData} />}
+                            />
+                             {/* Default route redirects to dashboard */}
+                             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                             {/* Catch-all redirects to dashboard */}
+                             <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                        </Routes>
                     </Box>
                 </Fade>
             </DashboardLayout>

@@ -1,4 +1,5 @@
 import React, { ReactNode, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { styled, useTheme, Theme, CSSObject, alpha } from '@mui/material/styles';
 import {
   Box,
@@ -126,7 +127,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(!isMobile);
-  const { navigation, router } = useAppContext();
+  const { navigation } = useAppContext();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Single handler to toggle the drawer state
   const handleDrawerToggle = () => {
@@ -145,14 +148,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           {/* Single Toggle Button */}
           <IconButton
             color="inherit"
-            aria-label={open ? 'close drawer' : 'open drawer'} // Dynamic aria-label
-            onClick={handleDrawerToggle} // Use the single toggle handler
+            aria-label={open ? 'close drawer' : 'open drawer'}
+            onClick={handleDrawerToggle}
             edge="start"
-            sx={{
-              marginRight: 2,
-            }}
+            sx={{ marginRight: 2, }}
           >
-            {/* Show different icon based on state */}
             {open ? <ChevronLeftIcon /> : <MenuIcon />}
           </IconButton>
 
@@ -172,9 +172,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       {/* Sidebar Drawer */}
       <Drawer variant="permanent" open={open}>
         {/* DrawerHeader provides top spacing matching Toolbar height */}
-        <DrawerHeader>
-          {/* Close button is removed from here */}
-        </DrawerHeader>
+        <DrawerHeader />
         <Divider />
         {/* Navigation List */}
         <List sx={{ p: 0 }}>
@@ -182,20 +180,23 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             // Render Header sections differently
             if (item.kind === 'header') {
               return (
-                <ListItem key={index} sx={{ pt: 2, pb: 1, pl: open ? 2.5 : 0, justifyContent: open ? 'flex-start': 'center' }} dense>
-                  {open ? (
-                     <Typography variant="overline" color="text.secondary" sx={{ pl: 0.5 }}>
-                        {item.title}
-                     </Typography>
-                  ) : (
-                    <Divider sx={{ width: '80%', margin: 'auto'}}/>
-                  )}
-                </ListItem>
+                 <ListItem key={index} sx={{ pt: 2, pb: 1, pl: open ? 2.5 : 0, justifyContent: open ? 'flex-start': 'center' }} dense>
+                   {open ? (
+                      <Typography variant="overline" color="text.secondary" sx={{ pl: 0.5 }}>
+                         {item.title}
+                      </Typography>
+                   ) : (
+                     <Divider sx={{ width: '80%', margin: 'auto'}}/>
+                   )}
+                 </ListItem>
               );
             }
 
             // Render standard navigation items
-            const isSelected = router.pathname.substring(1) === item.segment;
+            // Use location.pathname to determine if selected
+            const targetPath = item.segment ? `/${item.segment}` : '#'; // Handle items without segments if any
+            const isSelected = location.pathname === targetPath;
+
             return (
               <ListItem
                 key={item.segment || item.title}
@@ -218,7 +219,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                             },
                         }}
                         selected={isSelected}
-                        onClick={() => item.segment && router.navigate(`/${item.segment}`)}
+                        // Use navigate function for onClick
+                        onClick={() => item.segment && navigate(targetPath)}
                         aria-current={isSelected ? 'page' : undefined}
                     >
                     {item.icon && (
@@ -253,7 +255,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         )}
       </Drawer>
 
-      {/* Main Content Area - Dynamic margin ensures content flows correctly */}
+      {/* Main Content Area */}
       <Box
         component="main"
         sx={{
@@ -270,7 +272,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       >
         {/* Use Toolbar for standard height padding below fixed AppBar */}
         <Toolbar />
-        {/* Render the page content */}
+        {/* Render the page content passed as children (now managed by <Routes>) */}
         {children}
       </Box>
     </Box>

@@ -2,7 +2,7 @@ import React, { createContext, useContext, ReactNode, useState, useMemo } from '
 import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { Navigation, Router, Session, Authentication, ColorMode, AppContextType } from '../types';
+import { Navigation, Session, Authentication, ColorMode, AppContextType } from '../types';
 
 // Create the context
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -19,7 +19,6 @@ export const useAppContext = () => {
 // Define props for the provider component
 interface AppProviderProps {
   navigation: Navigation;
-  router: Router;
   window?: Window;
   children: ReactNode;
   session: Session | null;
@@ -30,7 +29,6 @@ interface AppProviderProps {
 // The Provider Component
 export const AppProvider: React.FC<AppProviderProps> = ({
   navigation,
-  router,
   window,
   children,
   session,
@@ -66,14 +64,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo<AppContextType>(() => ({
     navigation,
-    router,
     theme,
     window,
     session,
     authentication,
     colorMode,
     availableAccounts,
-  }), [navigation, router, theme, window, session, authentication, colorMode, availableAccounts]);
+  }), [navigation, theme, window, session, authentication, colorMode, availableAccounts]);
 
   return (
     <AppContext.Provider value={contextValue}>

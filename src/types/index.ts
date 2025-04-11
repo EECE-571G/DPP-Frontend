@@ -12,12 +12,6 @@ export interface NavigationItem {
 
 export type Navigation = NavigationItem[];
 
-export interface Router {
-  pathname: string;
-  searchParams: URLSearchParams;
-  navigate: (path: string) => void;
-}
-
 export interface ColorMode {
   mode: PaletteMode;
   toggleColorMode: () => void;
@@ -99,7 +93,6 @@ export interface SidebarFooterProps {
 
 export interface AppContextType {
   navigation: Navigation;
-  router: Router;
   theme: ReturnType<typeof createTheme>;
   window?: Window;
   session: Session | null;
