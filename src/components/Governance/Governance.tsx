@@ -35,7 +35,7 @@ const Governance: React.FC<GovernanceProps> = ({
     // Mock Meta Data (Keep here or lift to App.tsx if needed globally)
     const mockMeta = {
         id: 'Epoch 15',
-        time: '2d 5h left',
+        time: '2d 5h',
         stage: 'Voting Phase'
     };
 
