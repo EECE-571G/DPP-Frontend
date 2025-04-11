@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Components & Layout
@@ -13,22 +13,19 @@ import AppBarAccount from './components/AppBarAccount';
 import { SidebarFooterAccount } from './components/Account/SiderbarAccount';
 
 // Types
-import { Session, Navigation, Pool, Proposal } from './types';
+import { Navigation } from './types';
 
 // Utilities & Mock Data
-import {
-    MOCK_POOLS,
-    MOCK_PROPOSALS,
-    MOCK_USER_BALANCES,
-    MOCK_GOVERNANCE_STATUS,
-    MOCK_GOVERNANCE_METADATA,
-} from './utils/mockData';
+import { MOCK_USER_BALANCES } from './utils/mockData';
 
 // Hooks
 import { useLoadingState } from './hooks/useLoadingState';
 import { useSnackbar } from './hooks/useSnackbar';
 import { useAuth } from './hooks/useAuth';
 import { useAppActions } from './hooks/useAppActions';
+import { usePools } from './hooks/usePools';
+import { useProposals } from './hooks/useProposals';
+import { useGovernanceData } from './hooks/useGovernanceData';
 
 // MUI Components
 import { Snackbar, Alert, Box, Fade } from '@mui/material';
@@ -40,40 +37,40 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GavelIcon from '@mui/icons-material/Gavel';
 
 const App: React.FC = () => {
-    // --- Core State ---
-    const [session, setSession] = useState<Session | null>(null);
-    const [availableAccounts, setAvailableAccounts] = useState<string[] | null>(null);
-    const [userBalances, setUserBalances] = useState<Record<string, number>>({});
-
-    // --- Static/Mock Data State ---
-    const [pools] = useState<Pool[]>(MOCK_POOLS);
-    const [selectedPool, setSelectedPool] = useState<Pool | null>(MOCK_POOLS[0] ?? null);
-    const [proposals, setProposals] = useState<Proposal[]>(MOCK_PROPOSALS);
-    const [governanceStatus] = useState<number[]>(MOCK_GOVERNANCE_STATUS);
-    const [metaData] = useState(MOCK_GOVERNANCE_METADATA);
 
     // --- Custom Hooks ---
     const { isLoading, setLoading } = useLoadingState();
     const { snackbar, showSnackbar, handleCloseSnackbar } = useSnackbar();
-    const authentication = useAuth({
-        setSession,
-        setAvailableAccounts,
-        setUserBalances,
-        setLoading,
-        showSnackbar,
+
+    // Use the data-fetching/state hooks
+    const { pools, selectedPool, setSelectedPool, isLoadingPools } = usePools();
+    const { proposals, isLoadingProposals } = useProposals();
+    const { governanceStatus, metaData, isLoadingGovernanceData } = useGovernanceData();
+
+    // Use the refactored useAuth hook
+    const {
         session,
         availableAccounts,
+        userBalances,
+        setUserBalances,
+        authentication,
+        isConnecting
+    } = useAuth({
+        setLoading,
+        showSnackbar,
         mockUserBalances: MOCK_USER_BALANCES
     });
+
+    // Pass data/setters from useAuth to useAppActions
     const actions = useAppActions({
         setLoading,
         showSnackbar,
-        setUserBalances,
         session,
-        userBalances
+        userBalances,
+        setUserBalances
     });
 
-    // --- Router Implementation ---
+    // --- Router ---
     const location = useLocation();
 
     // --- Navigation Structure ---
@@ -90,9 +87,8 @@ const App: React.FC = () => {
             <>
                 <WalletConnect
                     onConnect={authentication.signIn}
-                    isProcessing={isLoading['connectWallet']}
+                    isProcessing={isConnecting || isLoading['connectWallet']}
                 />
-                {/* Snackbar for connection errors etc. */}
                 <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
                     <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
                         {snackbar.message}
@@ -111,44 +107,77 @@ const App: React.FC = () => {
             authentication={authentication}
             availableAccounts={availableAccounts}
         >
-            {/* DashboardLayout now wraps the Routes */}
             <DashboardLayout
                 slots={{
                     sidebarFooter: SidebarFooterAccount,
                     toolbarContent: AppBarAccount,
                 }}
             >
-                {/* Use Routes for page content */}
                 <Fade in={true} key={location.pathname} timeout={300}>
-                     {/* Wrapper needed for Fade */}
-                     <Box>
+                    <Box>
                         <Routes>
                             <Route
                                 path="/dashboard"
-                                element={<Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />}
+                                element={
+                                    <Dashboard
+                                        pools={pools}
+                                        selectedPool={selectedPool}
+                                        onSelectPool={setSelectedPool} // Pass setter from usePools
+                                        userBalances={userBalances}
+                                        isLoadingPools={isLoadingPools} // Pass loading state
+                                        isLoadingBalances={isLoading['fetchBalances'] ?? false} // Example if you add balance loading
+                                    />
+                                }
                             />
                             <Route
                                 path="/swap"
-                                element={<Swap selectedPool={selectedPool} userBalances={userBalances} onSwap={actions.handleSwap} isLoading={isLoading['swap']} />}
+                                element={
+                                    <Swap
+                                        selectedPool={selectedPool}
+                                        userBalances={userBalances}
+                                        onSwap={actions.handleSwap}
+                                        isLoading={isLoading['swap']}
+                                        isPoolLoading={isLoadingPools} // Pass pool loading state
+                                    />
+                                }
                             />
                             <Route
                                 path="/liquidity"
-                                element={<Liquidity selectedPool={selectedPool} userBalances={userBalances} onAddLiquidity={actions.handleAddLiquidity} onRemoveLiquidity={actions.handleRemoveLiquidity} loadingStates={{ add: isLoading['addLiquidity'], remove: isLoading['removeLiquidity'] }} />}
+                                element={
+                                    <Liquidity
+                                        selectedPool={selectedPool}
+                                        userBalances={userBalances}
+                                        onAddLiquidity={actions.handleAddLiquidity}
+                                        onRemoveLiquidity={actions.handleRemoveLiquidity}
+                                        loadingStates={{ add: isLoading['addLiquidity'], remove: isLoading['removeLiquidity'] }}
+                                    />
+                                }
                             />
                             <Route
                                 path="/governance"
-                                element={<Governance proposals={proposals} governanceStatus={governanceStatus} userBalances={userBalances} voteWithRange={actions.handleVoteWithRange} delegateVotes={actions.handleDelegate} loadingStates={isLoading} currentUserAddress={session?.user.address} metaData={metaData} />}
+                                element={
+                                    <Governance
+                                        proposals={proposals}
+                                        governanceStatus={governanceStatus}
+                                        userBalances={userBalances}
+                                        voteWithRange={actions.handleVoteWithRange}
+                                        delegateVotes={actions.handleDelegate}
+                                        loadingStates={isLoading}
+                                        currentUserAddress={session?.user.address}
+                                        metaData={metaData ?? { id: 'N/A', time: 'N/A', stage: 'Loading...' }}
+                                        // You might want specific loading states for proposals/governance data
+                                        // isLoadingProposals={isLoadingProposals}
+                                        // isLoadingGovernanceData={isLoadingGovernanceData}
+                                    />
+                                }
                             />
-                             {/* Default route redirects to dashboard */}
                              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                             {/* Catch-all redirects to dashboard */}
                              <Route path="*" element={<Navigate to="/dashboard" replace />} />
                         </Routes>
                     </Box>
                 </Fade>
             </DashboardLayout>
 
-            {/* Global Snackbar */}
             <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
                 <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
                     {snackbar.message}

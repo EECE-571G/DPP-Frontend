@@ -1,27 +1,18 @@
 import React from 'react';
 import {
-  Box,
-  Typography,
-  Autocomplete,
-  TextField,
-  Card,
-  CardContent,
-  Paper,
-  Grid,
-  Collapse,
-  Divider,
-  Skeleton
+  Box, Typography, Autocomplete, TextField, Card, CardContent,
+  Paper, Grid, Collapse, Divider, Skeleton
 } from '@mui/material';
 import { Pool } from '../types';
 import { formatBalance } from '../utils/formatters';
 
 interface DashboardProps {
-  pools: Pool[]; // List of available pools
-  selectedPool: Pool | null; // Currently selected pool
-  onSelectPool: (pool: Pool | null) => void; // Callback when pool selection changes
-  userBalances: Record<string, number | string>; // User's token balances
-  isLoadingPools?: boolean; // Indicate if pools are loading
-  isLoadingBalances?: boolean; // Indicate if balances are loading
+  pools: Pool[];
+  selectedPool: Pool | null;
+  onSelectPool: (pool: Pool | null) => void;
+  userBalances: Record<string, number | string>;
+  isLoadingPools?: boolean;
+  isLoadingBalances?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -32,23 +23,17 @@ const Dashboard: React.FC<DashboardProps> = ({
   isLoadingPools = false,
   isLoadingBalances = false,
 }) => {
-  // Derive balance information safely
   const tokenABalance = selectedPool ? userBalances[selectedPool.tokenA] : undefined;
   const tokenBBalance = selectedPool ? userBalances[selectedPool.tokenB] : undefined;
-
-  // Assume LP token symbol follows a pattern or comes from Pool data if available
-  // const lpTokenSymbol = selectedPool?.lpTokenSymbol ?? (selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined);
-  // Simplified for now:
-   const lpTokenSymbol = selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined;
-  const lpTokenBalance = lpTokenSymbol ? userBalances[lpTokenSymbol] : undefined; // Check if LP balance exists
-
+  const lpTokenSymbol = selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined;
+  const lpTokenBalance = lpTokenSymbol ? userBalances[lpTokenSymbol] : undefined;
 
   const handlePoolChange = (event: React.SyntheticEvent, newValue: Pool | null) => {
       onSelectPool(newValue);
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 } }}> {/* Responsive padding */}
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <Typography
         variant="h4"
         sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}
@@ -56,14 +41,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         Pool Dashboard
       </Typography>
 
-      {/* Pool Selection Card */}
-      <Card
-        elevation={1}
-        sx={{
-          borderRadius: 2,
-          mb: 3,
-        }}
-      >
+      {/* Pool Selection Card - Use isLoadingPools */}
+      <Card elevation={1} sx={{ borderRadius: 2, mb: 3, }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           {isLoadingPools ? (
               <Skeleton variant="rounded" height={56} />
@@ -89,32 +68,35 @@ const Dashboard: React.FC<DashboardProps> = ({
                   sx={{ mb: 1 }}
               />
           )}
+           {/* Show error message if pools failed to load */}
+           {/* {errorPools && !isLoadingPools && <Alert severity="error" sx={{ mt: 2 }}>{errorPools}</Alert>} */}
         </CardContent>
       </Card>
 
-      {/* Selected Pool Details + Balances Card */}
-      <Collapse in={!!selectedPool || isLoadingBalances} timeout={400} unmountOnExit>
+      {/* Selected Pool Details + Balances Card - Use selectedPool and isLoadingBalances */}
+      <Collapse in={!!selectedPool || isLoadingBalances || isLoadingPools} timeout={400} unmountOnExit>
         <Paper
           elevation={0}
           variant="outlined"
           sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}
         >
-          {selectedPool && ( // Only show title if pool is selected
+          {/* Show skeleton if pools are loading OR if a pool is selected */}
+          {(isLoadingPools || selectedPool) && (
              <Typography variant="h5" sx={{ mb: 2, fontWeight: 500 }}>
-                {selectedPool.name} Details
+                {selectedPool ? selectedPool.name : <Skeleton width="50%"/>} Details
              </Typography>
           )}
           <Grid container spacing={2} rowSpacing={1.5}>
-            {/* Pool Info */}
+            {/* Pool Info - Show skeleton if isLoadingPools */}
             <Grid item xs={12} sm={6}>
-              <Typography variant="body1" component="div"> 
-                <strong>Token Pair:</strong> {selectedPool ? `${selectedPool.tokenA} / ${selectedPool.tokenB}` : <Skeleton width="60%"/> }
+              <Typography variant="body1" component="div">
+                <strong>Token Pair:</strong> {isLoadingPools ? <Skeleton width="60%"/> : (selectedPool ? `${selectedPool.tokenA} / ${selectedPool.tokenB}` : 'N/A')}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="body1">
                 <strong>Current Price:</strong>{' '}
-                 {selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.currentPrice, 6)} ${selectedPool.tokenB}` : <Skeleton width="70%"/> }
+                 {isLoadingPools ? <Skeleton width="70%"/> : (selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.currentPrice, 6)} ${selectedPool.tokenB}` : 'N/A')}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -124,13 +106,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                 sx={{ fontWeight: 'medium' }}
               >
                 <strong>Desired Price:</strong>{' '}
-                 {selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.desiredPrice, 6)} ${selectedPool.tokenB}` : <Skeleton width="70%"/> }
+                 {isLoadingPools ? <Skeleton width="70%"/> : (selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.desiredPrice, 6)} ${selectedPool.tokenB}` : 'N/A')}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="body2" color="text.secondary">
                 <strong>Base Fee:</strong>{' '}
-                 {selectedPool ? `${(selectedPool.baseFee * 100).toFixed(2)}%` : <Skeleton width="30%"/> }
+                 {isLoadingPools ? <Skeleton width="30%"/> : (selectedPool ? `${(selectedPool.baseFee * 100).toFixed(2)}%` : 'N/A')}
               </Typography>
             </Grid>
 
@@ -139,22 +121,25 @@ const Dashboard: React.FC<DashboardProps> = ({
               <Divider sx={{ my: 2 }} />
             </Grid>
 
-            {/* User Balances for Selected Pool */}
-            <Grid item xs={12}>
-              <Typography
-                variant="h6"
-                sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}
-              >
-                Your Balances
-              </Typography>
-            </Grid>
-             {isLoadingBalances ? (
+            {/* User Balances for Selected Pool - Use isLoadingBalances */}
+            {(isLoadingBalances || selectedPool) && ( // Show section if balances loading OR pool selected
+              <Grid item xs={12}>
+                <Typography
+                  variant="h6"
+                  sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}
+                >
+                  Your Balances
+                </Typography>
+              </Grid>
+            )}
+             {isLoadingBalances ? ( // Show skeletons if balances are loading
                  <>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
-                    <Grid item xs={12}><Skeleton width="60%" /></Grid>
+                    {/* Conditionally show LP skeleton if it might exist */}
+                    {selectedPool && <Grid item xs={12}><Skeleton width="60%" /></Grid>}
                  </>
-             ) : selectedPool ? ( // Only show balances if a pool is selected and not loading
+             ) : selectedPool ? ( // Only render actual balances if pool selected AND not loading
                 <>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
@@ -177,7 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </Typography>
                       </Grid>
                     )}
-                    {lpTokenBalance === undefined && ( // Explicitly check for undefined
+                    {lpTokenBalance === undefined && (
                       <Grid item xs={12}>
                         <Typography variant="caption" color="text.secondary">
                           You have no liquidity provider tokens for this pool.

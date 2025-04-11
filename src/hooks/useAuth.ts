@@ -1,40 +1,55 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import type { Session, User } from '../types';
 import { shortenAddress } from '../utils/formatters';
 
 interface UseAuthProps {
-    setSession: React.Dispatch<React.SetStateAction<Session | null>>;
-    setAvailableAccounts: React.Dispatch<React.SetStateAction<string[] | null>>;
-    setUserBalances: React.Dispatch<React.SetStateAction<Record<string, number>>>;
     setLoading: (key: string, value: boolean) => void; // From useLoadingState
     showSnackbar: (message: string, severity?: any) => void; // From useSnackbar
-    session: Session | null; // Need current session state for switchAccount
-    availableAccounts: string[] | null; // Need available accounts for switchAccount
     mockUserBalances: Record<string, number>; // Pass mock balances
 }
 
+// Define the return type for the hook
+export interface AuthHookResult {
+    session: Session | null;
+    availableAccounts: string[] | null;
+    userBalances: Record<string, number>;
+    setUserBalances: React.Dispatch<React.SetStateAction<Record<string, number>>>; // Expose setter if needed by actions
+    authentication: {
+        signIn: (primaryAddress: string, allAccounts: string[] | null, type: 'metamask' | 'simulated') => void;
+        signOut: () => void;
+        switchAccount: (newAddress: string) => void;
+    };
+    isConnecting: boolean;
+}
+
+
 export const useAuth = ({
-    setSession,
-    setAvailableAccounts,
-    setUserBalances,
-    setLoading,
+    setLoading, // Keep setLoading for general loading state if needed, or manage connectWallet state here
     showSnackbar,
-    session,
-    availableAccounts,
-    mockUserBalances // Receive mock balances
-}: UseAuthProps) => {
+    mockUserBalances
+}: UseAuthProps): AuthHookResult => {
+
+    // Move state inside the hook
+    const [session, setSession] = useState<Session | null>(null);
+    const [availableAccounts, setAvailableAccounts] = useState<string[] | null>(null);
+    const [userBalances, setUserBalances] = useState<Record<string, number>>({});
+    const [isConnecting, setIsConnecting] = useState<boolean>(false); // Local loading state for connect
 
     const signIn = useCallback((
         primaryAddress: string,
         allAccounts: string[] | null,
         type: 'metamask' | 'simulated'
     ) => {
+        // Use local connecting state
+        setIsConnecting(true);
+        // Use global loading state too
         setLoading('connectWallet', true);
+
         // Simulate processing delay
         setTimeout(() => {
             const user: User = {
                 address: primaryAddress,
-                name: `${type === 'metamask' ? 'MetaMask' : 'Simulated'} User`, // More descriptive name
+                name: `${type === 'metamask' ? 'MetaMask' : 'Simulated'} User (${shortenAddress(primaryAddress, 4)})`,
                 type: type,
             };
             setSession({ user });
@@ -43,19 +58,21 @@ export const useAuth = ({
             // Use mock balances passed to the hook
             setUserBalances(mockUserBalances);
 
+            setIsConnecting(false);
             setLoading('connectWallet', false);
-            showSnackbar(`Wallet connected via ${type === 'metamask' ? 'MetaMask' : 'Simulation'}!`, 'success');
+            showSnackbar(`Wallet connected: ${shortenAddress(primaryAddress)} (${type})`, 'success');
         }, 500);
-    }, [setLoading, setSession, setAvailableAccounts, setUserBalances, showSnackbar, mockUserBalances]);
+    }, [setLoading, showSnackbar, mockUserBalances]);
 
     const signOut = useCallback(() => {
         setSession(null);
         setAvailableAccounts(null);
         setUserBalances({});
         showSnackbar('Wallet disconnected', 'info');
-    }, [setSession, setAvailableAccounts, setUserBalances, showSnackbar]);
+    }, [showSnackbar]);
 
     const switchAccount = useCallback((newAddress: string) => {
+        // Check internal state
         if (session?.user.type === 'metamask' && availableAccounts?.includes(newAddress)) {
             setSession(prevSession => prevSession ? ({
                 ...prevSession,
@@ -69,14 +86,22 @@ export const useAuth = ({
             console.warn("Account switching failed: Invalid state or address.");
             showSnackbar('Failed to switch account', 'error');
         }
-    }, [session, availableAccounts, setSession, setUserBalances, showSnackbar, mockUserBalances]);
+    }, [session, availableAccounts, showSnackbar, mockUserBalances]);
 
-    // Return memoized object if preferred, or individual functions
+    // Memoize the authentication functions object
     const authentication = useMemo(() => ({
         signIn,
         signOut,
         switchAccount,
     }), [signIn, signOut, switchAccount]);
 
-    return authentication; // Or return { signIn, signOut, switchAccount }
+    // Return all managed state and functions
+    return {
+        session,
+        availableAccounts,
+        userBalances,
+        setUserBalances,
+        authentication,
+        isConnecting,
+    };
 };
