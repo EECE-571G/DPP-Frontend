@@ -16,17 +16,6 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { useAppContext } from '../contexts/AppProvider';
 import { shortenAddress } from '../utils/formatters';
 
-// Helper to generate simple blockie-like background
-const generateAvatarColor = (address: string): string => {
-    let hash = 0;
-    for (let i = 0; i < address.length; i++) {
-        hash = address.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const color = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-    return "#" + "00000".substring(0, 6 - color.length) + color;
-};
-
-
 const AppBarAccount: React.FC = () => {
     const { session, availableAccounts, authentication } = useAppContext();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
