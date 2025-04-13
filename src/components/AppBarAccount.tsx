@@ -29,7 +29,7 @@ const AppBarAccount: React.FC = () => {
     };
 
     const handleSignOut = () => {
-        authentication.signOut(); // Use context action
+        window.location.reload();
         handleClose();
     };
 

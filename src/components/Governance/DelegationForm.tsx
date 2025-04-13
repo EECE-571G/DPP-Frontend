@@ -20,7 +20,7 @@ const DelegationForm: React.FC = () => {
     const [delegateError, setDelegateError] = useState<string | null>(null);
 
     // --- Derived State ---
-    const vDPPBalance = userBalances['vDPP'] ?? 0;
+    const vDPPBalance = parseFloat(userBalances['vDPP']) || 0;
     const delegatePowerNum = parseFloat(delegatePowerStr) || 0;
     const delegateKey = 'delegateVotes';
     const isLoading = loadingStates[delegateKey] ?? false;
@@ -37,9 +37,7 @@ const DelegationForm: React.FC = () => {
             if (success) {
                 setDelegateTarget(''); setDelegatePowerStr('');
             }
-            // Errors handled by hook snackbar
         } catch (error: any) {
-            // Fallback UI error
             console.error("Delegation failed (UI):", error);
             setDelegateError(`Delegation failed: ${error.message || String(error)}`);
         }

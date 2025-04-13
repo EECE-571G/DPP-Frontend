@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Path to Foundry output
-const foundryOutDir = path.resolve(__dirname, '../node_modules/my-contracts/out');
+const foundryOutDir = path.resolve(__dirname, '../node_modules/@my-dapp/contracts/out');
 // Where to save the extracted ABIs
 const abiDir = path.resolve(__dirname, '../src/abis');
 

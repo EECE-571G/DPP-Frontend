@@ -1,27 +1,29 @@
 import React from 'react';
 import {
   Box, Typography, Autocomplete, TextField, Card, CardContent,
-  Paper, Grid, Collapse, Divider, Skeleton, Alert
+  Paper, Grid, Collapse, Skeleton, Alert
 } from '@mui/material';
-import { Pool } from '../types';
-import { formatBalance } from '../utils/formatters';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 
 const Dashboard: React.FC = () => {
-  // Get data from contexts
-  const { pools, selectedPool, setSelectedPoolById, isLoadingPools, errorPools } = usePoolsContext();
-  const { userBalances, isLoadingBalances, errorBalances } = useBalancesContext();
+  const { pools, selectedPool, isLoadingPools, errorPools } = usePoolsContext();
+  const { userBalances, tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
 
-  const tokenABalance = selectedPool ? userBalances[selectedPool.tokenA] : undefined;
-  const tokenBBalance = selectedPool ? userBalances[selectedPool.tokenB] : undefined;
+  // Get the correct addresses from the selected pool
+  const tokenAAddress = selectedPool?.tokenA_Address;
+  const tokenBAddress = selectedPool?.tokenB_Address;
+
+  // Access balances using the ADDRESSES as keys
+  const tokenABalanceStr = tokenAAddress ? userBalances[tokenAAddress] : undefined;
+  const tokenBBalanceStr = tokenBAddress ? userBalances[tokenBAddress] : undefined;
+
+  // Get symbols using addresses
+  const tokenASymbol = tokenAAddress ? tokenSymbols[tokenAAddress] : 'N/A';
+  const tokenBSymbol = tokenBAddress ? tokenSymbols[tokenBAddress] : 'N/A';
+
   const lpTokenSymbol = selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined;
   const lpTokenBalance = lpTokenSymbol ? userBalances[lpTokenSymbol] : undefined;
-
-  // Handler to pass ID
-  const handlePoolChange = (event: React.SyntheticEvent, newValue: Pool | null) => {
-      setSelectedPoolById(newValue ? newValue.id : null);
-  };
 
   // --- Render logic ---
   return (
@@ -43,7 +45,7 @@ const Dashboard: React.FC = () => {
               <Autocomplete
                   options={pools}
                   value={selectedPool}
-                  onChange={handlePoolChange}
+                  // onChange={handlePoolChange}
                   getOptionLabel={(option) =>
                       `${option.name} (${option.tokenA}/${option.tokenB})`
                   }
@@ -74,37 +76,6 @@ const Dashboard: React.FC = () => {
              </Typography>
           )}
           <Grid container spacing={2} rowSpacing={1.5}>
-            {/* Pool Info */}
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body1" component="div">
-                <strong>Token Pair:</strong> {isLoadingPools ? <Skeleton width="60%"/> : (selectedPool ? `${selectedPool.tokenA} / ${selectedPool.tokenB}` : 'N/A')}
-              </Typography>
-            </Grid>
-            {/* ... other pool details using isLoadingPools and selectedPool ... */}
-             <Grid item xs={12} sm={6}>
-               <Typography variant="body1">
-                 <strong>Current Price:</strong>{' '}
-                  {isLoadingPools ? <Skeleton width="70%"/> : (selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.currentPrice, 6)} ${selectedPool.tokenB}` : 'N/A')}
-               </Typography>
-             </Grid>
-             <Grid item xs={12} sm={6}>
-               <Typography
-                 variant="body1"
-                 color="primary.main"
-                 sx={{ fontWeight: 'medium' }}
-               >
-                 <strong>Desired Price:</strong>{' '}
-                  {isLoadingPools ? <Skeleton width="70%"/> : (selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.desiredPrice, 6)} ${selectedPool.tokenB}` : 'N/A')}
-               </Typography>
-             </Grid>
-             <Grid item xs={12} sm={6}>
-               <Typography variant="body2" color="text.secondary">
-                 <strong>Base Fee:</strong>{' '}
-                  {isLoadingPools ? <Skeleton width="30%"/> : (selectedPool ? `${(selectedPool.baseFee * 100).toFixed(2)}%` : 'N/A')}
-               </Typography>
-             </Grid>
-
-            <Grid item xs={12}><Divider sx={{ my: 2 }} /></Grid>
 
             {/* User Balances */}
             {(isLoadingBalances || selectedPool) && (
@@ -124,32 +95,31 @@ const Dashboard: React.FC = () => {
                 <>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
-                        <strong>{selectedPool.tokenA}:</strong>{' '}
-                        {formatBalance(tokenABalance, 6)}
+                        <strong>{tokenASymbol}:</strong>{' '}
+                        {tokenABalanceStr}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
-                        <strong>{selectedPool.tokenB}:</strong>{' '}
-                        {formatBalance(tokenBBalance, 6)}
+                        <strong>{tokenBSymbol}:</strong>{' '}
+                        {tokenBBalanceStr}
                       </Typography>
                     </Grid>
                     {lpTokenBalance !== undefined && lpTokenSymbol && (
                       <Grid item xs={12}>
                         <Typography variant="body2" color="text.secondary">
                           <strong>LP Tokens ({lpTokenSymbol}):</strong>{' '}
-                          {formatBalance(lpTokenBalance, 8)}
+                          {lpTokenBalance}
                         </Typography>
                       </Grid>
                     )}
-                    {/* ... rest of balance display ... */}
                      {lpTokenBalance === undefined && selectedPool && (
                        <Grid item xs={12}>
                          <Typography variant="caption" color="text.secondary">
                            You have no liquidity provider tokens for this pool.
                          </Typography>
                        </Grid>
-                     )}
+                     )} 
                 </>
              ) : null}
           </Grid>

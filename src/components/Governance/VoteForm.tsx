@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, TextField, Button, CircularProgress, Alert, Stack } from '@mui/material';
+import { Box, Typography, TextField, Button, CircularProgress, Alert, Stack, Paper } from '@mui/material';
+import PollIcon from '@mui/icons-material/Poll';
 import SendIcon from '@mui/icons-material/Send';
 import { formatBalance } from '../../utils/formatters';
 
@@ -25,7 +26,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
     const [voteError, setVoteError] = useState<string | null>(null);
 
     // --- Derived State ---
-    const vDPPBalance = userBalances['vDPP'] ?? 0;
+    const vDPPBalance = parseFloat(userBalances['vDPP'] ?? 0);
     const voteLowerNum = parseFloat(voteLowerStr);
     const voteUpperNum = parseFloat(voteUpperStr);
     const votePowerNum = parseFloat(votePowerStr) || 0;
@@ -60,7 +61,10 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
     }, [proposalId]);
 
     return (
+        <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
         <Box component="form" noValidate autoComplete="off" sx={{ mt: 2 }}>
+        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}><PollIcon sx={{ mr: 1 }} /> Pool Target Price Voting:</Typography>
+
             <Typography variant="subtitle2" gutterBottom>Cast Your Vote:</Typography>
             {voteError && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setVoteError(null)}>{voteError}</Alert>}
             <Stack spacing={1.5}>
@@ -73,6 +77,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
             </Stack>
             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>Your voting power will be locked according to protocol rules.</Typography>
         </Box>
+        </Paper>
     );
 };
 
