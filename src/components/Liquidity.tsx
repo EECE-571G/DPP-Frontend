@@ -1,19 +1,17 @@
 // src/components/Liquidity.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Box, Typography, Card, CardContent, TextField, Button, InputAdornment,
-    Tabs, Tab, CircularProgress, Paper, Fade, Alert, Grid, Link, Skeleton
+    Box, Typography, Card, CardContent, TextField, Button,
+    Tabs, Tab, CircularProgress, Fade, Alert, Skeleton
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
-import FiberNewIcon from '@mui/icons-material/FiberNew'; // Icon for Mint
+import FiberNewIcon from '@mui/icons-material/FiberNew';
 
-import { formatBalance } from '../utils/formatters';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useLiquidityActions } from '../hooks/useLiquidityActions';
-import { ethers } from 'ethers';
 
 // Local storage keys
 const LS_TOKEN_ID = 'liquidity_tokenId';
@@ -40,7 +38,7 @@ function TabPanel(props: TabPanelProps) {
 
 const Liquidity: React.FC = () => {
     const { selectedPool, isLoadingPools, errorPools } = usePoolsContext();
-    const { userBalances, tokenDecimals, tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
+    const { isLoadingBalances, errorBalances } = useBalancesContext();
     const { isLoading: loadingStates } = useLoadingContext();
     const { handleMintPosition, handleAddLiquidity, handleRemoveLiquidity } = useLiquidityActions();
 

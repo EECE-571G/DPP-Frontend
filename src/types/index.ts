@@ -20,7 +20,7 @@ export interface ColorMode {
 // --- User and Session ---
 export interface User {
   name?: string;
-  address: string; // Primary identifier from wallet
+  address: string;
 }
 
 export interface Session {
@@ -31,7 +31,6 @@ export interface Authentication {
   signIn: (
     primaryAddress: string,
     allAccounts: string[] | null,
-    type: 'metamask' | 'simulated'
   ) => void;
   signOut: () => void;
   switchAccount: (newAddress: string) => void;

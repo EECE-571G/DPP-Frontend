@@ -1,6 +1,6 @@
 // src/hooks/useLiquidityActions.ts
 import { useCallback } from 'react';
-import { ethers, parseUnits, MaxUint256, ZeroAddress, isAddress, Contract, AbiCoder, toBeHex } from 'ethers';
+import { ethers, parseUnits, MaxUint256, ZeroAddress, isAddress, Contract, AbiCoder } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
@@ -150,12 +150,11 @@ export const useLiquidityActions = () => {
                 account, // recipient
                 "0x" // hookData
              ];
-             // --- FIX: Change liquidity type to uint256 ---
              const mintParamTypes = [
                 'tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)',
                 'int24',   // tickLower
                 'int24',   // tickUpper
-                'uint256', // liquidity <-- CORRECTED TYPE
+                'uint256', // liquidity
                 'uint128', // amount0Max
                 'uint128', // amount1Max
                 'address', // owner
@@ -276,10 +275,9 @@ export const useLiquidityActions = () => {
                 0, // amount1Max (uint128) - Renamed from decodeModifyLiquidityParams
                 "0x" // hookData
              ];
-             // --- FIX: Change liquidity type to uint256 ---
              const increaseParamTypes = [
                 'uint256', // tokenId
-                'uint256', // liquidity <-- CORRECTED TYPE (Matches decodeModifyLiquidityParams)
+                'uint256', // liquidity (Matches decodeModifyLiquidityParams)
                 'uint128', // amount0Max (Assuming this maps to amount0 in decoder)
                 'uint128', // amount1Max (Assuming this maps to amount1 in decoder)
                 'bytes'    // hookData
@@ -366,10 +364,9 @@ export const useLiquidityActions = () => {
                  0, // amount1Min (uint128)
                  "0x" // hookData
                 ];
-             // --- FIX: Change liquidity type to uint256 ---
              const decreaseParamTypes = [
                  'uint256', // tokenId
-                 'uint256', // liquidity <-- CORRECTED TYPE (Matches decodeModifyLiquidityParams)
+                 'uint256', // liquidity (Matches decodeModifyLiquidityParams)
                  'uint128', // amount0Min (Assuming this maps to amount0)
                  'uint128', // amount1Min (Assuming this maps to amount1)
                  'bytes'    // hookData

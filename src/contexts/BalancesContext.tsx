@@ -8,7 +8,7 @@ import React, {
   ReactNode,
   useMemo,
 } from 'react';
-import { ethers, isAddress, ZeroAddress, formatUnits, Contract } from 'ethers'; // Ethers v6 imports
+import { isAddress, ZeroAddress, formatUnits, Contract } from 'ethers'; // Ethers v6 imports
 import { useAuthContext } from './AuthContext';
 import { RELEVANT_TOKEN_ADDRESSES, TARGET_NETWORK_CHAIN_ID } from '../constants';
 import Erc20ABI from '../abis/ERC20.json';
@@ -55,7 +55,7 @@ export const BalancesProvider: React.FC<BalancesProviderProps> = ({ children }) 
           setTokenDecimals({});
           setTokenSymbols({});
           setErrorBalances(null);
-          setIsLoadingBalances(false); // Ensure loading is false if skipped
+          setIsLoadingBalances(false);
           return;
       }
 

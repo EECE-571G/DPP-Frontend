@@ -8,7 +8,7 @@ import React, {
   ReactNode,
   useMemo,
 } from 'react';
-import { ethers, ZeroAddress, Contract, solidityPackedKeccak256 } from 'ethers'; // Ethers v6 imports, added solidityPackedKeccak256
+import { ZeroAddress, Contract, solidityPackedKeccak256 } from 'ethers'; // Ethers v6 imports
 import { Pool } from '../types'; // Keep base Pool type for now
 import { useAuthContext } from './AuthContext';
 import { useBalancesContext } from './BalancesContext';
