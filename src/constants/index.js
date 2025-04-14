@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 
 const poolManagerRaw = "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"; // <<< FROM LOGS
 const desiredPricePoolHookRaw = "0x6Ed1c39731aF9BB23f95f296406048E5b6f0aac4"; // <<< FROM LOGS
+const desiredPricePoolHelperRaw = "0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141";
 const positionManagerRaw = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"; // <<< FROM LOGS (Example, check your Anvil output)
 const token0Raw = "0x59b670e9fA9D0A427751Af201D676719a970857b";        // <<< FROM LOGS (Token0)
 const token1Raw = "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1";        // <<< FROM LOGS (Token1)
@@ -14,6 +15,7 @@ const governanceContractRaw = desiredPricePoolHookRaw; // <<< REPLACE (If you ha
 // Export checksummed addresses
 export const POOL_MANAGER_ADDRESS = poolManagerRaw ? ethers.getAddress(poolManagerRaw) : ethers.ZeroAddress;
 export const DESIRED_PRICE_POOL_HOOK_ADDRESS = desiredPricePoolHookRaw ? ethers.getAddress(desiredPricePoolHookRaw) : ethers.ZeroAddress; // Use ZeroAddress if no hook or standard hook
+export const DESIRED_PRICE_POOL_HELPER_ADDRESS = desiredPricePoolHelperRaw ? ethers.getAddress(desiredPricePoolHelperRaw) : ethers.ZeroAddress;
 export const POSITION_MANAGER_ADDRESS = positionManagerRaw ? ethers.getAddress(positionManagerRaw) : ethers.ZeroAddress; // <<< ADDED
 export const TOKEN_A_ADDRESS = token0Raw ? ethers.getAddress(token0Raw) : ethers.ZeroAddress; // Renaming for consistency if needed
 export const TOKEN_B_ADDRESS = token1Raw ? ethers.getAddress(token1Raw) : ethers.ZeroAddress; // Renaming for consistency if needed

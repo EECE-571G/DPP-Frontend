@@ -96,8 +96,8 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
           // !!! CRITICAL: Verify this fee value matches your pool initialization !!!
           // If your pool uses dynamic fees, use DYNAMIC_FEE_FLAG constant instead.
           // Common static fees: 500 (0.05%), 3000 (0.3%), 10000 (1%)
-          const feeValue = 3000; // <<< EXAMPLE: CHECK YOUR DEPLOYMENT SCRIPT
-          // const feeValue = DYNAMIC_FEE_FLAG; // <<< USE THIS IF DYNAMIC FEE POOL
+        //   const feeValue = 3000; // <<< EXAMPLE: CHECK YOUR DEPLOYMENT SCRIPT
+          const feeValue = DYNAMIC_FEE_FLAG; // <<< USE THIS IF DYNAMIC FEE POOL
 
           const tickSpacingValue = Number(POOL_TICK_SPACING);
           const hooksAddress = DESIRED_PRICE_POOL_HOOK_ADDRESS;
@@ -112,7 +112,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
           };
 
           // --- Log the created key ---
-          console.log("[PoolsContext] PoolKey created:", JSON.stringify(poolKey));
+          console.log("[PoolsContext] PoolKey created (using Dynamic Fee Flag):", JSON.stringify(poolKey));
 
           // --- Calculate Pool ID (verify calculation matches PoolId library if needed) ---
           // This calculation MUST match how the contract derives the ID.

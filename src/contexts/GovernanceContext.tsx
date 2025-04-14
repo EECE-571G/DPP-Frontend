@@ -8,9 +8,10 @@ import React, {
     useMemo,
     useCallback,
   } from 'react';
-  import { ethers, ZeroAddress, formatUnits, Contract } from 'ethers'; // Ethers v6 imports
+  import { ethers, ZeroAddress, Contract } from 'ethers'; // Ethers v6 imports
   import { Proposal, ProposalStatus } from '../types'; // Added ProposalStatus
   import { useAuthContext } from './AuthContext';
+  import { usePoolsContext } from './PoolsContext';
   import { GOVERNANCE_CONTRACT_ADDRESS, TARGET_NETWORK_CHAIN_ID } from '../constants';
   // --- Import Governance ABI ---
   import DesiredPricePoolABI from '../abis/DesiredPricePool.json'; // <<< FIX: Import the correct ABI
@@ -52,7 +53,7 @@ import React, {
   
   export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children }) => {
     const { provider, network } = useAuthContext(); // Use read-only provider
-  
+    const { selectedPool } = usePoolsContext();
     const [proposals, setProposals] = useState<Proposal[]>([]);
     const [governanceStatus, setGovernanceStatus] = useState<any>([]); // Keeping this generic
     const [metaData, setMetaData] = useState<GovernanceMetaData | null>(null);
@@ -103,99 +104,98 @@ import React, {
             setProposals([]); setGovernanceStatus([]); setMetaData(null);
             return;
         }
-  
+
+        if (!selectedPool || !selectedPool.poolId) {
+            console.log("Skipping governance fetch: No pool selected or poolId missing.");
+            setErrorGovernanceData("Please select a pool to view its governance details.");
+            setProposals([]); setGovernanceStatus([]); setMetaData(null);
+            setIsLoadingProposals(false); setIsLoadingGovernanceData(false);
+            return;
+        }
   
         setIsLoadingProposals(true); setIsLoadingGovernanceData(true);
         setErrorProposals(null); setErrorGovernanceData(null);
-  
+
         try {
-            // Use Ethers v6 Contract
             const governanceContract = new Contract(GOVERNANCE_CONTRACT_ADDRESS, GovernanceABI, provider);
+            const currentPoolId = selectedPool.poolId;
+            console.log(`[GovernanceContext] Fetching data for PoolId: ${currentPoolId}`);
   
             // --- Fetch Metadata & Status ---
-            setIsLoadingGovernanceData(true); // Explicitly set loading for this part
+            setIsLoadingGovernanceData(true);
             try {
-                 // Example: Fetch active poll ID for the default pool (adjust if your logic differs)
-                 // This part is tricky as you need a PoolId. Using a placeholder.
-                 // TODO: Determine how to get the relevant PoolId for the displayed governance info (e.g., from selectedPool)
-                 const placeholderPoolId = ethers.encodeBytes32String("placeholder-pool-id"); // Replace with actual logic
-  
-                 let currentPollId = 'N/A';
-                 let currentStage = 'N/A';
-                 let timeLeft = 'N/A'; // Placeholder
-  
-                 try {
-                     // Attempt to fetch poll state - THIS MIGHT FAIL if polls mapping isn't accessible or placeholderPoolId is wrong
-                     // NOTE: The 'polls' mapping in DesiredPrice.sol is internal and has no public getter.
-                     // We cannot directly fetch the poll state for a given PoolId this way.
-                     // This section needs adjustment based on how you intend to get the active poll ID and state.
-                     // For now, it will likely fail or return default values.
-                     // const pollState = await governanceContract.polls(placeholderPoolId); // This call will fail
-                     // currentPollId = pollState.id?.toString() ?? 'N/A';
-                     // currentStage = mapContractStage(pollState.getStage());
-                     // timeLeft = calculateTimeLeft(pollState.startTime, pollState.isMajorPoll());
-                     console.warn("Cannot fetch internal 'polls' mapping directly. Metadata will be N/A.");
-                     setErrorGovernanceData("Cannot fetch current poll state directly from contract.");
-  
-                 } catch (pollErr) {
-                     console.warn("Could not fetch poll state for placeholder PoolID:", pollErr);
-                     setErrorGovernanceData("Could not fetch current poll state. Pool ID may be needed or contract lacks getter.");
-                     // Keep defaults
-                 }
-  
-                 // Fetch other relevant metadata if available (e.g., total voting power)
-                 setMetaData({
-                     id: currentPollId,
-                     time: timeLeft,
-                     stage: currentStage,
-                 });
-                 setGovernanceStatus([]); // Populate if your contract has a 'governanceStatus' concept
-  
+                // --- Fetch Publicly Available Data ---
+                let currentDesiredPrice = 'N/A';
+                let govTokenAddr = 'N/A';
+
+                try {
+                    // Fetch desiredPrice for the specific pool
+                    const dpResult = await governanceContract.desiredPrice(currentPoolId);
+                    currentDesiredPrice = dpResult.toString(); // It's an int24
+                    console.log(`[GovernanceContext] Fetched desiredPrice: ${currentDesiredPrice}`);
+                } catch (dpErr) {
+                    console.error(`[GovernanceContext] Failed to fetch desiredPrice for ${currentPoolId}:`, dpErr);
+                     setErrorGovernanceData("Failed to fetch desired price.");
+                }
+
+                try {
+                   govTokenAddr = await governanceContract.goveranceToken();
+                   console.log(`[GovernanceContext] Fetched governance token: ${govTokenAddr}`);
+                } catch (gtErr) {
+                   console.error(`[GovernanceContext] Failed to fetch governance token address:`, gtErr);
+                }
+
+                // We cannot reliably get the current poll ID, stage, or time left directly
+                setMetaData({
+                    id: 'N/A', // Poll ID not directly accessible
+                    time: 'N/A', // Poll time/stage not directly accessible
+                    stage: 'N/A', // Poll stage not directly accessible
+                    // Add fetched public data if needed elsewhere
+                    // desiredPrice: currentDesiredPrice,
+                    // governanceToken: govTokenAddr,
+                });
+                 // Fetch governanceStatus if applicable from your contract (yours doesn't seem to have it)
+                setGovernanceStatus([]);
+
             } catch (metaErr: any) {
-                 console.error("Failed to fetch governance metadata/status:", metaErr);
-                 setErrorGovernanceData(`Failed to load governance metadata: ${metaErr.message || String(metaErr)}`);
+                console.error("Failed to fetch governance metadata/status:", metaErr);
+                setErrorGovernanceData(`Failed to load governance data: ${metaErr.message || String(metaErr)}`);
             } finally {
                 setIsLoadingGovernanceData(false);
             }
-  
-  
-            // --- Fetch Proposals ---
-            // DesiredPricePool doesn't store proposals like a standard governance contract.
-            // It manages ongoing polls and price updates internally. We cannot fetch a list.
-            // Setting proposals to empty array as this concept doesn't map directly.
-            setIsLoadingProposals(true); // Still set loading true/false for consistency
-             try {
-                // Removed attempt to fetch priceUpdateIds and priceUpdates as they are internal mappings
-                setProposals([]);
+
+            // --- Fetch Proposals (Not Applicable for this Contract) ---
+            setIsLoadingProposals(true); // Keep for consistency
+            try {
+                setProposals([]); // No proposals to fetch
              } finally {
-                 // No specific errors to set here unless initialization failed earlier
-                 // setErrorProposals(null); // Clear any previous proposal error
+                setIsLoadingProposals(false);
              }
-  
+
         } catch (err: any) {
-            console.error('Failed to initialize governance contract:', err);
-            const initErrorMsg = `Initialization error: ${err.message || String(err)}`;
-            setErrorProposals(initErrorMsg);
-            setErrorGovernanceData(initErrorMsg);
-            setProposals([]); setGovernanceStatus([]); setMetaData(null);
-            setIsLoadingProposals(false); setIsLoadingGovernanceData(false);
+            // ... error handling for contract initialization ...
+             console.error('Failed to initialize governance contract:', err);
+             const initErrorMsg = `Initialization error: ${err.message || String(err)}`;
+             setErrorProposals(initErrorMsg);
+             setErrorGovernanceData(initErrorMsg);
+             setProposals([]); setGovernanceStatus([]); setMetaData(null);
+        } finally {
+             setIsLoadingProposals(false); // Ensure loading state reset
+             setIsLoadingGovernanceData(false); // Ensure loading state reset
         }
-        // Ensure loading states are reset even if parts fail
-        setIsLoadingProposals(false);
+    }, [provider, network, selectedPool]);
   
-    }, [provider, network]); // Dependencies
-  
+    // Make sure useEffect triggers when selectedPool changes
     useEffect(() => {
-        // Trigger fetch only when provider and correct network are available
-        if (provider && network?.chainId === TARGET_NETWORK_CHAIN_ID) {
+        if (provider && network?.chainId === TARGET_NETWORK_CHAIN_ID && selectedPool) { // Check selectedPool here
             fetchGovernanceData();
         } else {
-             // Clear data if prerequisites are lost
+             // Clear data if prerequisites are lost or no pool selected
             setProposals([]); setGovernanceStatus([]); setMetaData(null);
             setErrorProposals(null); setErrorGovernanceData(null);
             setIsLoadingProposals(false); setIsLoadingGovernanceData(false);
         }
-    }, [provider, network, fetchGovernanceData]);
+    }, [provider, network, selectedPool, fetchGovernanceData]);
   
     const contextValue = useMemo(
         () => ({
