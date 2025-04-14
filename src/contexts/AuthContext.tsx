@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                // Set basic connected state even on wrong network
                setSigner(signerInstance);
                setAccount(userAddress);
-               const user: User = { address: userAddress, name: `MetaMask (${userAddress})`, type: 'metamask' };
+               const user: User = { address: userAddress, name: `MetaMask (${userAddress})`};
                setSession({ user });
                // Do NOT proceed with actions requiring the correct network yet
           } else {
@@ -119,7 +119,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const user: User = {
                   address: userAddress,
                   name: `MetaMask (${userAddress})`,
-                  type: 'metamask',
               };
               setSession({ user });
               if (authError?.startsWith('Wrong Network')) clearError(); // Clear wrong network error

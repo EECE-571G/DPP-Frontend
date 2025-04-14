@@ -7,7 +7,7 @@ export interface NavigationItem {
   segment?: string;
   title: string;
   icon?: React.ReactNode;
-  action?: React.ReactNode; // e.g., for badges or extra icons
+  action?: React.ReactNode;
 }
 
 export type Navigation = NavigationItem[];
@@ -20,10 +20,7 @@ export interface ColorMode {
 // --- User and Session ---
 export interface User {
   name?: string;
-  email?: string; // Less likely needed for Web3, but keeping for flexibility
   address: string; // Primary identifier from wallet
-  image?: string; // e.g., ENS avatar
-  type: 'metamask' | 'simulated';
 }
 
 export interface Session {

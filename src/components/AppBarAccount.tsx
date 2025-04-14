@@ -32,7 +32,7 @@ const AppBarAccount: React.FC = () => {
         handleClose();
     };
 
-    const canSwitchAccounts = user.type === 'metamask' && availableAccounts && availableAccounts.length > 1;
+    const canSwitchAccounts = availableAccounts && availableAccounts.length > 1;
 
     return (
         <>
