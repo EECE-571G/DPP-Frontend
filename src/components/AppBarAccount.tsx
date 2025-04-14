@@ -45,12 +45,11 @@ const AppBarAccount: React.FC = () => {
             </Tooltip>
             <Menu id="account-menu" anchorEl={anchorEl} open={open} onClose={handleClose} MenuListProps={{ 'aria-labelledby': 'account-button' }} TransitionComponent={Fade} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { minWidth: 250, mt: 1, maxWidth: 350 }}}}>
                 <Box sx={{ px: 2, py: 1.5 }}>
-                    <Typography variant="body1" fontWeight="medium" noWrap>{user.name || (user.type === 'metamask' ? 'MetaMask User' : 'Simulated User')}</Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap sx={{ wordBreak: 'break-all'}}>{user.address}</Typography>
+                    <Typography variant="body1" fontWeight="medium" noWrap>{'MetaMask User'}</Typography>
                 </Box>
                 <Divider />
                 {canSwitchAccounts && (
-                    <>
+                    <Box component="div">
                         <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', color: 'text.secondary' }}>Available Accounts</Typography>
                         {availableAccounts.map((account) => (
                             <MenuItem key={account} selected={account === user.address} onClick={() => handleSwitchAccount(account)} sx={{ justifyContent: 'space-between' }}>
@@ -59,7 +58,7 @@ const AppBarAccount: React.FC = () => {
                             </MenuItem>
                         ))}
                         <Divider />
-                    </>
+                    </Box>
                 )}
                 <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
                     <ListItemIcon sx={{ minWidth: 'auto', mr: 1.5, color: 'error.main' }}><LogoutIcon fontSize="small" /></ListItemIcon>
