@@ -50,7 +50,7 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalance, meta
                         gutterBottom
                         sx={{ lineHeight: 1.2, mb: 1 }}
                     >
-                        Meta (Mock)
+                        Meta
                     </Typography>
                     {/* Nested Grid to arrange MetaItems */}
                     <Grid container spacing={1} alignItems="center" justifyContent="flex-start">
