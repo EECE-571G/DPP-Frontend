@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import { BrowserProvider, Signer, Network, getAddress } from 'ethers';
 import { Session, User } from '../types';
-import { shortenAddress } from '../utils/formatters';
 import { useSnackbarContext } from './SnackbarProvider';
 import { TARGET_NETWORK_CHAIN_ID, TARGET_NETWORK_NAME } from '../constants';
 
@@ -110,7 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                // Set basic connected state even on wrong network
                setSigner(signerInstance);
                setAccount(userAddress);
-               const user: User = { address: userAddress, name: `MetaMask (${shortenAddress(userAddress)})`, type: 'metamask' };
+               const user: User = { address: userAddress, name: `MetaMask (${userAddress})`, type: 'metamask' };
                setSession({ user });
                // Do NOT proceed with actions requiring the correct network yet
           } else {
@@ -119,16 +118,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setAccount(userAddress);
               const user: User = {
                   address: userAddress,
-                  name: `MetaMask (${shortenAddress(userAddress)})`,
+                  name: `MetaMask (${userAddress})`,
                   type: 'metamask',
               };
               setSession({ user });
               if (authError?.startsWith('Wrong Network')) clearError(); // Clear wrong network error
 
               if (!isSwitching) {
-                 showSnackbar(`Wallet connected: ${shortenAddress(userAddress)}`, 'success');
+                 showSnackbar(`Wallet connected: ${userAddress}`, 'success');
               } else {
-                  showSnackbar(`Switched to account: ${shortenAddress(userAddress)}`, 'info');
+                  showSnackbar(`Switched to account: ${userAddress}`, 'info');
               }
               console.log("Wallet connected/switched successfully.");
           }

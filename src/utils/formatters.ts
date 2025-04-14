@@ -20,26 +20,3 @@ export const formatBalance = (
     maximumFractionDigits: decimals,
   });
 };
-
-/**
- * Formats a number as a percentage string.
- * @param value - The number (e.g., 0.05 for 5%).
- * @param decimals - Number of decimal places for the percentage. Defaults to 2.
- * @returns Formatted percentage string (e.g., "5.00%").
- */
-export const formatPercent = (value: number | undefined | null, decimals = 2): string => {
-    if (value === undefined || value === null || isNaN(value)) return '0.00%';
-    return `${(value * 100).toFixed(decimals)}%`;
-};
-
-/**
- * Shortens an address by keeping a specified number of characters at the beginning and the end.
- * If the address is undefined, it returns an empty string.
- * @param address - The full address string.
- * @param chars - The number of characters to keep at both the start (excluding the first two characters) and the end. Defaults to 4.
- * @returns The shortened address string.
- */
-export const shortenAddress = (address: string | undefined, chars = 4): string => {
-  if (!address) return '';
-  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
-};

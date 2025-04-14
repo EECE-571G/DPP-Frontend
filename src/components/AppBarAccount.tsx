@@ -3,7 +3,6 @@ import { Box, Button, Menu, MenuItem, Typography, ListItemIcon, Tooltip, Fade, D
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { shortenAddress } from '../utils/formatters';
 import { useAuthContext } from '../contexts/AuthContext';
 
 const AppBarAccount: React.FC = () => {
@@ -37,9 +36,9 @@ const AppBarAccount: React.FC = () => {
 
     return (
         <>
-            <Tooltip title={canSwitchAccounts ? "Switch Account / Disconnect" : `Connected: ${shortenAddress(user.address)}`}>
+            <Tooltip title={canSwitchAccounts ? "Switch Account / Disconnect" : `Connected: ${user.address}`}>
                 <Button id="account-button" aria-controls={open ? 'account-menu' : undefined} aria-haspopup="true" aria-expanded={open ? 'true' : undefined} onClick={handleClick} color="inherit" sx={{ textTransform: 'none', ml: 1, borderRadius: 1, p: {xs: 0.5, sm: 1}, minWidth: 'auto' }} endIcon={canSwitchAccounts ? <KeyboardArrowDownIcon /> : null}>
-                    <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }} noWrap>{shortenAddress(user.address)}</Typography>
+                    <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }} noWrap>{user.address}</Typography>
                     {/* Consider adding an icon or avatar here for small screens */}
                 </Button>
             </Tooltip>
