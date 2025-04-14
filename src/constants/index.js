@@ -9,7 +9,7 @@ const positionManagerRaw = "0x4A679253410272dd5232B3Ff7cF5dbB88f295319"; // <<< 
 const token0Raw = "0x0165878A594ca255338adfa4d48449f69242Eb8F";        // <<< FROM LOGS (Token0)
 const token1Raw = "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853";        // <<< FROM LOGS (Token1)
 const governanceTokenRaw = null;     // <<< REPLACE (Your vDPP or equivalent)
-const governanceContractRaw = null; // <<< REPLACE (If you have one)
+const governanceContractRaw = desiredPricePoolHookRaw; // <<< REPLACE (If you have one)
 
 // Export checksummed addresses
 export const POOL_MANAGER_ADDRESS = poolManagerRaw ? ethers.getAddress(poolManagerRaw) : ethers.ZeroAddress;
