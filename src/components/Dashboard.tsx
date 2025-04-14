@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Box, Typography, Autocomplete, TextField, Card, CardContent,
-  Paper, Grid, Collapse, Skeleton, Alert
+  Paper, Grid, Collapse, Skeleton, Alert, Divider
 } from '@mui/material';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
@@ -21,9 +21,6 @@ const Dashboard: React.FC = () => {
   // Get symbols using addresses
   const tokenASymbol = tokenAAddress ? tokenSymbols[tokenAAddress] : 'N/A';
   const tokenBSymbol = tokenBAddress ? tokenSymbols[tokenBAddress] : 'N/A';
-
-  const lpTokenSymbol = selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined;
-  const lpTokenBalance = lpTokenSymbol ? userBalances[lpTokenSymbol] : undefined;
 
   // --- Render logic ---
   return (
@@ -104,22 +101,39 @@ const Dashboard: React.FC = () => {
                         <strong>{tokenBSymbol}:</strong>{' '}
                         {tokenBBalanceStr}
                       </Typography>
-                    </Grid>
-                    {lpTokenBalance !== undefined && lpTokenSymbol && (
-                      <Grid item xs={12}>
+                    </Grid>         
+                </>
+             ) : null}
+
+            {/* Divider */}
+            {(isLoadingBalances || selectedPool) && (
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+              </Grid>
+            )}
+
+             {/* Liquidity*/}
+            {(isLoadingBalances || selectedPool) && (
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
+                  Liquidity (TODO)
+                </Typography>
+              </Grid>
+            )}
+             {isLoadingBalances ? (
+                 <>
+                    <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
+                    <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
+                    {selectedPool && <Grid item xs={12}><Skeleton width="60%" /></Grid>}
+                 </>
+             ) : selectedPool ? (
+                <>
+                    <Grid item xs={12}>
                         <Typography variant="body2" color="text.secondary">
-                          <strong>LP Tokens ({lpTokenSymbol}):</strong>{' '}
-                          {lpTokenBalance}
+                          <strong>LP Tokens ({"lpTokenSymbol TBD"}):</strong>{' '}
+                          {'lpTokenBalance TBD'}
                         </Typography>
-                      </Grid>
-                    )}
-                     {lpTokenBalance === undefined && selectedPool && (
-                       <Grid item xs={12}>
-                         <Typography variant="caption" color="text.secondary">
-                           You have no liquidity provider tokens for this pool.
-                         </Typography>
-                       </Grid>
-                     )} 
+                    </Grid>                   
                 </>
              ) : null}
           </Grid>
