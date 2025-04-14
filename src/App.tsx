@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 import Swap from './components/Swap';
 import Liquidity from './components/Liquidity';
 import Governance from './components/Governance/Governance';
+import Rewards from './components/Rewards'
 import DashboardLayout from './layout/DashboardLayout';
 import AppBarAccount from './components/AppBarAccount';
 
@@ -28,12 +29,14 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GavelIcon from '@mui/icons-material/Gavel';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 
 // --- Navigation Structure ---
 const NAVIGATION_CONFIG: Navigation = [
     { segment: 'dashboard', title: 'Dashboard', icon: <DashboardIcon /> },
     { segment: 'swap', title: 'Swap', icon: <SwapHorizIcon /> },
     { segment: 'liquidity', title: 'Liquidity', icon: <AccountBalanceWalletIcon /> },
+    { segment: 'rewards', title: 'Rewards', icon: <EmojiEventsIcon /> },
     { segment: 'governance', title: 'Governance', icon: <GavelIcon /> },
 ];
 
@@ -71,6 +74,7 @@ const AppContent: React.FC = () => {
                             <Route path="/dashboard" element={<Dashboard />} />
                             <Route path="/swap" element={<Swap />} />
                             <Route path="/liquidity" element={<Liquidity />} />
+                            <Route path="/rewards" element={<Rewards />} />
                             <Route path="/governance" element={<Governance />} />
                             <Route path="/" element={<Navigate to="/dashboard" replace />} />
                             <Route path="*" element={<Navigate to="/dashboard" replace />} />
