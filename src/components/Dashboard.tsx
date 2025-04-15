@@ -14,10 +14,10 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID, EXPLORER_URL_BASE } from '../constants';
 import PositionManagerABI from '../abis/PositionManager.json';
 import { formatBalance } from '../utils/formatters';
-// *** Import correct utilities and use SHARED KEY ***
-import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUtils';
+// <<< Import NEW utility functions >>>
+import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
 
-const LS_TOKEN_ID = 'liquidity_tokenId'; // Use the shared key
+// const LS_TOKEN_ID = 'liquidity_tokenId'; // No longer needed here
 
 const Dashboard: React.FC = () => {
   const { pools, selectedPool, isLoadingPools, errorPools, handlePoolSelection } = usePoolsContext();
@@ -28,19 +28,22 @@ const Dashboard: React.FC = () => {
   const [positionLiquidity, setPositionLiquidity] = useState<string | null>(null);
   const [isLoadingLiquidity, setIsLoadingLiquidity] = useState<boolean>(false);
   const [liquidityError, setLiquidityError] = useState<string | null>(null);
-  const [tokenIdHistory, setTokenIdHistory] = useState<string[]>([]);
+  // <<< History state now stores only IDs for Autocomplete >>>
+  const [tokenIdHistoryList, setTokenIdHistoryList] = useState<string[]>([]);
 
   // --- Load history on mount ---
   useEffect(() => {
-      // *** Read from the SHARED key ***
-      const history = getTokenIdHistory(LS_TOKEN_ID);
-      setTokenIdHistory(history);
+      // <<< Use new utility functions >>>
+      const historyList = getTokenIdHistoryList();
+      setTokenIdHistoryList(historyList);
+      const mostRecentPosition = getMostRecentPosition();
       // Set initial value to the most recent ID from the SHARED history
-      setInspectTokenId(getMostRecentTokenId(LS_TOKEN_ID));
+      setInspectTokenId(mostRecentPosition?.tokenId ?? '');
+      // <<< End history load >>>
   }, []);
 
-  // --- Fetch Liquidity Logic ---
-  const fetchPositionLiquidity = useCallback(async () => {
+  // --- Fetch Liquidity Logic (remains the same, no history update needed here) ---
+    const fetchPositionLiquidity = useCallback(async () => {
     if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
       setLiquidityError("Connect to the correct network first.");
       return;
@@ -76,7 +79,7 @@ const Dashboard: React.FC = () => {
       setPositionLiquidity(formattedLiquidity);
       console.log(`Fetched Liquidity: ${formattedLiquidity}`);
 
-      // *** REMOVED addTokenIdToHistory call here ***
+      // NOTE: No history update here, only when actions modify positions
 
     } catch (err: any) {
       console.error("Failed to fetch position liquidity:", err);
@@ -98,8 +101,14 @@ const Dashboard: React.FC = () => {
        setLiquidityError(null);
        setPositionLiquidity(null);
    };
+    const handleInspectTokenIdInputChange = (event: React.SyntheticEvent, newInputValue: string) => {
+       setInspectTokenId(newInputValue ?? ''); // Update state on typing
+       setLiquidityError(null);
+       setPositionLiquidity(null);
+   };
 
-  // Get the correct addresses and symbols from the selected pool
+
+  // Derived values (remain the same)
   const tokenAAddress = selectedPool?.tokenA_Address;
   const tokenBAddress = selectedPool?.tokenB_Address;
   const tokenABalanceStr = tokenAAddress && userBalances[tokenAAddress] ? formatBalance(userBalances[tokenAAddress], 6) : '0.00';
@@ -107,18 +116,17 @@ const Dashboard: React.FC = () => {
   const tokenASymbol = tokenAAddress && tokenSymbols[tokenAAddress] ? tokenSymbols[tokenAAddress] : 'N/A';
   const tokenBSymbol = tokenBAddress && tokenSymbols[tokenBAddress] ? tokenSymbols[tokenBAddress] : 'N/A';
 
-  // --- Render logic ---
+  // --- Render logic (Update Autocomplete options) ---
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/* ... Title, Errors, Pool Selection Card ... */}
       <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}>
         Pool Dashboard
       </Typography>
 
-      {/* Display Fetching Errors */}
-       {errorPools && <Alert severity="error" sx={{ mb: 2 }}>{errorPools}</Alert>}
-       {errorBalances && !isLoadingBalances && <Alert severity="warning" sx={{ mb: 2 }}>Balance Warning: {errorBalances}</Alert>}
+      {errorPools && <Alert severity="error" sx={{ mb: 2 }}>{errorPools}</Alert>}
+      {errorBalances && !isLoadingBalances && <Alert severity="warning" sx={{ mb: 2 }}>Balance Warning: {errorBalances}</Alert>}
 
-      {/* Pool Selection Card */}
       <Card elevation={1} sx={{ borderRadius: 2, mb: 3, }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           {isLoadingPools ? (
@@ -129,17 +137,18 @@ const Dashboard: React.FC = () => {
                   value={selectedPool}
                   onChange={(event: any, newValue: V4Pool | null) => {
                       handlePoolSelection(newValue);
-                      // Reset inspection input to last known managed ID when pool changes
-                      setInspectTokenId(getMostRecentTokenId(LS_TOKEN_ID)); // Read from shared key
+                      // Reset inspection input when pool changes
+                      const mostRecentPos = getMostRecentPosition(); // <<< Use new util
+                      setInspectTokenId(mostRecentPos?.tokenId ?? ''); // <<< Use new util
                       setPositionLiquidity(null);
                       setLiquidityError(null);
-                      // Refresh history suggestions from the shared list
-                      setTokenIdHistory(getTokenIdHistory(LS_TOKEN_ID)); // Read from shared key
+                      // Refresh history suggestions when pool changes
+                      setTokenIdHistoryList(getTokenIdHistoryList()); // <<< Use new util
                   }}
                   getOptionLabel={(option) => `${option.name} (${option.tokenA} / ${option.tokenB})`}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => (
-                      <TextField
+                  renderInput={(params) => ( /* ... TextField ... */
+                       <TextField
                           {...params}
                           label="Select a DPP Pool"
                           variant="outlined"
@@ -154,18 +163,17 @@ const Dashboard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Selected Pool Details + Balances + Liquidity Inspection Card */}
+      {/* Details Card */}
       <Collapse in={!!selectedPool || isLoadingBalances || isLoadingPools} timeout={400} unmountOnExit>
         <Paper elevation={0} variant="outlined" sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
-          {/* Pool Details Title*/}
-          {(isLoadingPools || selectedPool) && (
+          {/* ... Pool Title, Balances ... */}
+             {(isLoadingPools || selectedPool) && (
              <Typography variant="h5" sx={{ mb: 2, fontWeight: 500 }}>
                 {selectedPool ? selectedPool.name : <Skeleton width="50%"/>} Details
              </Typography>
           )}
           <Grid container spacing={2} rowSpacing={1.5}>
 
-            {/* User Balances Section */}
             {(isLoadingBalances || selectedPool) && (
               <Grid item xs={12}>
                 <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
@@ -173,12 +181,12 @@ const Dashboard: React.FC = () => {
                 </Typography>
               </Grid>
             )}
-             {isLoadingBalances ? (
+             {isLoadingBalances ? ( /* ... Skeletons ... */
                  <>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                  </>
-             ) : selectedPool ? (
+             ) : selectedPool ? ( /* ... Balances ... */
                 <>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
@@ -195,32 +203,29 @@ const Dashboard: React.FC = () => {
                 </>
              ) : null}
 
-
-            {/* Divider */}
             {(isLoadingBalances || selectedPool) && (
               <Grid item xs={12}>
                 <Divider sx={{ my: 2 }} />
               </Grid>
             )}
 
-            {/* Liquidity Inspection Section */}
+            {/* Liquidity Inspection */}
             {(isLoadingPools || selectedPool) && (
                 <Grid item xs={12}>
                     <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
                         Inspect Position Liquidity
                     </Typography>
-                     <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>
+                    {/* ... Description ... */}
+                      <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>
                         Enter or select the Token ID of a position NFT to view its current liquidity amount. Suggestions are based on recently managed IDs.
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                          <Autocomplete
                             freeSolo
-                            options={tokenIdHistory} // Read from shared history state
+                            options={tokenIdHistoryList} // <<< Use list of IDs
                             value={inspectTokenId}
-                            onChange={handleInspectTokenIdChange} // Handles selection or clearing
-                            onInputChange={(event, newInputValue) => { // Handles typing
-                                setInspectTokenId(newInputValue ?? '');
-                            }}
+                            onChange={handleInspectTokenIdChange}
+                            onInputChange={handleInspectTokenIdInputChange} // <<< Use new handler
                             disabled={isLoadingLiquidity || !account}
                             fullWidth
                             size="small"
@@ -239,7 +244,8 @@ const Dashboard: React.FC = () => {
                                 />
                             )}
                         />
-                        <Button
+                        {/* ... Fetch Button ... */}
+                         <Button
                             variant="contained"
                             onClick={fetchPositionLiquidity}
                             disabled={!inspectTokenId || isLoadingLiquidity || !account}
@@ -248,9 +254,8 @@ const Dashboard: React.FC = () => {
                             {isLoadingLiquidity ? <CircularProgress size={24} /> : "Fetch"}
                         </Button>
                     </Box>
-
-                    {/* Display Result or Error */}
-                     {liquidityError && <Alert severity="error" sx={{mt: 1}}>{liquidityError}</Alert>}
+                    {/* ... Result/Error Display ... */}
+                    {liquidityError && <Alert severity="error" sx={{mt: 1}}>{liquidityError}</Alert>}
                      {positionLiquidity !== null && !liquidityError && (
                          <Paper variant="outlined" sx={{ p: 1.5, mt: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
                              <Typography variant="body1" >
@@ -263,7 +268,6 @@ const Dashboard: React.FC = () => {
                              <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Enter or select a Token ID and click 'Fetch'.
                          </Typography>
                      )}
-                     {/* Optional: Modify the prompt if inspectTokenId IS set but fetch hasn't run */}
                      {!positionLiquidity && !isLoadingLiquidity && !liquidityError && inspectTokenId && (
                          <Typography variant="caption" color="text.secondary" sx={{mt: 1, display: 'flex', alignItems: 'center'}}>
                              <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Click 'Fetch' to view liquidity for ID {inspectTokenId}.
@@ -271,13 +275,11 @@ const Dashboard: React.FC = () => {
                     )}
                 </Grid>
             )}
-
           </Grid>
         </Paper>
       </Collapse>
-
-      {/* Message when no pool is selected */}
-      {!selectedPool && !isLoadingPools && !errorPools && pools.length > 0 && (
+       {/* ... No Pool Selected Message ... */}
+       {!selectedPool && !isLoadingPools && !errorPools && pools.length > 0 && (
         <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
           Select a pool above to view details and inspect position liquidity.
         </Typography>
