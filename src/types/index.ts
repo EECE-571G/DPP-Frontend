@@ -60,7 +60,7 @@ export interface ProposalVote {
   no: number; // Represents voting power
 }
 
-export type ProposalStatus = 'pending' | 'active' | 'succeeded' | 'defeated' | 'executed';
+export type ProposalStatus = 'PreVote' | 'Vote' | 'FinalVote' | 'PreExecution' | 'ExecutionReady';
 
 export interface Proposal {
   id: number; // Unique identifier for the proposal
