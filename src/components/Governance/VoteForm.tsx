@@ -72,7 +72,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
                 <TextField label="Upper Bound" type="number" size="small" value={voteUpperStr} onChange={(e) => setVoteUpperStr(e.target.value)} disabled={isLoading} InputProps={{ inputProps: { step: "any" } }} />
                 <TextField label={`Voting Power (Max: ${formatBalance(vDPPBalance, 2)} vDPP)`} type="number" size="small" value={votePowerStr} onChange={(e) => setVotePowerStr(e.target.value)} disabled={isLoading} InputProps={{ inputProps: { min: 0, step: "any", max: vDPPBalance } }} />
                 <Button variant="contained" size="medium" onClick={handleVoteSubmit} disabled={isLoading || !voteLowerStr || !voteUpperStr || !votePowerStr || votePowerNum <= 0} startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}>
-                    Submit Vote
+                    Cast Vote
                 </Button>
             </Stack>
             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>Your voting power will be locked according to protocol rules.</Typography>
