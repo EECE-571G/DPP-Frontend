@@ -28,7 +28,10 @@ export const GOVERNANCE_CONTRACT_ADDRESS = governanceContractRaw ? ethers.getAdd
 export const POOL_TICK_SPACING = 64; // <<< Verify this value (e.g., 10, 60, 200)
 export const DYNAMIC_FEE_FLAG = 0x800000; // <<< Verify if using dynamic fees
 
-// --- Network Configuration (!!! CHOOSE YOUR TARGET NETWORK !!!) ---
+export const DEFAULT_BASE_FEE_PER_TICK = 30; // uint24 (pips per tick spacing unit)
+export const DEFAULT_HOOK_FEE = 25;
+
+// --- Network Configuration ---
 export const TARGET_NETWORK_CHAIN_ID = 31337n // Example: Anvil Localhost Chain ID
 export const TARGET_NETWORK_NAME = "Anvil Localhost";
 export const EXPLORER_URL_BASE = null; // No explorer for local Anvil
@@ -40,13 +43,4 @@ export const RELEVANT_TOKEN_ADDRESSES = [
     TOKEN_B_ADDRESS,
     TOKEN_C_ADDRESS,
     GOVERNANCE_TOKEN_ADDRESS,
-    // Add WETH address for the target network if not Token A/B
-    // "0x...", // WETH Address for TARGET_NETWORK
-].filter(addr => addr !== ethers.ZeroAddress); // Filter out zero addresses
-
-// --- ABIs (Make sure these paths are correct) ---
-// It's often better to import ABIs directly where needed,
-// but exporting them here can work if preferred.
-// import PoolManagerABI from '../abis/IPoolManager.json';
-// import Erc20ABI from '../abis/ERC20.json';
-// export { PoolManagerABI, Erc20ABI };
+].filter(addr => addr !== ethers.ZeroAddress);
