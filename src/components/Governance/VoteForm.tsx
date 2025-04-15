@@ -12,26 +12,28 @@ import {
 } from '@mui/material';
 import PollIcon from '@mui/icons-material/Poll';
 import SendIcon from '@mui/icons-material/Send';
-import { ethers, formatUnits } from 'ethers'; // <<< Use formatUnits
+import { ethers, formatUnits } from 'ethers';
 
 // Context and Hook Imports
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { useGovernanceContext } from '../../contexts/GovernanceContext';
 import { useLoadingContext } from '../../contexts/LoadingContext';
-import { useGovernanceActions } from '../../hooks/useGovernanceActions';
 import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
-import { formatBalance } from '../../utils/formatters'; // <<< ADDED IMPORT
+import { formatBalance } from '../../utils/formatters';
 
 interface VoteFormProps {
-    proposalId: number; // Assuming this is still needed, might relate to Pool ID conceptually now
+    proposalId: number;
+    mockVotingPowerRaw: bigint; // <<< UPDATED PROP: Receive mocked power
+    onVoteSubmit: (proposalId: number, lower: number, upper: number) => Promise<boolean>; // <<< UPDATED PROP: Receive submit handler
+    canVote: boolean; // <<< UPDATED PROP: Receive voting eligibility
 }
 
-const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
-    // --- Get state/actions from Contexts/Hooks ---
-    const { userBalancesRaw, tokenDecimals } = useBalancesContext();
-    const { metaData, isLoadingGovernanceData } = useGovernanceContext();
+// <<< UPDATED: Accept mocked props and callback >>>
+const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onVoteSubmit, canVote }) => {
+    // --- Contexts (only needed for decimals now) ---
+    const { tokenDecimals } = useBalancesContext();
+    const { metaData, isLoadingGovernanceData } = useGovernanceContext(); // Keep metaData for stage check
     const { isLoading: loadingStates } = useLoadingContext();
-    const { handleVoteWithRange } = useGovernanceActions();
 
     // --- Local State ---
     const [voteLowerStr, setVoteLowerStr] = useState('');
@@ -39,20 +41,18 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
     const [voteError, setVoteError] = useState<string | null>(null);
 
     // --- Derived State ---
-    const DPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
-    const DPPBalanceFormatted = formatUnits(DPPBalanceRaw, DPPDecimals);
+    // <<< Use mocked voting power for display >>>
+    const votingPowerFormatted = formatUnits(mockVotingPowerRaw, DPPDecimals);
 
     const voteLowerNum = parseFloat(voteLowerStr);
     const voteUpperNum = parseFloat(voteUpperStr);
     const voteKey = `castVote_${proposalId}`;
     const isLoading = loadingStates[voteKey] ?? false;
-    const canVote = !isLoadingGovernanceData &&
-                    DPPBalanceRaw > 0n &&
-                    metaData?.pollStage &&
-                    (metaData.pollStage === 'Vote' || metaData.pollStage === 'Final Vote');
+    // canVote is now passed as a prop
 
-    const handleVoteSubmit = async () => {
+    // <<< Updated: Call the passed handler >>>
+    const handleVoteSubmitInternal = async () => {
          setVoteError(null);
         if (isLoading || !proposalId) return;
 
@@ -60,7 +60,8 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
             setVoteError('Please enter valid numbers for bounds.');
             return;
         }
-        if (DPPBalanceRaw <= 0n) {
+        // <<< Use mocked power for check >>>
+        if (mockVotingPowerRaw <= 0n) {
             setVoteError('You have no voting power (DPP) to cast a vote.');
             return;
         }
@@ -70,10 +71,15 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
         }
 
         try {
-            const success = await handleVoteWithRange(proposalId, voteLowerNum, voteUpperNum);
+            // Call the passed handler from Governance.tsx
+            const success = await onVoteSubmit(proposalId, voteLowerNum, voteUpperNum);
             if (success) {
                 setVoteLowerStr('');
                 setVoteUpperStr('');
+            } else {
+                // Assume onVoteSubmit handles its own errors/snackbars if it returns false
+                // Optionally set a local error here too
+                // setVoteError("Vote submission failed. Check console or try again.");
             }
         } catch (error: any) {
             console.error("Voting failed (UI):", error);
@@ -81,6 +87,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
         }
     };
 
+    // Reset fields when proposalId changes (selected pool changes)
      useEffect(() => {
         setVoteLowerStr('');
         setVoteUpperStr('');
@@ -94,8 +101,8 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
                     <PollIcon sx={{ mr: 1 }} /> Pool Target Price Voting
                 </Typography>
                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    {/* Use imported formatBalance */}
-                    Your vote will utilize your full DPP balance: {formatBalance(DPPBalanceFormatted, 2)} DPP
+                    {/* <<< Use mocked power for display >>> */}
+                    Your vote will utilize your full voting power: {formatBalance(votingPowerFormatted, 2)} DPP
                 </Typography>
 
                 {voteError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setVoteError(null)}>{voteError}</Alert>}
@@ -106,8 +113,8 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
                         type="number"
                         size="small"
                         value={voteLowerStr}
-                        onChange={(e) => setVoteLowerStr(e.target.value)}
-                        disabled={isLoading || !canVote}
+                        onChange={(e) => { setVoteLowerStr(e.target.value); setVoteError(null); }} // Clear error on change
+                        disabled={isLoading || !canVote} // Use passed prop
                         InputProps={{ inputProps: { step: "any" } }}
                     />
                     <TextField
@@ -115,22 +122,24 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
                         type="number"
                         size="small"
                         value={voteUpperStr}
-                        onChange={(e) => setVoteUpperStr(e.target.value)}
-                        disabled={isLoading || !canVote}
+                        onChange={(e) => { setVoteUpperStr(e.target.value); setVoteError(null); }} // Clear error on change
+                        disabled={isLoading || !canVote} // Use passed prop
                         InputProps={{ inputProps: { step: "any" } }}
                     />
                     <Button
                         variant="contained"
                         size="medium"
-                        onClick={handleVoteSubmit}
-                        disabled={isLoading || !voteLowerStr || !voteUpperStr || !canVote}
+                        onClick={handleVoteSubmitInternal} // Use internal handler
+                        disabled={isLoading || !voteLowerStr || !voteUpperStr || !canVote} // Use passed prop
                         startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                     >
                         Cast Vote
                     </Button>
                 </Stack>
                 <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                    Your voting power will be locked according to protocol rules upon voting. Voting is only possible during 'Vote' or 'Final Vote' stages.
+                    {/* --- CORRECTED TEXT WRAPPING --- */}
+                    {`Mock Action: Updates chart and sets voting power to 0. Requires DPP balance > 0 and correct poll stage.`}
+                    {/* --- END CORRECTION --- */}
                 </Typography>
             </Box>
         </Paper>

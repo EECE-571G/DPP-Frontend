@@ -7,14 +7,20 @@ import { ethers, formatUnits, parseUnits } from 'ethers';
 // Context and Hook Imports
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { useLoadingContext } from '../../contexts/LoadingContext';
-import { useGovernanceActions } from '../../hooks/useGovernanceActions';
+// No longer need useGovernanceActions directly
+// import { useGovernanceActions } from '../../hooks/useGovernanceActions';
 import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 
-const DelegationForm: React.FC = () => {
-    // --- Get state/actions from Contexts/Hooks ---
-    const { userBalancesRaw, tokenDecimals } = useBalancesContext(); // Use raw and get decimals
+interface DelegationFormProps {
+    mockDppBalanceRaw: bigint; // <<< UPDATED PROP: Receive mocked balance
+    onDelegateSubmit: (targetAddress: string, amount: number) => Promise<boolean>; // <<< UPDATED PROP: Receive submit handler
+}
+
+// <<< UPDATED: Accept mocked props and callback >>>
+const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDelegateSubmit }) => {
+    // --- Contexts (only need decimals) ---
+    const { tokenDecimals } = useBalancesContext();
     const { isLoading: loadingStates } = useLoadingContext();
-    const { handleDelegate } = useGovernanceActions();
 
     // --- Local State ---
     const [delegateTarget, setDelegateTarget] = useState('');
@@ -22,18 +28,18 @@ const DelegationForm: React.FC = () => {
     const [delegateError, setDelegateError] = useState<string | null>(null);
 
     // --- Derived State ---
-    const DPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
-    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18; // Get decimals or default
-    const DPPBalanceFormatted = formatUnits(DPPBalanceRaw, DPPDecimals);
+    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+    // <<< Use mocked balance for display >>>
+    const DPPBalanceFormatted = formatUnits(mockDppBalanceRaw, DPPDecimals);
 
-    const delegatePowerNum = parseFloat(delegatePowerStr) || 0; // Keep for basic numeric checks if needed
+    const delegatePowerNum = parseFloat(delegatePowerStr) || 0;
     const delegateKey = 'delegateVotes';
     const isLoading = loadingStates[delegateKey] ?? false;
 
-    // handleDelegateClick
-    const handleDelegateClick = async () => {
+    // <<< Updated: Call the passed handler >>>
+    const handleDelegateClickInternal = async () => {
         setDelegateError(null);
-        if (!delegateTarget || !delegatePowerStr || isLoading) return; // Check if string is empty
+        if (!delegateTarget || !delegatePowerStr || isLoading) return;
 
         if (!ethers.isAddress(delegateTarget)) { setDelegateError('Invalid target address format.'); return; }
 
@@ -45,14 +51,19 @@ const DelegationForm: React.FC = () => {
              setDelegateError('Invalid amount to delegate.'); return;
         }
 
-        // Balance check against raw values
-        if (delegatePowerWei > DPPBalanceRaw) { setDelegateError('Cannot delegate more DPP than you have.'); return; }
+        // <<< Balance check against mocked balance >>>
+        if (delegatePowerWei > mockDppBalanceRaw) {
+            setDelegateError(`Cannot delegate more DPP than you have (${DPPBalanceFormatted}).`);
+            return;
+        }
 
         try {
-            // Pass the *number* representation to the hook, it will handle parsing again
-            const success = await handleDelegate(delegateTarget, parseFloat(delegatePowerStr));
+            // Call the passed handler from Governance.tsx
+            const success = await onDelegateSubmit(delegateTarget, parseFloat(delegatePowerStr));
             if (success) {
                 setDelegateTarget(''); setDelegatePowerStr('');
+            } else {
+                // Assume onSubmit handles its errors/snackbars if false returned
             }
         } catch (error: any) {
             console.error("Delegation failed (UI):", error);
@@ -60,42 +71,63 @@ const DelegationForm: React.FC = () => {
         }
     };
 
-    // canDelegate check uses correct balance now
+    // <<< canDelegate check uses mocked balance >>>
     let canDelegate = false;
     if (delegateTarget && delegatePowerStr && ethers.isAddress(delegateTarget)) {
         try {
             const delegatePowerWei = parseUnits(delegatePowerStr, DPPDecimals);
-            if (delegatePowerWei > 0n && delegatePowerWei <= DPPBalanceRaw) {
+            if (delegatePowerWei > 0n && delegatePowerWei <= mockDppBalanceRaw) {
                 canDelegate = true;
             }
-        } catch {
-            // Invalid number format, canDelegate remains false
-        }
+        } catch { /* Invalid number, canDelegate remains false */ }
     }
 
 
     return (
         <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
-            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}><PersonAddAlt1Icon sx={{ mr: 1 }} /> Delegate Your Voting Power</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Delegate decreases your voting power (and locked DPP balance), increasing the target's. You retain token ownership.</Typography>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                <PersonAddAlt1Icon sx={{ mr: 1 }} /> Delegate Your Voting Power
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Delegate decreases your voting power and available DPP balance, increasing the target's power.
+            </Typography>
             {delegateError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDelegateError(null)}>{delegateError}</Alert>}
-            <TextField label="Target Address" variant="outlined" fullWidth value={delegateTarget} onChange={(e) => setDelegateTarget(e.target.value.trim())} placeholder="0x..." sx={{ mb: 2 }} disabled={isLoading} InputLabelProps={{ shrink: true }} />
-             {/* Display correct max balance in label */}
             <TextField
+                label="Target Address"
+                variant="outlined"
+                fullWidth
+                value={delegateTarget}
+                onChange={(e) => { setDelegateTarget(e.target.value.trim()); setDelegateError(null); }} // Clear error
+                placeholder="0x..."
+                sx={{ mb: 2 }}
+                disabled={isLoading}
+                InputLabelProps={{ shrink: true }} />
+            <TextField
+                // <<< Use mocked balance for max display >>>
                 label={`Amount of DPP to Delegate (Max: ${DPPBalanceFormatted})`}
                 variant="outlined"
                 type="number"
                 fullWidth
                 value={delegatePowerStr}
-                onChange={(e) => setDelegatePowerStr(e.target.value)}
-                placeholder="0.0" sx={{ mb: 2 }}
+                onChange={(e) => { setDelegatePowerStr(e.target.value); setDelegateError(null); }} // Clear error
+                placeholder="0.0"
+                sx={{ mb: 2 }}
                 disabled={isLoading}
-                InputProps={{ inputProps: { min: 0, step: "any", max: DPPBalanceFormatted } }} // Use formatted for input max attr
+                InputProps={{ inputProps: { min: 0, step: "any", max: DPPBalanceFormatted } }}
                 InputLabelProps={{ shrink: true }}
             />
-            <Button variant="contained" fullWidth onClick={handleDelegateClick} disabled={!canDelegate || isLoading} size="large">
+            <Button
+                variant="contained"
+                fullWidth
+                onClick={handleDelegateClickInternal} // Use internal handler
+                // <<< Use mocked balance for canDelegate check >>>
+                disabled={!canDelegate || isLoading}
+                size="large">
                 {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Delegate Power'}
             </Button>
+             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                 Mock Action: Updates your displayed DPP balance and Voting Power.
+             </Typography>
         </Paper>
     );
 };

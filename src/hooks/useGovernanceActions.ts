@@ -1,58 +1,51 @@
 // src/hooks/useGovernanceActions.ts
-import { useCallback } from 'react';
-import { ethers, ZeroAddress, isAddress, Contract, parseUnits } from 'ethers'; // Ethers v6 imports
+import React, { useCallback } from 'react'; // <<< Add React import for SetStateAction
+import { ethers, ZeroAddress, isAddress, Contract, parseUnits, formatUnits } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { useBalancesContext } from '../contexts/BalancesContext';
-import { usePoolsContext } from '../contexts/PoolsContext'; // <<< Import Pool Context
+import { usePoolsContext } from '../contexts/PoolsContext';
 import {
     GOVERNANCE_CONTRACT_ADDRESS,
-    GOVERNANCE_TOKEN_ADDRESS, // Still needed for delegate
+    GOVERNANCE_TOKEN_ADDRESS,
     EXPLORER_URL_BASE,
     TARGET_NETWORK_CHAIN_ID
 } from '../constants';
-// Import the ABI that contains the 'castVote' and 'delegateVote' functions (DesiredPricePool)
 import GovernanceABI from '../abis/DesiredPricePool.json'; // <<< USE CORRECT ABI
 
-// Vote Range Constant from Poll.sol (for validation)
 const VOTE_RANGE = 10;
 
 export const useGovernanceActions = () => {
     const { signer, account, network } = useAuthContext();
-    const { fetchBalances, tokenDecimals } = useBalancesContext(); // Keep for balance refresh, need decimals
+    const { fetchBalances, tokenDecimals } = useBalancesContext();
     const { setLoading } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
-    const { selectedPool } = usePoolsContext(); // <<< Get selected pool
+    const { selectedPool } = usePoolsContext(); // Need pool for Pool ID
 
-    // --- Updated handleVoteWithRange ---
+    // --- Modified handleVoteWithRange for Mocking ---
     const handleVoteWithRange = useCallback(async (
-        // proposalId is now conceptually linked to the selectedPool
-        proposalId: number, // Keep for loading key, but use selectedPool.poolId for tx
+        proposalId: number, // Keep for loading key
         lower: number,
-        upper: number
+        upper: number,
+        // --- Mock state and setters ---
+        currentVotingPowerRaw: bigint,
+        currentGovernanceStatus: number[],
+        setMockVotingPowerRaw: React.Dispatch<React.SetStateAction<bigint | null>>,
+        setMockGovernanceStatus: React.Dispatch<React.SetStateAction<number[] | null>>
+        // --- End mock args ---
     ): Promise<boolean> => {
-        // Ensure prerequisites including selectedPool and its poolId
-        if (!signer || !account || !selectedPool?.poolId || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
-            showSnackbar('Cannot vote: Wallet/Pool/Network issue or pool not selected.', 'error'); return false;
+        if (!account || !selectedPool?.poolId) { // Simplified check - account needed for delegate check later
+            showSnackbar('Wallet or Pool ID missing.', 'error');
+            return false;
         }
-        if (GOVERNANCE_CONTRACT_ADDRESS === ZeroAddress) {
-            showSnackbar('Governance contract address not configured.', 'error'); return false;
-        }
-        if (!GovernanceABI || GovernanceABI.length === 0) {
-            showSnackbar('Governance ABI is missing.', 'error'); return false;
-        }
-        // Power check is now implicitly handled by requiring a connected account with potentially >0 balance
 
-        // Validate and convert bounds to int8
+        // Validate bounds (already done in VoteForm, but good practice)
         let lowerSlotInt8: number;
         let upperSlotInt8: number;
         try {
-            lowerSlotInt8 = Math.round(lower); // Round to nearest integer
+            lowerSlotInt8 = Math.round(lower);
             upperSlotInt8 = Math.round(upper);
-
-            // Validate against contract constraints (-VOTE_RANGE to VOTE_RANGE + 1 for upper exclusive)
-            // and lower < upper
              if (lowerSlotInt8 < -VOTE_RANGE || lowerSlotInt8 > VOTE_RANGE || upperSlotInt8 < -VOTE_RANGE + 1 || upperSlotInt8 > VOTE_RANGE + 1 || lowerSlotInt8 >= upperSlotInt8) {
                 throw new Error(`Bounds must be within [-${VOTE_RANGE}, ${VOTE_RANGE}] and lower < upper.`);
             }
@@ -61,125 +54,146 @@ export const useGovernanceActions = () => {
              return false;
         }
 
-
-        // Use a unique key including the poolId for loading state
-        const voteKey = `castVote_${selectedPool.poolId}`;
+        // --- Use Correct Loading Key ---
+        const voteKey = `castVote_${proposalId}`; // Use proposalId for key consistency if needed elsewhere
         setLoading(voteKey, true);
 
         try {
-            const governanceContract = new Contract(GOVERNANCE_CONTRACT_ADDRESS, GovernanceABI, signer);
-            const poolIdBytes32 = selectedPool.poolId; // Get the bytes32 Pool ID
+            console.log(`[Mock Vote] User ${account} voting on pool ${selectedPool.poolId} with range [${lowerSlotInt8}, ${upperSlotInt8}) using power ${currentVotingPowerRaw.toString()}`);
 
-            console.log(`Voting on pool ${poolIdBytes32} with range [${lowerSlotInt8}, ${upperSlotInt8}) using full power.`);
+            // *** MOCK LOGIC ***
+            await new Promise(resolve => setTimeout(resolve, 800)); // Simulate transaction delay
 
-            // *** CALL THE CORRECT CONTRACT FUNCTION ***
-            // Based on DesiredPrice.sol, it's castVote(PoolId, int8, int8)
-            const tx = await governanceContract.castVote(poolIdBytes32, lowerSlotInt8, upperSlotInt8);
+            const govTokenDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
 
-            let message = `Vote transaction submitted for pool ${selectedPool.name}`;
-            if (EXPLORER_URL_BASE) {
-                message = `${message}. Waiting for confirmation...`;
-            } else {
-                message = `${message}: ${tx.hash}. Waiting...`;
+            // Calculate distribution
+            const slotsAffected = upperSlotInt8 - lowerSlotInt8;
+            let powerPerSlotRaw = 0n;
+            if (slotsAffected > 0 && currentVotingPowerRaw > 0n) {
+                powerPerSlotRaw = currentVotingPowerRaw / BigInt(slotsAffected);
             }
-            showSnackbar(message, 'info');
+            // Convert raw power per slot to formatted number for chart
+            const powerPerSlotNum = parseFloat(formatUnits(powerPerSlotRaw, govTokenDecimals));
 
-            const receipt = await tx.wait(1);
-
-            if (receipt?.status === 1) {
-                let successMessage = `Vote successful for pool ${selectedPool.name}!`;
-                showSnackbar(successMessage, 'success');
-                await fetchBalances(); // Refresh balances (might affect voting power display elsewhere)
-                // TODO: Optionally refresh proposals/governance data if needed
-                return true;
-            } else {
-                throw new Error('Vote transaction failed.');
+            // Update chart data
+            const newGovernanceStatus = [...currentGovernanceStatus]; // Create a copy
+            for (let i = lowerSlotInt8; i < upperSlotInt8; i++) {
+                const chartIndex = i + VOTE_RANGE; // Convert slot (-10 to 10) to array index (0 to 20)
+                if (chartIndex >= 0 && chartIndex < newGovernanceStatus.length) {
+                    newGovernanceStatus[chartIndex] += powerPerSlotNum;
+                } else {
+                    console.warn(`[Mock Vote] Calculated chart index ${chartIndex} out of bounds for slot ${i}`);
+                }
             }
+
+            // Update the mock state via setters
+            setMockGovernanceStatus(newGovernanceStatus);
+            setMockVotingPowerRaw(0n); // Voting power is consumed
+
+            showSnackbar(`Mock Vote successful for pool ${selectedPool.name}!`, 'success');
+            // Don't fetch balances as it's mocked
+            // await fetchBalances();
+            return true;
+            // *** END MOCK LOGIC ***
 
         } catch (error: any) {
-            console.error(`Vote operation failed for pool ${selectedPool.poolId}:`, error);
-            const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Vote failed.";
-            showSnackbar(`Vote failed: ${reason}`, 'error');
+            console.error(`Mock Vote operation failed for pool ${selectedPool.poolId}:`, error);
+            const reason = error?.message || "Mock vote failed.";
+            showSnackbar(`Mock Vote failed: ${reason}`, 'error');
             return false;
         } finally {
             setLoading(voteKey, false);
         }
-        // Removed GovTokenABI dependency as it's not used here
-    }, [signer, account, network, selectedPool, fetchBalances, setLoading, showSnackbar]); // Dependencies
+    }, [account, selectedPool, tokenDecimals, GOVERNANCE_TOKEN_ADDRESS, setLoading, showSnackbar]); // Dependencies for mock logic
 
 
-    // --- Delegate Function (Updated to call Governance Contract) ---
-    const handleDelegate = useCallback(async (targetAddress: string, amount: number): Promise<boolean> => {
-        if (!signer || !account || !selectedPool?.poolId || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
-             showSnackbar('Cannot delegate: Wallet/Pool/Network issue.', 'error'); return false;
-         }
-         const governanceContractAddress = GOVERNANCE_CONTRACT_ADDRESS;
-         if (governanceContractAddress === ZeroAddress) {
-             showSnackbar('Governance contract address not configured.', 'error'); return false;
-         }
-          if (!GovernanceABI || GovernanceABI.length === 0) {
-             showSnackbar('Governance ABI is missing.', 'error'); return false;
-         }
-          if (!isAddress(targetAddress)) {
-              showSnackbar('Invalid target delegate address.', 'error'); return false;
-          }
-         if (amount <= 0) {
-              showSnackbar('Delegation amount must be positive.', 'warning'); return false;
-          }
+    // --- Modified handleDelegate for Mocking ---
+    const handleDelegate = useCallback(async (
+        targetAddress: string,
+        amount: number, // Keep as number from UI
+        // --- Mock state and setters ---
+        currentVotingPowerRaw: bigint,
+        currentDppBalanceRaw: bigint,
+        setMockVotingPowerRaw: React.Dispatch<React.SetStateAction<bigint | null>>,
+        setMockDppBalanceRaw: React.Dispatch<React.SetStateAction<bigint | null>>
+        // --- End mock args ---
+    ): Promise<boolean> => {
+         if (!account || !selectedPool?.poolId) { // Pool ID needed for log message clarity
+            showSnackbar('Cannot delegate: Wallet or Pool ID missing.', 'error'); return false;
+        }
+        if (!isAddress(targetAddress)) {
+            showSnackbar('Invalid target delegate address.', 'error'); return false;
+        }
+        if (amount <= 0) {
+             showSnackbar('Delegation amount must be positive.', 'warning'); return false;
+        }
 
-        // Get decimals for the governance token
         const govTokenDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
-
-        const govContract = new Contract(governanceContractAddress, GovernanceABI, signer);
         const delegateKey = 'delegateVotes';
         setLoading(delegateKey, true);
 
         try {
-            // Parse amount using gov token decimals
-            const powerWei = parseUnits(amount.toString(), govTokenDecimals);
-            // Convert to uint128 for the contract call, checking for overflow
-            const powerUint128 = ethers.toBigInt(powerWei); // Use ethers v6 function
-             if (powerUint128 > (2n ** 128n - 1n)) {
-                 throw new Error("Delegation amount exceeds uint128 limit.");
-             }
-
-            const poolIdBytes32 = selectedPool.poolId; // Get Pool ID
-
-            console.log(`Delegating ${amount} (${powerUint128.toString()} base units) votes for pool ${poolIdBytes32} to ${targetAddress}`);
-            // Call delegateVote on the Governance Contract (DesiredPricePool)
-            const tx = await govContract.delegateVote(poolIdBytes32, targetAddress, powerUint128);
-
-            let message = `Delegation transaction submitted`;
-             if (EXPLORER_URL_BASE) {
-                 message = `${message}. Waiting for confirmation...`;
-             } else {
-                 message = `${message}: ${tx.hash}. Waiting...`;
-             }
-            showSnackbar(message, 'info');
-
-            const receipt = await tx.wait(1);
-
-            if (receipt?.status === 1) {
-                 let successMessage = `Successfully delegated votes to target address!`;
-                 showSnackbar(successMessage, 'success');
-                 await fetchBalances(); // Re-fetch balances (DPP locked balance will change)
-                 // Optionally re-fetch governance data if delegation affects displayed power immediately
-                 // await fetchGovernanceData(selectedPool);
-                 return true;
-            } else {
-                 throw new Error('Delegation transaction failed.');
+            let delegatePowerWei: bigint;
+            try {
+                delegatePowerWei = parseUnits(amount.toString(), govTokenDecimals);
+                if (delegatePowerWei <= 0n) throw new Error("Amount must be positive");
+            } catch {
+                throw new Error("Invalid amount format");
             }
 
+             // Balance check
+             if (delegatePowerWei > currentDppBalanceRaw) {
+                 throw new Error(`Cannot delegate ${amount} DPP, you only have ${formatUnits(currentDppBalanceRaw, govTokenDecimals)}.`);
+             }
+
+            console.log(`[Mock Delegate] User ${account} delegating ${amount} DPP for pool ${selectedPool.poolId} to ${targetAddress}`);
+
+            // *** MOCK LOGIC ***
+            await new Promise(resolve => setTimeout(resolve, 600)); // Simulate transaction delay
+
+            let newVotingPowerRaw: bigint;
+            let newDppBalanceRaw: bigint;
+
+            if (targetAddress.toLowerCase() === account.toLowerCase()) {
+                // Delegating to self: Power increases, balance decreases (like locking more)
+                // Assumes delegating to self *increases* usable power while decreasing the *free* balance.
+                newVotingPowerRaw = currentVotingPowerRaw + delegatePowerWei;
+                newDppBalanceRaw = currentDppBalanceRaw - delegatePowerWei;
+                 console.log(`[Mock Delegate] Delegating to self. New Power: ${newVotingPowerRaw}, New Balance: ${newDppBalanceRaw}`);
+            } else {
+                // Delegating to others: Power decreases, balance decreases
+                newVotingPowerRaw = currentVotingPowerRaw - delegatePowerWei;
+                newDppBalanceRaw = currentDppBalanceRaw - delegatePowerWei;
+                console.log(`[Mock Delegate] Delegating to other. New Power: ${newVotingPowerRaw}, New Balance: ${newDppBalanceRaw}`);
+            }
+
+            // Ensure non-negative results
+            newVotingPowerRaw = newVotingPowerRaw < 0n ? 0n : newVotingPowerRaw;
+            newDppBalanceRaw = newDppBalanceRaw < 0n ? 0n : newDppBalanceRaw;
+
+
+            // Update mock state
+            setMockVotingPowerRaw(newVotingPowerRaw);
+            setMockDppBalanceRaw(newDppBalanceRaw);
+
+            showSnackbar(`Mock Delegation successful to ${targetAddress}!`, 'success');
+            // Don't fetch balances
+            // await fetchBalances();
+            return true;
+            // *** END MOCK LOGIC ***
+
         } catch (error: any) {
-             console.error(`Delegation failed:`, error);
-             const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Delegation failed.";
-             showSnackbar(`Delegation failed: ${reason}`, 'error');
+             console.error(`Mock Delegation failed:`, error);
+             const reason = error?.message || "Mock delegation failed.";
+             showSnackbar(`Mock Delegation failed: ${reason}`, 'error');
              return false;
         } finally {
             setLoading(delegateKey, false);
         }
-    }, [signer, account, network, selectedPool, tokenDecimals, fetchBalances, setLoading, showSnackbar]);
+    }, [account, selectedPool, tokenDecimals, GOVERNANCE_TOKEN_ADDRESS, setLoading, showSnackbar]);
 
 
+    // --- CORRECTED RETURN STATEMENT ---
     return { handleVoteWithRange, handleDelegate };
+    // --- END CORRECTION ---
 };
