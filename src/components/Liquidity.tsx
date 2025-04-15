@@ -302,7 +302,7 @@ const Liquidity: React.FC = () => {
                                         sx={{ mb: 2 }}
                                         InputProps={{
                                             ...params.InputProps,
-                                            type: 'search', // Better semantics
+                                            type: 'string',
                                             inputProps: { ...params.inputProps, min: 0 }
                                         }}
                                     />
@@ -359,7 +359,7 @@ const Liquidity: React.FC = () => {
                                         sx={{ mb: 2 }}
                                          InputProps={{
                                             ...params.InputProps,
-                                            type: 'search',
+                                            type: 'string',
                                             inputProps: { ...params.inputProps, min: 0 }
                                         }}
                                     />

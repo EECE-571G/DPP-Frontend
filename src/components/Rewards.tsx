@@ -153,7 +153,7 @@ const Rewards: React.FC = () => {
                                     type="number"
                                     variant="outlined"
                                     sx={{ mb: 2 }}
-                                     InputProps={{ ...params.InputProps, type: 'search' }}
+                                     InputProps={{ ...params.InputProps, type: 'string' }}
                                      inputProps={{ ...params.inputProps, min: 0 }}
                                 />
                             )}

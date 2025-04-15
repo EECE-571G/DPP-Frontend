@@ -233,7 +233,7 @@ const Dashboard: React.FC = () => {
                                     sx={{ flexGrow: 1 }}
                                      InputProps={{
                                         ...params.InputProps,
-                                        type: 'search',
+                                        type: 'string',
                                         inputProps: { ...params.inputProps, min: 0 }
                                     }}
                                 />
