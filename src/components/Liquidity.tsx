@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Card, CardContent, TextField, Button,
-    Tabs, Tab, CircularProgress, Fade, Alert, Skeleton
+    Tabs, Tab, CircularProgress, Fade, Alert, Skeleton,
+    Autocomplete // <<< Import Autocomplete
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -12,9 +13,10 @@ import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useLiquidityActions } from '../hooks/useLiquidityActions';
+import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUtils'; // <<< Import history getters
 
 // Local storage keys
-const LS_TOKEN_ID = 'liquidity_tokenId';
+const LS_TOKEN_ID = 'liquidity_tokenId'; // Shared key for add/remove history
 const LS_LOWER_TICK = 'liquidity_lowerTick';
 const LS_UPPER_TICK = 'liquidity_upperTick';
 
@@ -42,7 +44,7 @@ const Liquidity: React.FC = () => {
     const { isLoading: loadingStates } = useLoadingContext();
     const { handleMintPosition, handleAddLiquidity, handleRemoveLiquidity } = useLiquidityActions();
 
-    const [tabValue, setTabValue] = useState(0); // 0: Mint, 1: Add, 2: Remove
+    const [tabValue, setTabValue] = useState(0);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // --- State for Mint Tab ---
@@ -51,12 +53,15 @@ const Liquidity: React.FC = () => {
     const [mintLiquidityStr, setMintLiquidityStr] = useState('');
 
     // --- State for Add Tab ---
-    const [addTokenIdStr, setAddTokenIdStr] = useState('');
+    const [addTokenIdStr, setAddTokenIdStr] = useState(''); // Current value/input
     const [addLiquidityStr, setAddLiquidityStr] = useState('');
 
     // --- State for Remove Tab ---
-    const [removeTokenIdStr, setRemoveTokenIdStr] = useState('');
+    const [removeTokenIdStr, setRemoveTokenIdStr] = useState(''); // Current value/input
     const [removeLiquidityStr, setRemoveLiquidityStr] = useState('');
+
+    // --- State for Token ID History ---
+    const [tokenIdHistory, setTokenIdHistory] = useState<string[]>([]); // <<< Add history state
 
     // --- Loading State ---
     const isMinting = loadingStates['mintPosition'] ?? false;
@@ -67,8 +72,16 @@ const Liquidity: React.FC = () => {
 
     // --- Load from localStorage on mount ---
     useEffect(() => {
-        setAddTokenIdStr(localStorage.getItem(LS_TOKEN_ID) || '');
-        setRemoveTokenIdStr(localStorage.getItem(LS_TOKEN_ID) || '');
+        // Load history
+        const history = getTokenIdHistory(LS_TOKEN_ID);
+        setTokenIdHistory(history);
+
+        // Set initial value to the most recent ID or empty string
+        const mostRecentId = getMostRecentTokenId(LS_TOKEN_ID);
+        setAddTokenIdStr(mostRecentId);
+        setRemoveTokenIdStr(mostRecentId);
+
+        // Load other fields
         setLowerTickStr(localStorage.getItem(LS_LOWER_TICK) || '');
         setUpperTickStr(localStorage.getItem(LS_UPPER_TICK) || '');
     }, []);
@@ -79,7 +92,7 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null); // Clear errors on tab change
     };
 
-    // Input change handlers with localStorage saving
+    // Input change handlers with localStorage saving (keep for non-token ID fields)
     const handleLowerTickChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setLowerTickStr(val);
@@ -96,20 +109,21 @@ const Liquidity: React.FC = () => {
         setMintLiquidityStr(e.target.value);
         setErrorMsg(null);
     };
-    const handleAddTokenIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setAddTokenIdStr(val);
-        localStorage.setItem(LS_TOKEN_ID, val); // Update storage on change
+
+    // Token ID Autocomplete Handlers
+    const handleAddTokenIdInputChange = (event: React.SyntheticEvent, newValue: string | null) => {
+        // If user types, newValue is string. If user selects from dropdown, newValue is string. If user clears, newValue is null.
+        setAddTokenIdStr(newValue ?? ''); // Update state, default to empty string if cleared
         setErrorMsg(null);
     };
-     const handleAddLiquidityAmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleRemoveTokenIdInputChange = (event: React.SyntheticEvent, newValue: string | null) => {
+        setRemoveTokenIdStr(newValue ?? '');
+        setErrorMsg(null);
+    };
+
+    // Other amount handlers (keep)
+    const handleAddLiquidityAmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setAddLiquidityStr(e.target.value);
-        setErrorMsg(null);
-    };
-    const handleRemoveTokenIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setRemoveTokenIdStr(val);
-        localStorage.setItem(LS_TOKEN_ID, val); // Update storage on change
         setErrorMsg(null);
     };
     const handleRemoveLiquidityAmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +131,7 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null);
     };
 
-    // Action handlers
+    // Action handlers (update history state after success)
     const handleMintClick = async () => {
         setErrorMsg(null);
         const lowerTickNum = parseInt(lowerTickStr, 10);
@@ -130,11 +144,14 @@ const Liquidity: React.FC = () => {
 
         const success = await handleMintPosition(lowerTickNum, upperTickNum, mintLiquidityStr);
         if (success) {
-            // Optionally clear mint form, maybe keep ticks?
             setMintLiquidityStr('');
-            // Reload tokenId from localStorage in case it was updated by mint success
-             setAddTokenIdStr(localStorage.getItem(LS_TOKEN_ID) || '');
-             setRemoveTokenIdStr(localStorage.getItem(LS_TOKEN_ID) || '');
+            // Refresh history state after mint
+            const newHistory = getTokenIdHistory(LS_TOKEN_ID);
+            setTokenIdHistory(newHistory);
+            // Set the new ID as the current selection in Add/Remove
+            const latestId = getMostRecentTokenId(LS_TOKEN_ID);
+            setAddTokenIdStr(latestId);
+            setRemoveTokenIdStr(latestId);
         }
     };
 
@@ -142,7 +159,9 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null);
         const success = await handleAddLiquidity(addTokenIdStr, addLiquidityStr);
         if (success) {
-            setAddLiquidityStr(''); // Clear amount on success
+            setAddLiquidityStr('');
+            // Refresh history state after add
+            setTokenIdHistory(getTokenIdHistory(LS_TOKEN_ID));
         }
     };
 
@@ -150,7 +169,9 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null);
         const success = await handleRemoveLiquidity(removeTokenIdStr, removeLiquidityStr);
          if (success) {
-            setRemoveLiquidityStr(''); // Clear amount on success
+            setRemoveLiquidityStr('');
+            // Refresh history state after remove
+            setTokenIdHistory(getTokenIdHistory(LS_TOKEN_ID));
         }
     };
 
@@ -248,7 +269,7 @@ const Liquidity: React.FC = () => {
                                 size="large"
                                 sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
                             >
-                                {isMintApproving ? <CircularProgress size={24} color="inherit" /> : isMinting ? <CircularProgress size={24} color="inherit" /> : 'Mint Position'}
+                                {isMintApproving ? "Approving..." : isMinting ? "Minting..." : 'Mint Position'}
                             </Button>
                             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
                                 Note: Requires token approvals for Position Manager. Token amounts needed will be withdrawn based on liquidity and price range.
@@ -260,18 +281,34 @@ const Liquidity: React.FC = () => {
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                 Increase the liquidity of an existing position NFT you own.
                             </Typography>
-                             <TextField
-                                label="Position Token ID"
-                                type="number"
-                                variant="outlined"
-                                fullWidth
-                                value={addTokenIdStr}
-                                onChange={handleAddTokenIdChange}
+                            <Autocomplete
+                                freeSolo // Allow typing new IDs
+                                options={tokenIdHistory} // Provide history
+                                value={addTokenIdStr} // Controlled component value
+                                onInputChange={handleAddTokenIdInputChange} // Update state on input/select
+                                onChange={(event, newValue) => {
+                                    // This handles selection from dropdown or clearing
+                                    handleAddTokenIdInputChange(event, newValue ?? '');
+                                }}
                                 disabled={isAdding || isAddApproving}
-                                sx={{ mb: 2 }}
-                                InputProps={{ inputProps: { min: 0 }}}
+                                fullWidth
+                                size="small"
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Position Token ID"
+                                        type="number"
+                                        variant="outlined"
+                                        sx={{ mb: 2 }}
+                                        InputProps={{
+                                            ...params.InputProps,
+                                            type: 'search', // Better semantics
+                                            inputProps: { ...params.inputProps, min: 0 }
+                                        }}
+                                    />
+                                )}
                             />
-                             <TextField
+                            <TextField
                                 label="Liquidity Amount to Add"
                                 type="text"
                                 variant="outlined"
@@ -290,7 +327,7 @@ const Liquidity: React.FC = () => {
                                 size="large"
                                 sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
                             >
-                                {isAddApproving ? <CircularProgress size={24} color="inherit" /> : isAdding ? <CircularProgress size={24} color="inherit" /> : 'Add Liquidity'}
+                                {isAddApproving ? "Approving..." : isAdding ? "Adding..." : 'Add Liquidity'}
                             </Button>
                              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
                                 Note: Requires token approvals. Token amounts will be withdrawn based on liquidity and price.
@@ -302,18 +339,33 @@ const Liquidity: React.FC = () => {
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                 Decrease the liquidity of an existing position NFT you own.
                             </Typography>
-                            <TextField
-                                label="Position Token ID"
-                                type="number"
-                                variant="outlined"
-                                fullWidth
+                             <Autocomplete
+                                freeSolo
+                                options={tokenIdHistory}
                                 value={removeTokenIdStr}
-                                onChange={handleRemoveTokenIdChange}
+                                onInputChange={handleRemoveTokenIdInputChange}
+                                onChange={(event, newValue) => {
+                                     handleRemoveTokenIdInputChange(event, newValue ?? '');
+                                }}
                                 disabled={isRemoving}
-                                sx={{ mb: 2 }}
-                                InputProps={{ inputProps: { min: 0 }}}
+                                fullWidth
+                                size="small"
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Position Token ID"
+                                        type="number"
+                                        variant="outlined"
+                                        sx={{ mb: 2 }}
+                                         InputProps={{
+                                            ...params.InputProps,
+                                            type: 'search',
+                                            inputProps: { ...params.inputProps, min: 0 }
+                                        }}
+                                    />
+                                )}
                             />
-                             <TextField
+                            <TextField
                                 label="Liquidity Amount to Remove"
                                 type="text"
                                 variant="outlined"
@@ -326,17 +378,17 @@ const Liquidity: React.FC = () => {
                             />
                             <Button
                                 variant="contained"
-                                color="secondary" // Different color for removal
+                                color="secondary"
                                 fullWidth
                                 onClick={handleRemoveClick}
                                 disabled={isRemoving || !removeTokenIdStr || !removeLiquidityStr}
                                 size="large"
                                 sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
                             >
-                                {isRemoving ? <CircularProgress size={24} color="inherit" /> : 'Remove Liquidity'}
+                                {isRemoving ? "Removing..." : 'Remove Liquidity'}
                             </Button>
                              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                                Note: After removing liquidity, you might need to separately 'Collect' the withdrawn tokens/fees via the Position Manager.
+                                Note: After removing, you might need to 'Collect' withdrawn tokens separately.
                             </Typography>
                         </TabPanel>
 

@@ -1,5 +1,4 @@
-// frontend/src/hooks/useRewardActions.ts
-// --- NEW FILE ---
+// src/hooks/useRewardActions.ts
 import { useCallback } from 'react';
 import { ethers, ZeroAddress, isAddress, Contract, formatUnits } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
@@ -14,6 +13,7 @@ import {
 } from '../constants';
 // ABI for the contract implementing IHookReward (likely your DesiredPricePool hook)
 import HookRewardABI from '../abis/IHookReward.json'; // Adjust if your ABI file is named differently
+// *** No longer need addTokenIdToHistory here ***
 
 export const useRewardActions = () => {
     const { signer, account, network } = useAuthContext();
@@ -24,7 +24,6 @@ export const useRewardActions = () => {
 
     // --- Calculate Rewards ---
     const handleCalculateReward = useCallback(async (positionIdStr: string): Promise<{ amount0: string; amount1: string } | null> => {
-        // Use signer as it implies connection and account, and matches collect's requirement
         if (!signer || !account || !selectedPool || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             showSnackbar('Cannot calculate rewards: Wallet/Pool/Network issue.', 'error');
             return null;
@@ -47,15 +46,14 @@ export const useRewardActions = () => {
         setLoading(loadingKey, true);
 
         try {
-            const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer); // Use signer
+            // Use signer for consistency, though provider could work for staticCall
+            const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer);
 
             console.log(`Statically calling calculateReward for position ID: ${positionIdStr}`);
-            // Call the calculateReward function that only takes positionId
-            // Note: This might trigger state changes if the contract function is not view/pure
             // Use staticCall to get return values without sending a transaction
             const result = await rewardContract.calculateReward.staticCall(positionId);
             const [amount0Raw, amount1Raw]: [bigint, bigint] = result;
-            
+
             const decimals0 = tokenDecimals[selectedPool.tokenA_Address ?? ''] ?? 18;
             const decimals1 = tokenDecimals[selectedPool.tokenB_Address ?? ''] ?? 18;
 
@@ -63,8 +61,6 @@ export const useRewardActions = () => {
             const amount1Formatted = formatUnits(amount1Raw, decimals1);
 
             console.log(`Calculated Rewards: ${amount0Formatted} TKA, ${amount1Formatted} TKB`);
-            // Optional: Show a success snackbar if needed, or just return data
-            // showSnackbar('Rewards calculated successfully.', 'success');
 
             return { amount0: amount0Formatted, amount1: amount1Formatted };
 
@@ -72,7 +68,7 @@ export const useRewardActions = () => {
             console.error(`Calculate Reward Error for token ${positionIdStr}:`, error);
             const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Calculation failed.";
             showSnackbar(`Reward calculation failed: ${reason}`, 'error');
-            return null; // Indicate failure
+            return null;
         } finally {
             setLoading(loadingKey, false);
         }
@@ -105,21 +101,17 @@ export const useRewardActions = () => {
             const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer);
 
             console.log(`Collecting rewards for position ID: ${positionIdStr} to recipient: ${account}`);
-            // Call the collectReward function
             const tx = await rewardContract.collectReward(positionId, account);
 
             let message = `Collect Rewards tx submitted for token ${positionIdStr}`;
-            if (EXPLORER_URL_BASE) {
-                message = `${message}. Waiting for confirmation...`;
-            } else {
-                message = `${message}: ${tx.hash}. Waiting...`;
-            }
+            if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
             showSnackbar(message, 'info');
 
             const receipt = await tx.wait(1);
 
             if (receipt?.status === 1) {
                 showSnackbar('Rewards collected successfully!', 'success');
+                // *** REMOVED addTokenIdToHistory call ***
                 await fetchBalances(); // Refresh token balances after collection
                 return true;
             } else {
@@ -130,11 +122,11 @@ export const useRewardActions = () => {
             console.error(`Collect Reward Error for token ${positionIdStr}:`, error);
             const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Collection failed.";
             showSnackbar(`Reward collection failed: ${reason}`, 'error');
-            return false; // Indicate failure
+            return false;
         } finally {
             setLoading(loadingKey, false);
         }
-    }, [signer, account, network, fetchBalances, setLoading, showSnackbar]); // Dependencies
+    }, [signer, account, network, fetchBalances, setLoading, showSnackbar]); // Removed addTokenIdToHistory dependency
 
     return { handleCalculateReward, handleCollectReward };
 };

@@ -1,38 +1,46 @@
 // src/components/Dashboard.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Autocomplete, TextField, Card, CardContent,
   Paper, Grid, Collapse, Skeleton, Alert, Divider, Button,
-  CircularProgress, Link // Added Button, CircularProgress, Link
+  CircularProgress, Link
 } from '@mui/material';
-import InfoIcon from '@mui/icons-material/Info'; // Added InfoIcon
-import { ethers, Contract, ZeroAddress, isAddress } from 'ethers'; // Added ethers imports
+import InfoIcon from '@mui/icons-material/Info';
+import { ethers, Contract, ZeroAddress, isAddress } from 'ethers';
 
 import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
-import { useAuthContext } from '../contexts/AuthContext'; // Added AuthContext
-import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID, EXPLORER_URL_BASE } from '../constants'; // Added Position Manager Address
-import PositionManagerABI from '../abis/PositionManager.json'; // Added Position Manager ABI
-import { formatBalance } from '../utils/formatters'; // Import formatter
+import { useAuthContext } from '../contexts/AuthContext';
+import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID, EXPLORER_URL_BASE } from '../constants';
+import PositionManagerABI from '../abis/PositionManager.json';
+import { formatBalance } from '../utils/formatters';
+// *** Import correct utilities and use SHARED KEY ***
+import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUtils';
 
-// Local storage key for the token ID input
-const LS_DASHBOARD_TOKEN_ID = 'dashboard_inspect_tokenId';
+const LS_TOKEN_ID = 'liquidity_tokenId'; // Use the shared key
 
 const Dashboard: React.FC = () => {
-  // Get necessary contexts
   const { pools, selectedPool, isLoadingPools, errorPools, handlePoolSelection } = usePoolsContext();
   const { userBalances, tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
-  const { provider, network, account } = useAuthContext(); // Get provider/signer and network
+  const { provider, network, account } = useAuthContext();
 
-  // State for the liquidity inspection section
-  const [inspectTokenId, setInspectTokenId] = useState<string>(() => localStorage.getItem(LS_DASHBOARD_TOKEN_ID) || '');
+  const [inspectTokenId, setInspectTokenId] = useState<string>('');
   const [positionLiquidity, setPositionLiquidity] = useState<string | null>(null);
   const [isLoadingLiquidity, setIsLoadingLiquidity] = useState<boolean>(false);
   const [liquidityError, setLiquidityError] = useState<string | null>(null);
+  const [tokenIdHistory, setTokenIdHistory] = useState<string[]>([]);
+
+  // --- Load history on mount ---
+  useEffect(() => {
+      // *** Read from the SHARED key ***
+      const history = getTokenIdHistory(LS_TOKEN_ID);
+      setTokenIdHistory(history);
+      // Set initial value to the most recent ID from the SHARED history
+      setInspectTokenId(getMostRecentTokenId(LS_TOKEN_ID));
+  }, []);
 
   // --- Fetch Liquidity Logic ---
   const fetchPositionLiquidity = useCallback(async () => {
-    // Use provider for view functions, check network and essential addresses
     if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
       setLiquidityError("Connect to the correct network first.");
       return;
@@ -40,6 +48,10 @@ const Dashboard: React.FC = () => {
     if (POSITION_MANAGER_ADDRESS === ZeroAddress || !PositionManagerABI) {
       setLiquidityError("Position Manager not configured.");
       return;
+    }
+    if (!inspectTokenId) {
+        setLiquidityError("Please enter or select a Token ID.");
+        return;
     }
 
     let tokenIdBigInt: bigint;
@@ -53,26 +65,24 @@ const Dashboard: React.FC = () => {
 
     setIsLoadingLiquidity(true);
     setLiquidityError(null);
-    setPositionLiquidity(null); // Clear previous result
+    setPositionLiquidity(null);
 
     try {
       const positionManagerContract = new Contract(POSITION_MANAGER_ADDRESS, PositionManagerABI, provider);
       console.log(`Fetching liquidity for Token ID: ${inspectTokenId}`);
 
       const liquidityResult: bigint = await positionManagerContract.getPositionLiquidity(tokenIdBigInt);
-
-      // Format liquidity for display (using toLocaleString for large numbers)
       const formattedLiquidity = liquidityResult.toLocaleString();
       setPositionLiquidity(formattedLiquidity);
       console.log(`Fetched Liquidity: ${formattedLiquidity}`);
 
+      // *** REMOVED addTokenIdToHistory call here ***
+
     } catch (err: any) {
       console.error("Failed to fetch position liquidity:", err);
-      // Attempt to extract a more specific revert reason if available
       const reason = err?.reason || err?.data?.message?.replace('execution reverted: ', '') || err.message || "Could not fetch liquidity.";
-      // Check for common errors
-      if (reason.includes('ERC721NonexistentToken') || reason.includes('Invalid token ID')) {
-           setLiquidityError(`Token ID ${inspectTokenId} does not exist.`);
+      if (reason.includes('ERC721NonexistentToken') || reason.includes('Invalid token ID') || reason.includes('URI query for nonexistent token')) {
+           setLiquidityError(`Token ID ${inspectTokenId} does not exist or is invalid.`);
       } else {
           setLiquidityError(`Error: ${reason}`);
       }
@@ -82,14 +92,12 @@ const Dashboard: React.FC = () => {
     }
   }, [provider, network, inspectTokenId]);
 
-  // Handle input change and save to localStorage
-  const handleTokenIdChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.value;
-    setInspectTokenId(newValue);
-    localStorage.setItem(LS_DASHBOARD_TOKEN_ID, newValue);
-    setLiquidityError(null); // Clear error on input change
-    setPositionLiquidity(null); // Clear result on input change
-  };
+  // Handle Autocomplete input change and selection
+   const handleInspectTokenIdChange = (event: React.SyntheticEvent, newValue: string | null) => {
+       setInspectTokenId(newValue ?? ''); // Update state
+       setLiquidityError(null);
+       setPositionLiquidity(null);
+   };
 
   // Get the correct addresses and symbols from the selected pool
   const tokenAAddress = selectedPool?.tokenA_Address;
@@ -108,7 +116,7 @@ const Dashboard: React.FC = () => {
 
       {/* Display Fetching Errors */}
        {errorPools && <Alert severity="error" sx={{ mb: 2 }}>{errorPools}</Alert>}
-       {errorBalances && !isLoadingBalances && <Alert severity="error" sx={{ mb: 2 }}>Balance Error: {errorBalances}</Alert>}
+       {errorBalances && !isLoadingBalances && <Alert severity="warning" sx={{ mb: 2 }}>Balance Warning: {errorBalances}</Alert>}
 
       {/* Pool Selection Card */}
       <Card elevation={1} sx={{ borderRadius: 2, mb: 3, }}>
@@ -121,15 +129,14 @@ const Dashboard: React.FC = () => {
                   value={selectedPool}
                   onChange={(event: any, newValue: V4Pool | null) => {
                       handlePoolSelection(newValue);
-                      // Clear liquidity info when pool changes
-                      setInspectTokenId('');
+                      // Reset inspection input to last known managed ID when pool changes
+                      setInspectTokenId(getMostRecentTokenId(LS_TOKEN_ID)); // Read from shared key
                       setPositionLiquidity(null);
                       setLiquidityError(null);
-                      localStorage.removeItem(LS_DASHBOARD_TOKEN_ID);
+                      // Refresh history suggestions from the shared list
+                      setTokenIdHistory(getTokenIdHistory(LS_TOKEN_ID)); // Read from shared key
                   }}
-                  getOptionLabel={(option) =>
-                      `${option.name} (${option.tokenA} / ${option.tokenB})`
-                  }
+                  getOptionLabel={(option) => `${option.name} (${option.tokenA} / ${option.tokenB})`}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
                   renderInput={(params) => (
                       <TextField
@@ -188,6 +195,7 @@ const Dashboard: React.FC = () => {
                 </>
              ) : null}
 
+
             {/* Divider */}
             {(isLoadingBalances || selectedPool) && (
               <Grid item xs={12}>
@@ -202,25 +210,40 @@ const Dashboard: React.FC = () => {
                         Inspect Position Liquidity
                     </Typography>
                      <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>
-                        Enter the Token ID of a position NFT to view its current liquidity amount. You can find your Token IDs under the "Liquidity" tab after minting.
+                        Enter or select the Token ID of a position NFT to view its current liquidity amount. Suggestions are based on recently managed IDs.
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                         <TextField
-                            label="Position Token ID"
-                            variant="outlined"
-                            size="small"
+                         <Autocomplete
+                            freeSolo
+                            options={tokenIdHistory} // Read from shared history state
                             value={inspectTokenId}
-                            onChange={handleTokenIdChange}
-                            disabled={isLoadingLiquidity || !account} // Disable if no account connected
-                            sx={{ flexGrow: 1 }}
-                            type="number" // Enforce number input
-                            InputProps={{ inputProps: { min: 0 } }}
+                            onChange={handleInspectTokenIdChange} // Handles selection or clearing
+                            onInputChange={(event, newInputValue) => { // Handles typing
+                                setInspectTokenId(newInputValue ?? '');
+                            }}
+                            disabled={isLoadingLiquidity || !account}
+                            fullWidth
+                            size="small"
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Position Token ID"
+                                    variant="outlined"
+                                    type="number"
+                                    sx={{ flexGrow: 1 }}
+                                     InputProps={{
+                                        ...params.InputProps,
+                                        type: 'search',
+                                        inputProps: { ...params.inputProps, min: 0 }
+                                    }}
+                                />
+                            )}
                         />
                         <Button
                             variant="contained"
                             onClick={fetchPositionLiquidity}
                             disabled={!inspectTokenId || isLoadingLiquidity || !account}
-                            sx={{ height: '40px' }} // Match TextField small height
+                            sx={{ height: '40px' }}
                         >
                             {isLoadingLiquidity ? <CircularProgress size={24} /> : "Fetch"}
                         </Button>
@@ -235,9 +258,15 @@ const Dashboard: React.FC = () => {
                              </Typography>
                          </Paper>
                      )}
+                     {!positionLiquidity && !isLoadingLiquidity && !liquidityError && !inspectTokenId && (
+                         <Typography variant="caption" color="text.secondary" sx={{mt: 1, display: 'flex', alignItems: 'center'}}>
+                             <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Enter or select a Token ID and click 'Fetch'.
+                         </Typography>
+                     )}
+                     {/* Optional: Modify the prompt if inspectTokenId IS set but fetch hasn't run */}
                      {!positionLiquidity && !isLoadingLiquidity && !liquidityError && inspectTokenId && (
                          <Typography variant="caption" color="text.secondary" sx={{mt: 1, display: 'flex', alignItems: 'center'}}>
-                             <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Click 'Fetch' to view liquidity.
+                             <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Click 'Fetch' to view liquidity for ID {inspectTokenId}.
                          </Typography>
                     )}
                 </Grid>
@@ -247,17 +276,17 @@ const Dashboard: React.FC = () => {
         </Paper>
       </Collapse>
 
-        {/* Message when no pool is selected */}
-       {!selectedPool && !isLoadingPools && !errorPools && pools.length > 0 && (
+      {/* Message when no pool is selected */}
+      {!selectedPool && !isLoadingPools && !errorPools && pools.length > 0 && (
+        <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
+          Select a pool above to view details and inspect position liquidity.
+        </Typography>
+      )}
+      {!isLoadingPools && !errorPools && pools.length === 0 && (
          <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
-           Select a pool above to view details and inspect position liquidity.
+             No pools are currently available. Check constants and deployment script logs.
          </Typography>
-       )}
-       {!isLoadingPools && !errorPools && pools.length === 0 && (
-          <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
-              No pools are currently available. Check constants and script logs.
-          </Typography>
-       )}
+      )}
     </Box>
   );
 };

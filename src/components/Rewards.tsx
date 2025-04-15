@@ -1,21 +1,22 @@
-// frontend/src/components/Rewards.tsx
-// --- NEW FILE ---
+// src/components/Rewards.tsx
 import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Card, CardContent, TextField, Button,
-    CircularProgress, Fade, Alert, Skeleton, Grid
+    CircularProgress, Fade, Alert, Skeleton, Grid,
+    Autocomplete // Keep Autocomplete
 } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
-import RedeemIcon from '@mui/icons-material/Redeem'; // Using Redeem for 'Collect'
+import RedeemIcon from '@mui/icons-material/Redeem';
 
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
-import { useRewardActions } from '../hooks/useRewardActions'; // Assuming this hook exists
+import { useRewardActions } from '../hooks/useRewardActions';
 import { formatBalance } from '../utils/formatters';
+// *** Import correct utilities and use SHARED KEY ***
+import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUtils';
 
-// Local storage key
-const LS_REWARD_TOKEN_ID = 'rewards_tokenId';
+const LS_TOKEN_ID = 'liquidity_tokenId'; // Use the shared key
 
 const Rewards: React.FC = () => {
     const { selectedPool, isLoadingPools, errorPools } = usePoolsContext();
@@ -26,50 +27,55 @@ const Rewards: React.FC = () => {
     const [positionIdStr, setPositionIdStr] = useState<string>('');
     const [calculatedRewards, setCalculatedRewards] = useState<{ amount0: string; amount1: string } | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [tokenIdHistory, setTokenIdHistory] = useState<string[]>([]);
 
     // --- Loading States ---
     const isLoadingCalculate = loadingStates[`calculateReward_${positionIdStr}`] ?? false;
     const isLoadingCollect = loadingStates[`collectReward_${positionIdStr}`] ?? false;
 
-    // --- Load from localStorage on mount ---
+    // --- Load history on mount ---
     useEffect(() => {
-        setPositionIdStr(localStorage.getItem(LS_REWARD_TOKEN_ID) || '');
+        // *** Read from the SHARED key ***
+        const history = getTokenIdHistory(LS_TOKEN_ID);
+        setTokenIdHistory(history);
+        // Set initial value from the SHARED history
+        setPositionIdStr(getMostRecentTokenId(LS_TOKEN_ID));
     }, []);
 
     // --- Handlers ---
-    const handlePositionIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setPositionIdStr(val);
-        localStorage.setItem(LS_REWARD_TOKEN_ID, val);
+    const handlePositionIdChange = (event: React.SyntheticEvent, newValue: string | null) => {
+        setPositionIdStr(newValue ?? '');
         setErrorMsg(null);
-        setCalculatedRewards(null); // Clear previous calculation
+        setCalculatedRewards(null);
     };
+
 
     const handleCalculateClick = async () => {
         setErrorMsg(null);
         setCalculatedRewards(null);
         if (!positionIdStr || isNaN(parseInt(positionIdStr))) {
-            setErrorMsg('Please enter a valid Position Token ID.');
+            setErrorMsg('Please enter or select a valid Position Token ID.');
             return;
         }
         const rewards = await handleCalculateReward(positionIdStr);
         if (rewards) {
             setCalculatedRewards(rewards);
+            // *** REMOVED addTokenIdToHistory call here ***
         }
-        // Errors are handled by the hook via snackbar, but we clear local error
     };
 
     const handleCollectClick = async () => {
         setErrorMsg(null);
         if (!positionIdStr || isNaN(parseInt(positionIdStr))) {
-            setErrorMsg('Please enter a valid Position Token ID.');
+             setErrorMsg('Please enter or select a valid Position Token ID.');
             return;
         }
         const success = await handleCollectReward(positionIdStr);
         if (success) {
-            setCalculatedRewards(null); // Clear calculated rewards after successful collection
+            setCalculatedRewards(null);
+            // *** REMOVED history refresh - it's read-only here ***
+            // setTokenIdHistory(getTokenIdHistory(LS_TOKEN_ID));
         }
-        // Errors are handled by the hook via snackbar
     };
 
     // --- Render Logic ---
@@ -81,9 +87,8 @@ const Rewards: React.FC = () => {
     const symbolA = tokenAAddress ? (tokenSymbols[tokenAAddress] ?? tokenA ?? 'Token A') : 'Token A';
     const symbolB = tokenBAddress ? (tokenSymbols[tokenBAddress] ?? tokenB ?? 'Token B') : 'Token B';
 
-
     if (isLoadingPools || isLoadingBalances) {
-        return (
+         return (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
                 <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Rewards Center</Typography>
                 <Card sx={{ width: '100%', maxWidth: 500, borderRadius: 3 }}>
@@ -130,16 +135,28 @@ const Rewards: React.FC = () => {
                             Check and collect rewards associated with your Desired Price Pool liquidity position (NFT).
                         </Typography>
 
-                        <TextField
-                            label="Position Token ID"
-                            type="number"
-                            variant="outlined"
-                            fullWidth
+                        <Autocomplete
+                            freeSolo
+                            options={tokenIdHistory} // Read from shared history state
                             value={positionIdStr}
-                            onChange={handlePositionIdChange}
+                            onChange={handlePositionIdChange} // Handles selection/clearing
+                            onInputChange={(event, newInputValue) => { // Handles typing
+                                setPositionIdStr(newInputValue ?? '');
+                            }}
                             disabled={isLoadingCalculate || isLoadingCollect}
-                            sx={{ mb: 2 }}
-                            InputProps={{ inputProps: { min: 0 }}}
+                            fullWidth
+                            size="small"
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Position Token ID"
+                                    type="number"
+                                    variant="outlined"
+                                    sx={{ mb: 2 }}
+                                     InputProps={{ ...params.InputProps, type: 'search' }}
+                                     inputProps={{ ...params.inputProps, min: 0 }}
+                                />
+                            )}
                         />
 
                         {/* Calculated Rewards Display */}
@@ -149,7 +166,7 @@ const Rewards: React.FC = () => {
                                 borderRadius: 2,
                                 p: 2,
                                 mb: 2,
-                                minHeight: '80px', // Ensure space even when empty
+                                minHeight: '80px',
                                 display: 'flex',
                                 justifyContent: 'space-around',
                                 alignItems: 'center',
@@ -171,7 +188,7 @@ const Rewards: React.FC = () => {
                                 <CircularProgress size={24} />
                             ) : (
                                 <Typography variant="body2" color="text.secondary">
-                                    Click 'Calculate' to see rewards.
+                                    Enter/Select ID and click 'Calculate'.
                                 </Typography>
                             )}
                         </Box>
