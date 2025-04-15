@@ -145,66 +145,66 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
               try {
                   // Fetch data *available* from the Hook contract
     const [desiredPriceTickBigInt, lpFeePipsBigInt, hookFeePercentBigInt] = await Promise.all([
-      hookContract.desiredPrice(poolId).catch(() => null), // Default to null on error
-      hookContract.lpFees(poolId).catch(() => null),       // Default to null on error
-      hookContract.hookFees(poolId).catch(() => null),     // Default to null on error
-  ]);
+        hookContract.desiredPrice(poolId).catch(() => null), // Default to null on error
+        hookContract.lpFees(poolId).catch(() => null),       // Default to null on error
+        hookContract.hookFees(poolId).catch(() => null),     // Default to null on error
+    ]);
 
-  // Since we cannot get currentTick/sqrtPriceX96 reliably, set them to null
-  const currentTick = null;
-  const sqrtPriceX96 = null; // Explicitly null as we didn't fetch it
-  const liquidity = null;
-  const protocolFeeRaw = null; // Explicitly null
+    // Since we cannot get currentTick/sqrtPriceX96 reliably, set them to null
+    const currentTick = null;
+    const sqrtPriceX96 = null; // Explicitly null as we didn't fetch it
+    const liquidity = null;
+    const protocolFeeRaw = null; // Explicitly null
 
-  const desiredPriceTick = desiredPriceTickBigInt !== null ? Number(desiredPriceTickBigInt) : null;
-  const lpFeePips = lpFeePipsBigInt !== null ? Number(lpFeePipsBigInt) : null;
-  const hookFeePercent = hookFeePercentBigInt !== null ? Number(hookFeePercentBigInt) : null;
+    const desiredPriceTick = desiredPriceTickBigInt !== null ? Number(desiredPriceTickBigInt) : null;
+    const lpFeePips = lpFeePipsBigInt !== null ? Number(lpFeePipsBigInt) : null;
+    const hookFeePercent = hookFeePercentBigInt !== null ? Number(hookFeePercentBigInt) : null;
 
-  // Calculate desired price ONLY if tick was fetched
-  const decimals0 = tokenDecimals[poolKey.currency0] ?? 18;
-  const decimals1 = tokenDecimals[poolKey.currency1] ?? 18;
-  const desiredPrice = (desiredPriceTick !== null)
-      ? TickMath.getPriceAtTick(desiredPriceTick, decimals0, decimals1)
-      : 0; // Default if tick not fetched
+    // Calculate desired price ONLY if tick was fetched
+    const decimals0 = tokenDecimals[poolKey.currency0] ?? 18;
+    const decimals1 = tokenDecimals[poolKey.currency1] ?? 18;
+    const desiredPrice = (desiredPriceTick !== null)
+        ? TickMath.getPriceAtTick(desiredPriceTick, decimals0, decimals1)
+        : 0; // Default if tick not fetched
 
-  // Set current price to 0 as we don't have the necessary data
-  const currentPrice = 0;
+    // Set current price to 0 as we don't have the necessary data
+    const currentPrice = 0;
 
-  // --- Create Pool Data Object ---
-  const poolData: V4Pool = {
-      id: def.id,
-      name: def.nameTemplate,
-      tokenA: tokenSymbols[def.token0] ?? def.token0.slice(0, 6),
-      tokenB: tokenSymbols[def.token1] ?? def.token1.slice(0, 6),
-      tokenA_Address: def.token0,
-      tokenB_Address: def.token1,
-      poolAddress: ZeroAddress,
-      poolId: poolId,
-      poolKey: poolKey,
-      // --- From Hook Contract ---
-      desiredPriceTick: desiredPriceTick,
-      lpFeeRate: lpFeePips,
-      hookFeeRate: hookFeePercent,
-      desiredPrice: desiredPrice, // Derived price
-      // --- Unavailable from direct view calls ---
-      currentTick: currentTick,
-      sqrtPriceX96: sqrtPriceX96,
-      liquidity: liquidity,
-      protocolFee: protocolFeeRaw !== null ? Number(protocolFeeRaw) : null, // Use fetched if available (though it's null now)
-      currentPrice: currentPrice, // Set explicitly to 0 or NaN
-      // --- Base fee from key ---
-      baseFee: poolKey.fee,
-  };
+    // --- Create Pool Data Object ---
+    const poolData: V4Pool = {
+        id: def.id,
+        name: def.nameTemplate,
+        tokenA: tokenSymbols[def.token0] ?? def.token0.slice(0, 6),
+        tokenB: tokenSymbols[def.token1] ?? def.token1.slice(0, 6),
+        tokenA_Address: def.token0,
+        tokenB_Address: def.token1,
+        poolAddress: ZeroAddress,
+        poolId: poolId,
+        poolKey: poolKey,
+        // --- From Hook Contract ---
+        desiredPriceTick: desiredPriceTick,
+        lpFeeRate: lpFeePips,
+        hookFeeRate: hookFeePercent,
+        desiredPrice: desiredPrice, // Derived price
+        // --- Unavailable from direct view calls ---
+        currentTick: currentTick,
+        sqrtPriceX96: sqrtPriceX96,
+        liquidity: liquidity,
+        protocolFee: protocolFeeRaw !== null ? Number(protocolFeeRaw) : null, // Use fetched if available (though it's null now)
+        currentPrice: currentPrice, // Set explicitly to 0 or NaN
+        // --- Base fee from key ---
+        baseFee: poolKey.fee,
+    };
 
-  fetchedPools.push(poolData);
-  if (!firstPool) {
-      firstPool = poolData;
-  }
-  console.log(`[PoolsContext] Fetched hook data for ${poolData.name}: DesiredTick=${desiredPriceTick}, LpFee=${lpFeePips}, HookFee=${hookFeePercent}`);
+    fetchedPools.push(poolData);
+    if (!firstPool) {
+        firstPool = poolData;
+    }
+    console.log(`[PoolsContext] Fetched hook data for ${poolData.name}: DesiredTick=${desiredPriceTick}, LpFee=${lpFeePips}, HookFee=${hookFeePercent}`);
 
 } catch (poolError: any) {
-  console.error(`[PoolsContext] Failed processing pool ${def.nameTemplate} (ID: ${poolId}):`, poolError);
-  setErrorPools(prev => prev ? `${prev}; Failed for ${def.nameTemplate}` : `Failed for ${def.nameTemplate}`);
+    console.error(`[PoolsContext] Failed processing pool ${def.nameTemplate} (ID: ${poolId}):`, poolError);
+    setErrorPools(prev => prev ? `${prev}; Failed for ${def.nameTemplate}` : `Failed for ${def.nameTemplate}`);
 }
 
           }
