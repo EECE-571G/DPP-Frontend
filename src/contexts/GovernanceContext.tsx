@@ -139,7 +139,7 @@ import React, {
                 }
 
                 try {
-                   govTokenAddr = await governanceContract.goveranceToken();
+                   govTokenAddr = await governanceContract.governanceToken();
                    console.log(`[GovernanceContext] Fetched governance token: ${govTokenAddr}`);
                 } catch (gtErr) {
                    console.error(`[GovernanceContext] Failed to fetch governance token address:`, gtErr);
