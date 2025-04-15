@@ -8,24 +8,19 @@ import { useBalancesContext } from '../contexts/BalancesContext';
 import { usePoolsContext } from '../contexts/PoolsContext'; // <<< Import Pool Context
 import {
     GOVERNANCE_CONTRACT_ADDRESS,
-    GOVERNANCE_TOKEN_ADDRESS, // No longer needed for vote, maybe for delegate
+    GOVERNANCE_TOKEN_ADDRESS, // Still needed for delegate
     EXPLORER_URL_BASE,
     TARGET_NETWORK_CHAIN_ID
 } from '../constants';
-import Erc20ABI from '../abis/ERC20.json';
-// Import the ABI that contains the 'castVote' function (likely DesiredPricePool)
+// Import the ABI that contains the 'castVote' and 'delegateVote' functions (DesiredPricePool)
 import GovernanceABI from '../abis/DesiredPricePool.json'; // <<< USE CORRECT ABI
-
-// Assume standard ERC20 delegate for GovToken for now
-const GovTokenABI = Erc20ABI;
 
 // Vote Range Constant from Poll.sol (for validation)
 const VOTE_RANGE = 10;
 
-
 export const useGovernanceActions = () => {
     const { signer, account, network } = useAuthContext();
-    const { fetchBalances } = useBalancesContext(); // Keep for balance refresh
+    const { fetchBalances, tokenDecimals } = useBalancesContext(); // Keep for balance refresh, need decimals
     const { setLoading } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
     const { selectedPool } = usePoolsContext(); // <<< Get selected pool
@@ -56,8 +51,9 @@ export const useGovernanceActions = () => {
             lowerSlotInt8 = Math.round(lower); // Round to nearest integer
             upperSlotInt8 = Math.round(upper);
 
-            // Validate against contract constraints (-VOTE_RANGE to VOTE_RANGE + 1)
-             if (lowerSlotInt8 < -VOTE_RANGE || upperSlotInt8 > VOTE_RANGE + 1 || lowerSlotInt8 >= upperSlotInt8) {
+            // Validate against contract constraints (-VOTE_RANGE to VOTE_RANGE + 1 for upper exclusive)
+            // and lower < upper
+             if (lowerSlotInt8 < -VOTE_RANGE || lowerSlotInt8 > VOTE_RANGE || upperSlotInt8 < -VOTE_RANGE + 1 || upperSlotInt8 > VOTE_RANGE + 1 || lowerSlotInt8 >= upperSlotInt8) {
                 throw new Error(`Bounds must be within [-${VOTE_RANGE}, ${VOTE_RANGE}] and lower < upper.`);
             }
         } catch (e: any) {
@@ -74,7 +70,7 @@ export const useGovernanceActions = () => {
             const governanceContract = new Contract(GOVERNANCE_CONTRACT_ADDRESS, GovernanceABI, signer);
             const poolIdBytes32 = selectedPool.poolId; // Get the bytes32 Pool ID
 
-            console.log(`Voting on pool ${poolIdBytes32} with range [${lowerSlotInt8}, ${upperSlotInt8}] using full power.`);
+            console.log(`Voting on pool ${poolIdBytes32} with range [${lowerSlotInt8}, ${upperSlotInt8}) using full power.`);
 
             // *** CALL THE CORRECT CONTRACT FUNCTION ***
             // Based on DesiredPrice.sol, it's castVote(PoolId, int8, int8)
@@ -112,18 +108,17 @@ export const useGovernanceActions = () => {
     }, [signer, account, network, selectedPool, fetchBalances, setLoading, showSnackbar]); // Dependencies
 
 
-    // --- Delegate Function (remains largely the same) ---
+    // --- Delegate Function (Updated to call Governance Contract) ---
     const handleDelegate = useCallback(async (targetAddress: string, amount: number): Promise<boolean> => {
-        // ... (Keep the existing implementation for delegation) ...
-        if (!signer || !account || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
-            showSnackbar('Cannot delegate: Wallet not connected or wrong network.', 'error'); return false;
-        }
-        const governanceTokenAddress = GOVERNANCE_TOKEN_ADDRESS; // Get from constants
-         if (governanceTokenAddress === ZeroAddress) {
-             showSnackbar('Governance token address not configured.', 'error'); return false;
+        if (!signer || !account || !selectedPool?.poolId || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
+             showSnackbar('Cannot delegate: Wallet/Pool/Network issue.', 'error'); return false;
          }
-          if (!GovTokenABI || GovTokenABI.length === 0) {
-             showSnackbar('Governance Token ABI is missing.', 'error'); return false;
+         const governanceContractAddress = GOVERNANCE_CONTRACT_ADDRESS;
+         if (governanceContractAddress === ZeroAddress) {
+             showSnackbar('Governance contract address not configured.', 'error'); return false;
+         }
+          if (!GovernanceABI || GovernanceABI.length === 0) {
+             showSnackbar('Governance ABI is missing.', 'error'); return false;
          }
           if (!isAddress(targetAddress)) {
               showSnackbar('Invalid target delegate address.', 'error'); return false;
@@ -132,20 +127,27 @@ export const useGovernanceActions = () => {
               showSnackbar('Delegation amount must be positive.', 'warning'); return false;
           }
 
-        // Use the correct ABI for the token's delegate function
-        const govTokenContract = new Contract(governanceTokenAddress, GovTokenABI, signer);
+        // Get decimals for the governance token
+        const govTokenDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+
+        const govContract = new Contract(governanceContractAddress, GovernanceABI, signer);
         const delegateKey = 'delegateVotes';
         setLoading(delegateKey, true);
 
         try {
-            // Check if the token uses `delegate(address)` or `delegate(address, uint256)`
-            // Assuming `delegate(address to, uint128 power)` based on DesiredPrice.sol interface usage
-            // We need to parse the amount using the *governance token's decimals*
-            const decimals = 18; // Assuming 18 for vDPP, adjust if needed
-            const powerWei = parseUnits(amount.toString(), decimals);
+            // Parse amount using gov token decimals
+            const powerWei = parseUnits(amount.toString(), govTokenDecimals);
+            // Convert to uint128 for the contract call, checking for overflow
+            const powerUint128 = ethers.toBigInt(powerWei); // Use ethers v6 function
+             if (powerUint128 > (2n ** 128n - 1n)) {
+                 throw new Error("Delegation amount exceeds uint128 limit.");
+             }
 
-            console.log(`Delegating ${amount} (${powerWei.toString()} wei) votes to ${targetAddress}`);
-            const tx = await govTokenContract.delegateVote(selectedPool?.poolId, targetAddress, powerWei); // Assuming DesiredPrice interface
+            const poolIdBytes32 = selectedPool.poolId; // Get Pool ID
+
+            console.log(`Delegating ${amount} (${powerUint128.toString()} base units) votes for pool ${poolIdBytes32} to ${targetAddress}`);
+            // Call delegateVote on the Governance Contract (DesiredPricePool)
+            const tx = await govContract.delegateVote(poolIdBytes32, targetAddress, powerUint128);
 
             let message = `Delegation transaction submitted`;
              if (EXPLORER_URL_BASE) {
@@ -160,7 +162,9 @@ export const useGovernanceActions = () => {
             if (receipt?.status === 1) {
                  let successMessage = `Successfully delegated votes to target address!`;
                  showSnackbar(successMessage, 'success');
-                 await fetchBalances(); // Re-fetch balances
+                 await fetchBalances(); // Re-fetch balances (DPP locked balance will change)
+                 // Optionally re-fetch governance data if delegation affects displayed power immediately
+                 // await fetchGovernanceData(selectedPool);
                  return true;
             } else {
                  throw new Error('Delegation transaction failed.');
@@ -174,8 +178,7 @@ export const useGovernanceActions = () => {
         } finally {
             setLoading(delegateKey, false);
         }
-        // Added selectedPool as a dependency if needed for delegateVote
-    }, [signer, account, network, selectedPool, fetchBalances, setLoading, showSnackbar]);
+    }, [signer, account, network, selectedPool, tokenDecimals, fetchBalances, setLoading, showSnackbar]);
 
 
     return { handleVoteWithRange, handleDelegate };

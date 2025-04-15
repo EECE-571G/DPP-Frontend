@@ -10,7 +10,7 @@ const positionManagerRaw = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // <<< 
 const token0Raw = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";        // <<< FROM LOGS (Token0)
 const token1Raw = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";        // <<< FROM LOGS (Token1)
 const token2Raw = "0x0165878A594ca255338adfa4d48449f69242Eb8F";        // <<< FROM LOGS (Token2)
-const governanceTokenRaw = "0x800cAFaACC4991e415BFec4488d49D302C4DB13C";     // <<< REPLACE (Your vDPP or equivalent)
+const governanceTokenRaw = "0x800cAFaACC4991e415BFec4488d49D302C4DB13C";     // <<< REPLACE (Your DPP or equivalent)
 const governanceContractRaw = desiredPricePoolHookRaw; // <<< REPLACE (If you have one)
 
 // Export checksummed addresses

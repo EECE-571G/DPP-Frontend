@@ -1,9 +1,11 @@
+// src/components/AppBarAccount.tsx
 import React, { useState } from 'react';
-import { Box, Button, Menu, MenuItem, Typography, ListItemIcon, Tooltip, Fade, Divider } from '@mui/material';
+import { Box, Button, Menu, MenuItem, Typography, ListItemIcon, Tooltip, Fade, Divider, IconButton } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuthContext } from '../contexts/AuthContext';
+import AnvilTimeControls from './AnvilTimeControls'; // Verify './AnvilTimeControls.tsx' exists and exports default
 
 const AppBarAccount: React.FC = () => {
     // --- Get state/actions from Context ---
@@ -14,6 +16,8 @@ const AppBarAccount: React.FC = () => {
     const open = Boolean(anchorEl);
 
     const user = session?.user;
+    // --- Anvil Time Controls ---
+    // We'll render the AnvilTimeControls component here
 
     if (!user) return null; // Render nothing if not logged in
 
@@ -28,6 +32,9 @@ const AppBarAccount: React.FC = () => {
     };
 
     const handleSignOut = () => {
+        // For a cleaner disconnect without full reload:
+        // authentication.signOut(); // Assuming you add signOut to authentication in AuthContext
+        // For now, keeping reload as requested/implied
         window.location.reload();
         handleClose();
     };
@@ -36,6 +43,8 @@ const AppBarAccount: React.FC = () => {
 
     return (
         <>
+            {/* Add Anvil Time Controls */}
+            <AnvilTimeControls />
             <Tooltip title={canSwitchAccounts ? "Switch Account / Disconnect" : `Connected: ${user.address}`}>
                 <Button id="account-button" aria-controls={open ? 'account-menu' : undefined} aria-haspopup="true" aria-expanded={open ? 'true' : undefined} onClick={handleClick} color="inherit" sx={{ textTransform: 'none', ml: 1, borderRadius: 1, p: {xs: 0.5, sm: 1}, minWidth: 'auto' }} endIcon={canSwitchAccounts ? <KeyboardArrowDownIcon /> : null}>
                     <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }} noWrap>{user.address}</Typography>
@@ -44,7 +53,7 @@ const AppBarAccount: React.FC = () => {
             </Tooltip>
             <Menu id="account-menu" anchorEl={anchorEl} open={open} onClose={handleClose} MenuListProps={{ 'aria-labelledby': 'account-button' }} TransitionComponent={Fade} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { minWidth: 250, mt: 1, maxWidth: 350 }}}}>
                 <Box sx={{ px: 2, py: 1.5 }}>
-                    <Typography variant="body1" fontWeight="medium" noWrap>{'MetaMask User'}</Typography>
+                    <Typography variant="body1" fontWeight="medium" noWrap>{user.name || 'MetaMask User'}</Typography> {/* Use user.name if available */}
                 </Box>
                 <Divider />
                 {canSwitchAccounts && (

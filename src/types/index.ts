@@ -1,5 +1,7 @@
+// src/types/index.ts
 import React from 'react';
 import { createTheme, PaletteMode } from '@mui/material/styles';
+import { BigNumberish } from 'ethers'; // Import BigNumberish
 
 // --- General App Structure ---
 export interface NavigationItem {
@@ -56,7 +58,7 @@ export interface Pool {
 
 // --- Governance Data ---
 export interface ProposalVote {
-  yes: number; // Represents voting power (e.g., vDPP token weight)
+  yes: number; // Represents voting power (e.g., DPP token weight)
   no: number; // Represents voting power
 }
 
@@ -70,7 +72,7 @@ export interface Proposal {
   description: string; // Justification or details about the proposal
   endBlock?: number; // Block number when voting ends
   status: ProposalStatus;
-  votingPowerCommitted?: number; // Example: total vDPP power used in votes
+  votingPowerCommitted?: number; // Example: total DPP power used in votes
 }
 
 // --- Component-Specific Props ---
@@ -84,3 +86,9 @@ export interface AppContextType {
   colorMode: ColorMode;
   availableAccounts: string[] | null;
 }
+
+// Remove the local definition causing the conflict
+// export type BalanceDelta = BigNumberish;
+
+// Use 'export type' for re-exporting when isolatedModules is true
+export type { BalanceDelta } from './BalanceDelta';

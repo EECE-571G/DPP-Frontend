@@ -9,17 +9,18 @@ import React, {
     useCallback,
 } from 'react';
 import { ethers, ZeroAddress, Contract, formatUnits as ethersFormatUnits } from 'ethers';
-import { Proposal } from '../types'; // Keep if needed elsewhere
+import { Proposal } from '../types'; // Keep Proposal type for potential future use
 import { useAuthContext } from './AuthContext';
 import { usePoolsContext, V4Pool } from './PoolsContext';
 import { GOVERNANCE_CONTRACT_ADDRESS, TARGET_NETWORK_CHAIN_ID } from '../constants';
 import DesiredPricePoolABI from '../abis/DesiredPricePool.json'; // Ensure ABI is imported
+// Removed bad import: import { Poll } from '../libraries/Poll';
 
 // --- Ensure this interface is defined and exported ---
 export interface GovernanceMetaData {
     poolId: string;
     desiredPriceTick: number | null;
-    governanceToken: string | null;
+    governanceTokenAddress: string | null; // Renamed for clarity
     // --- Poll State Fields ---
     pollId: string;
     pollStartTime: number | null; // In seconds since epoch
@@ -35,7 +36,7 @@ export interface GovernanceMetaData {
 
 // --- Ensure this interface is defined ---
 interface GovernanceContextType {
-    proposals: Proposal[];
+    proposals: Proposal[]; // Keep for potential future expansion
     governanceStatus: number[]; // Expecting vote diffs as numbers
     metaData: GovernanceMetaData | null;
     isLoadingGovernanceData: boolean;
@@ -63,22 +64,23 @@ interface GovernanceProviderProps {
 // --- Ensure ABI variable is defined ---
 const GovernanceABI = DesiredPricePoolABI;
 
-// --- Constants for Poll Durations (Define them here at module scope) ---
+// --- Constants for Poll Durations (Mirror Poll.sol) ---
 const CYCLE_LENGTH = 5;
-const REGULAR_POLL_PREVOTE_END_S = 1 * 24 * 60 * 60;
-const REGULAR_POLL_VOTE_END_S = 3 * 24 * 60 * 60;
-const REGULAR_POLL_FINALVOTE_END_S = 4 * 24 * 60 * 60;
-const REGULAR_POLL_EXECUTION_READY_S = 5 * 24 * 60 * 60;
-const MAJOR_POLL_PREVOTE_END_S = 1 * 24 * 60 * 60;
-const MAJOR_POLL_VOTE_END_S = 6 * 24 * 60 * 60;
-const MAJOR_POLL_FINALVOTE_END_S = 8 * 24 * 60 * 60;
-const MAJOR_POLL_EXECUTION_READY_S = 10 * 24 * 60 * 60;
+const REGULAR_POLL_PREVOTE_END_S = 1 * 24 * 60 * 60; // 1 day
+const REGULAR_POLL_VOTE_END_S = 3 * 24 * 60 * 60; // 3 days
+const REGULAR_POLL_FINALVOTE_END_S = 4 * 24 * 60 * 60; // 4 days
+const REGULAR_POLL_EXECUTION_READY_S = 5 * 24 * 60 * 60; // 5 days
+const MAJOR_POLL_PREVOTE_END_S = 1 * 24 * 60 * 60; // 1 day
+const MAJOR_POLL_VOTE_END_S = 6 * 24 * 60 * 60; // 6 days
+const MAJOR_POLL_FINALVOTE_END_S = 8 * 24 * 60 * 60; // 8 days
+const MAJOR_POLL_EXECUTION_READY_S = 10 * 24 * 60 * 60; // 10 days
 
-// Poll Flags
+// Poll Flags (Mirror Poll.sol)
 const FLAG_MANUAL_EXECUTION = 1 << 0;
+const FLAG_IN_TIME_EXECUTION = 1 << 1; // Important for execution logic
 
 // Helper function formatDuration (keep as before)
-const formatDuration = (seconds: number): string => { /* ... keep implementation ... */
+const formatDuration = (seconds: number): string => {
     if (seconds < 0) return "Ended";
     if (seconds < 60) return `${Math.floor(seconds)}s`;
     const minutes = Math.floor(seconds / 60);
@@ -89,14 +91,14 @@ const formatDuration = (seconds: number): string => { /* ... keep implementation
     return `${days}d ${Math.floor(hours % 24)}h`;
 };
 
-// Helper function calculatePollInfo (keep as before, now constants are in scope)
-const calculatePollInfo = ( /* ... keep implementation ... */
+// Helper function calculatePollInfo (updated to use constants)
+const calculatePollInfo = (
      pollIdNum: number,
     startTimeNum: number,
     pauseRequested: boolean
 ): { stage: string; timeLeft: string; isPaused: boolean; isMajor: boolean } => {
-    // ... keep implementation ...
      if (startTimeNum === 0) {
+        // If paused, check if a pause was requested (implies it's about to pause or already paused awaiting reset)
         return { stage: pauseRequested ? "Pause Req." : "Paused", timeLeft: "N/A", isPaused: true, isMajor: false };
     }
 
@@ -125,12 +127,17 @@ const calculatePollInfo = ( /* ... keep implementation ... */
     const timeLeftS = stageEndTimeS - currentTimeS;
     const timeLeftFormatted = stage === "Exec. Ready" ? "Ready" : formatDuration(timeLeftS);
 
-    return { stage, timeLeft: timeLeftFormatted, isPaused: false, isMajor };
+    // If pauseRequested is true and we're not paused yet, reflect that in the stage
+    if (pauseRequested && startTimeNum !== 0) {
+        stage = `${stage} (Pause Req.)`;
+    }
+
+    return { stage, timeLeft: timeLeftFormatted, isPaused: false, isMajor }; // isPaused is false if startTime > 0
 };
 
-// --- Ensure Provider uses the correct type and Context variable ---
+
+// --- Governance Provider Component ---
 export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children }) => {
-    // ... (keep state variables: proposals, governanceStatus, metaData, etc.) ...
     const { provider, network } = useAuthContext();
     const { selectedPool: contextSelectedPool } = usePoolsContext();
     const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -139,7 +146,6 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
     const [isLoadingGovernanceData, setIsLoadingGovernanceData] = useState<boolean>(false);
     const [errorGovernanceData, setErrorGovernanceData] = useState<string | null>(null);
 
-    // ... (keep fetchGovernanceData function as previously corrected) ...
      const fetchGovernanceData = useCallback(async (poolToFetch?: V4Pool | null) => {
         const currentPool = poolToFetch ?? contextSelectedPool;
 
@@ -157,59 +163,71 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
         setIsLoadingGovernanceData(true);
         setErrorGovernanceData(null);
         setMetaData(null);
-        setProposals([]);
-        setGovernanceStatus([]);
+        setProposals([]); // Clear proposals on fetch
+        setGovernanceStatus([]); // Clear previous status
 
         const currentPoolId = currentPool.poolId;
         console.log(`[GovernanceContext] Fetching available governance data for PoolId: ${currentPoolId}`);
 
         try {
-            // Use GovernanceABI
             const governanceContract = new Contract(GOVERNANCE_CONTRACT_ADDRESS, GovernanceABI, provider);
 
-             // --- Fetch Available Data Concurrently ---
-            //  const results = await Promise.allSettled([
-                //  governanceContract.desiredPrice(currentPoolId),
-                //  governanceContract.governanceToken(),
-                //  governanceContract.getPollState(currentPoolId) // <<< Check if this returns voteDiffs
-            //  ]);
+             // Fetch REAL desired price and governance token address
+             const [desiredPriceResult, govTokenResult] = await Promise.allSettled([
+                  governanceContract.desiredPrice(currentPoolId),
+                  governanceContract.governanceToken(),
+             ]);
 
-             // Mock data for testing
-             const results = [
-                    { status: 'fulfilled', value: 1, reason: null }, // Mock desired price tick
-                    { status: 'fulfilled', value: await governanceContract.governanceToken(), reason: null }, // Mock governance token address
-                    { status: 'fulfilled', value: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], reason: null }, // Mock poll state
-             ]
+             // MOCK Poll State and Vote Distribution
+             const mockPollIdNum = 1;
+             const MOCK_TIME_LEFT_S = (3 * 24 * 60 * 60) + (12 * 60 * 60); // 3 days 12 hours
+             // Calculate mock start time based on MOCK_TIME_LEFT_S relative to REGULAR_POLL_VOTE_END_S
+             const timeNowS = Math.floor(Date.now() / 1000);
+             // Time that should have passed since start to reach this point in the Vote stage
+             const timePassedUntilNowS = REGULAR_POLL_VOTE_END_S - MOCK_TIME_LEFT_S;
+             const mockStartTimeNum = timeNowS - timePassedUntilNowS;
 
-             // ... (rest of the processing logic inside try block remains the same) ...
+             const mockPollState = {
+                 id: BigInt(mockPollIdNum),
+                 startTime: BigInt(mockStartTimeNum),
+                 pauseRequested: false,
+                 flags: BigInt(FLAG_IN_TIME_EXECUTION), // Use the constant defined above
+                 totalVotes: ethers.parseUnits("1000", 18), // Mock 1000 DPP total power
+                 // Mock some vote distribution (sum doesn't have to match totalVotes perfectly for this display)
+                 voteDiffs: [
+                    0n, 0n, 0n, 0n, 0n,
+                    ethers.parseUnits("50", 18),    // Slot -5
+                    ethers.parseUnits("100", 18),   // Slot -4
+                    ethers.parseUnits("150", 18),   // Slot -3
+                    ethers.parseUnits("200", 18),   // Slot -2
+                    0n,                             // Slot -1 (example)
+                    ethers.parseUnits("-250", 18), // Slot 0 (representing net power, can be negative)
+                    ethers.parseUnits("-100", 18), // Slot +1
+                    ethers.parseUnits("-50", 18),  // Slot +2
+                    0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n // Slots +3 to +10
+                 ]
+             };
+            // Convert mock bigints to numbers for the BarChart component
+            const mockGovernanceStatus = mockPollState.voteDiffs.map(diff => Number(ethers.formatUnits(diff, 18))); // Assuming 18 decimals for DPP display in chart
+
             let fetchedDesiredPriceTick: number | null = null;
             let fetchedGovTokenAddr: string | null = null;
-            let fetchedPollState: any = null;
-            let fetchedVoteDiffs: bigint[] = [];
 
-            if (results[0].status === 'fulfilled') fetchedDesiredPriceTick = Number(results[0].value);
-            else console.error(`[GovernanceContext] Failed desiredPrice fetch:`, results[0].reason);
+            if (desiredPriceResult.status === 'fulfilled') {
+                fetchedDesiredPriceTick = Number(desiredPriceResult.value);
+                 console.log("[GovernanceContext] Fetched real desired price tick:", fetchedDesiredPriceTick);
+            } else {
+                console.error(`[GovernanceContext] Failed desiredPrice fetch:`, desiredPriceResult.reason);
+            }
 
-            if (results[1].status === 'fulfilled') fetchedGovTokenAddr = results[1].value;
-            else console.error(`[GovernanceContext] Failed gov token fetch:`, results[1].reason);
+            if (govTokenResult.status === 'fulfilled') {
+                 fetchedGovTokenAddr = govTokenResult.value;
+                 console.log("[GovernanceContext] Fetched real governance token address:", fetchedGovTokenAddr);
+            } else {
+                console.error(`[GovernanceContext] Failed gov token fetch:`, govTokenResult.reason);
+            }
 
-             if (results[2].status === 'fulfilled') {
-                 fetchedPollState = results[2].value;
-                 if (fetchedPollState && typeof fetchedPollState === 'object' && fetchedPollState !== null) {
-                     // Assuming voteDiffs is the 6th element (index 5) based on Poll.State struct
-                     const voteDiffsMaybe = fetchedPollState[5] ?? fetchedPollState.voteDiffs;
-                     if (Array.isArray(voteDiffsMaybe)) {
-                         fetchedVoteDiffs = voteDiffsMaybe.map(v => {
-                             try { return BigInt(v); } catch { return 0n; } // Safely convert to BigInt
-                         });
-                     }
-                 }
-                 console.log(`[GovernanceContext] Fetched Poll State:`, fetchedPollState);
-             } else {
-                 console.error(`[GovernanceContext] Failed poll state fetch:`, results[2].reason);
-             }
-
-             let pollMetaData: Partial<GovernanceMetaData> & { pollVoteDiffs?: number[] } = { /* defaults */
+             let pollMetaData: Partial<GovernanceMetaData> = { /* defaults */
                 pollId: 'N/A',
                 pollStartTime: null,
                 pollPauseRequested: false,
@@ -219,50 +237,49 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
                 pollIsPaused: true,
                 pollIsManualExecution: false,
                 pollIsMajor: false,
-                pollVoteDiffs: [],
              };
 
-            if (fetchedPollState) {
-                 const pollIdNum = Number(fetchedPollState[0]);
-                 const startTimeNum = Number(fetchedPollState[1]);
-                 const pauseRequestedBool = Boolean(fetchedPollState[2]);
-                 const flagsNum = Number(fetchedPollState[3]);
+            // Use MOCK poll state
+            if (mockPollState) {
+                 const pollIdNum = Number(mockPollState.id);
+                 const startTimeNum = Number(mockPollState.startTime);
+                 const pauseRequestedBool = Boolean(mockPollState.pauseRequested);
+                 const flagsNum = Number(mockPollState.flags);
 
+                // Calculate stage/timeleft based on MOCK start time
                 const { stage, timeLeft, isPaused, isMajor } = calculatePollInfo(pollIdNum, startTimeNum, pauseRequestedBool);
 
                 pollMetaData = {
-                     ...pollMetaData,
                      pollId: pollIdNum.toString(),
                      pollStartTime: startTimeNum,
                      pollPauseRequested: pauseRequestedBool,
                      pollFlags: flagsNum,
-                     pollStage: stage,
-                     pollTimeLeft: timeLeft,
-                     pollIsPaused: isPaused,
+                     pollStage: stage, // Use calculated stage
+                     pollTimeLeft: timeLeft, // Use calculated time left
+                     pollIsPaused: isPaused, // Use calculated paused status
                      pollIsMajor: isMajor,
                      pollIsManualExecution: (flagsNum & FLAG_MANUAL_EXECUTION) !== 0,
-                     pollVoteDiffs: fetchedVoteDiffs.map(diff => Number(diff)),
                  };
+                  console.log("[GovernanceContext] Using MOCK Poll State:", pollMetaData);
              }
 
             setMetaData({
                  poolId: currentPoolId,
-                 desiredPriceTick: fetchedDesiredPriceTick,
-                 governanceToken: fetchedGovTokenAddr,
-                 pollId: pollMetaData.pollId ?? 'N/A',
-                 pollStartTime: pollMetaData.pollStartTime ?? null,
-                 pollPauseRequested: pollMetaData.pollPauseRequested ?? false,
-                 pollFlags: pollMetaData.pollFlags ?? null,
-                 pollStage: pollMetaData.pollStage ?? 'N/A',
-                 pollTimeLeft: pollMetaData.pollTimeLeft ?? 'N/A',
-                 pollIsPaused: pollMetaData.pollIsPaused ?? true,
-                 pollIsManualExecution: pollMetaData.pollIsManualExecution ?? false,
-                 pollIsMajor: pollMetaData.pollIsMajor ?? false,
+                 desiredPriceTick: fetchedDesiredPriceTick, // Real
+                 governanceTokenAddress: fetchedGovTokenAddr, // Real
+                 pollId: pollMetaData.pollId ?? 'N/A', // Mock
+                 pollStartTime: pollMetaData.pollStartTime ?? null, // Mock
+                 pollPauseRequested: pollMetaData.pollPauseRequested ?? false, // Mock
+                 pollFlags: pollMetaData.pollFlags ?? null, // Mock
+                 pollStage: pollMetaData.pollStage ?? 'N/A', // Mock derived
+                 pollTimeLeft: pollMetaData.pollTimeLeft ?? 'N/A', // Mock derived
+                 pollIsPaused: pollMetaData.pollIsPaused ?? true, // Mock derived
+                 pollIsManualExecution: pollMetaData.pollIsManualExecution ?? false, // Mock derived
+                 pollIsMajor: pollMetaData.pollIsMajor ?? false, // Mock derived
              });
 
-            setGovernanceStatus(pollMetaData.pollVoteDiffs ?? []);
-            setProposals([]);
-
+            setGovernanceStatus(mockGovernanceStatus); // Use the mock distribution for the chart
+            setProposals([]); // Keep proposals empty for now
 
         } catch (err: any) {
             console.error(`[GovernanceContext] General error fetching data for ${currentPoolId}:`, err);
@@ -273,10 +290,19 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
         }
     }, [provider, network, contextSelectedPool]); // Keep dependencies
 
-    // ... (keep useEffect and contextValue memoization) ...
      useEffect(() => {
-        fetchGovernanceData(contextSelectedPool);
-    }, [provider, network, contextSelectedPool, fetchGovernanceData]);
+        // Fetch data only when the selected pool is available and matches the network
+        if (contextSelectedPool && network?.chainId === TARGET_NETWORK_CHAIN_ID) {
+             fetchGovernanceData(contextSelectedPool);
+        } else {
+             // Clear data if pool/network is wrong or unset
+             setProposals([]);
+             setGovernanceStatus([]);
+             setMetaData(null);
+             setErrorGovernanceData(null);
+             setIsLoadingGovernanceData(false);
+        }
+    }, [provider, network, contextSelectedPool, fetchGovernanceData]); // Added contextSelectedPool
 
     const contextValue = useMemo(
         () => ({
