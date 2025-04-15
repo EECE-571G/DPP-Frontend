@@ -62,23 +62,6 @@ import React, {
     const [errorProposals, setErrorProposals] = useState<string | null>(null);
     const [errorGovernanceData, setErrorGovernanceData] = useState<string | null>(null);
   
-    // Helper to map contract status enum/number to frontend string status
-    // NOTE: This mapping needs to match your DesiredPricePool/Poll.sol Stage enum EXACTLY
-    const mapContractStatus = (contractStatus: number | bigint | undefined): ProposalStatus => {
-        if (contractStatus === undefined) return 'pending'; // Handle undefined case
-        const statusNum = Number(contractStatus);
-        // *** Adjust mapping based on your Poll.Stage enum in Poll.sol ***
-        switch (statusNum) {
-            case 0: return 'pending';   // Example: Corresponds to Stage.PreVote
-            case 1: return 'active';    // Example: Corresponds to Stage.Vote
-            case 2: return 'succeeded'; // Example: Corresponds to Stage.FinalVote (or similar if your contract uses Succeeded state)
-            case 3: return 'defeated';  // Example: Corresponds to Stage.PreExecution if result was NO/Hold, or needs custom logic
-            case 4: return 'executed';  // Example: Corresponds to Stage.ExecutionReady (or after execution if tracked)
-            // Add cases for other stages if applicable
-            default: return 'pending';
-        }
-    };
-  
     const fetchGovernanceData = useCallback(async () => {
         if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             // console.log("Skipping governance fetch: Prerequisites not met.");
