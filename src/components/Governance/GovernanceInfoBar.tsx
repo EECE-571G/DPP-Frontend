@@ -22,7 +22,7 @@ import { usePoolsContext } from '../../contexts/PoolsContext';
 import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 
 interface GovernanceInfoBarProps {
-    vDPPBalanceRaw: bigint;
+    DPPBalanceRaw: bigint;
     metaData: GovernanceMetaData | null;
 }
 
@@ -49,13 +49,13 @@ const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string |
 );
 
 
-const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalanceRaw, metaData }) => {
+const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DPPBalanceRaw, metaData }) => {
     const { tokenDecimals } = useBalancesContext();
     const { selectedPool } = usePoolsContext();
     const { fetchGovernanceData } = useGovernanceContext();
     const { fetchRealTimestamp } = useTimeContext(); // <<< Get function to sync time
 
-    const vDPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
 
      const decimals0 = selectedPool?.tokenA_Address ? (tokenDecimals[selectedPool.tokenA_Address] ?? 18) : 18;
      const decimals1 = selectedPool?.tokenB_Address ? (tokenDecimals[selectedPool.tokenB_Address] ?? 18) : 18;
@@ -68,7 +68,7 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalanceRaw, m
      const pollStageDisplay = metaData?.pollStage ?? 'N/A';
      const pollPausedDisplay = metaData?.pollIsPaused ?? true;
      const pollTimeLeftDisplay = metaData?.pollTimeLeft ?? 'N/A';
-    const vDPPBalanceFormatted = formatUnits(vDPPBalanceRaw, vDPPDecimals);
+    const DPPBalanceFormatted = formatUnits(DPPBalanceRaw, DPPDecimals);
 
     // Refresh handler syncs time AND governance data
     const handleRefreshClick = useCallback(async () => {
@@ -126,12 +126,12 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalanceRaw, m
             {/* Voting Power and Balance */}
              <Grid item xs={6} sm={6} md={3}>
                  <InfoBox title="Your Voting Power">
-                     {formatBalance(vDPPBalanceFormatted, 2)} vDPP
+                     {formatBalance(DPPBalanceFormatted, 2)} DPP
                  </InfoBox>
              </Grid>
              <Grid item xs={6} sm={6} md={3}>
-                 <InfoBox title="vDPP Balance">
-                     {formatBalance(vDPPBalanceFormatted, 2)}
+                 <InfoBox title="DPP Balance">
+                     {formatBalance(DPPBalanceFormatted, 2)}
                  </InfoBox>
              </Grid>
         </Grid>

@@ -22,7 +22,7 @@ const Governance: React.FC = () => {
 
     // --- Derived State ---
     // Use raw bigint balance, default to 0n if not found
-    const vDPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
+    const DPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
     const isLoading = isLoadingGovernanceData || isLoadingBalances; // Simplified loading check
     const displayError = errorGovernanceData || errorBalances; // Simplified error check
 
@@ -45,7 +45,7 @@ const Governance: React.FC = () => {
 
             {/* Pass potentially null metaData and the raw balance with CORRECT prop name */}
             <GovernanceInfoBar
-                vDPPBalanceRaw={vDPPBalanceRaw} // <<< CORRECTED PROP NAME
+                DPPBalanceRaw={DPPBalanceRaw} // <<< CORRECTED PROP NAME
                 metaData={metaData}
             />
 

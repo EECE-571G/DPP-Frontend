@@ -39,16 +39,16 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
     const [voteError, setVoteError] = useState<string | null>(null);
 
     // --- Derived State ---
-    const vDPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
-    const vDPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
-    const vDPPBalanceFormatted = formatUnits(vDPPBalanceRaw, vDPPDecimals);
+    const DPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
+    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+    const DPPBalanceFormatted = formatUnits(DPPBalanceRaw, DPPDecimals);
 
     const voteLowerNum = parseFloat(voteLowerStr);
     const voteUpperNum = parseFloat(voteUpperStr);
     const voteKey = `castVote_${proposalId}`;
     const isLoading = loadingStates[voteKey] ?? false;
     const canVote = !isLoadingGovernanceData &&
-                    vDPPBalanceRaw > 0n &&
+                    DPPBalanceRaw > 0n &&
                     metaData?.pollStage &&
                     (metaData.pollStage === 'Vote' || metaData.pollStage === 'Final Vote');
 
@@ -60,8 +60,8 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
             setVoteError('Please enter valid numbers for bounds.');
             return;
         }
-        if (vDPPBalanceRaw <= 0n) {
-            setVoteError('You have no voting power (vDPP) to cast a vote.');
+        if (DPPBalanceRaw <= 0n) {
+            setVoteError('You have no voting power (DPP) to cast a vote.');
             return;
         }
          if (voteLowerNum >= voteUpperNum) {
@@ -95,7 +95,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
                 </Typography>
                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     {/* Use imported formatBalance */}
-                    Your vote will utilize your full vDPP balance: {formatBalance(vDPPBalanceFormatted, 2)} vDPP
+                    Your vote will utilize your full DPP balance: {formatBalance(DPPBalanceFormatted, 2)} DPP
                 </Typography>
 
                 {voteError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setVoteError(null)}>{voteError}</Alert>}

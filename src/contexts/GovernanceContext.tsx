@@ -228,7 +228,7 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
                  startTime: BigInt(fixedMockStartTime), // <<< Use the determined fixed start time
                  pauseRequested: false,
                  flags: BigInt(FLAG_IN_TIME_EXECUTION),
-                 totalVotes: ethers.parseUnits("1000", 18), // Mock 1000 vDPP total power
+                 totalVotes: ethers.parseUnits("1000", 18), // Mock 1000 DPP total power
                  // Mock some vote distribution
                  voteDiffs: [
                     0n, 0n, 0n, 0n, 0n,
