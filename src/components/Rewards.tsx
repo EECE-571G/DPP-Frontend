@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Card, CardContent, TextField, Button,
     CircularProgress, Fade, Alert, Skeleton, Grid,
-    Autocomplete // Keep Autocomplete
+    Autocomplete
 } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import RedeemIcon from '@mui/icons-material/Redeem';
@@ -11,21 +11,31 @@ import RedeemIcon from '@mui/icons-material/Redeem';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
+import { useTimeContext } from '../contexts/TimeContext'; // <<< IMPORT TimeContext
 import { useRewardActions } from '../hooks/useRewardActions';
 import { formatBalance } from '../utils/formatters';
-// *** Import correct utilities and use SHARED KEY ***
 import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUtils';
 
-const LS_TOKEN_ID = 'liquidity_tokenId'; // Use the shared key
+const LS_TOKEN_ID = 'liquidity_tokenId';
+const REWARD_LOCK_PERIOD_S = 1 * 24 * 60 * 60; // 1 day in seconds
+
+// Define the state shape for calculated rewards including timestamp
+interface CalculatedRewardState {
+    amount0: string;
+    amount1: string;
+    earnedTimestamp: number; // Unix timestamp (seconds)
+}
 
 const Rewards: React.FC = () => {
     const { selectedPool, isLoadingPools, errorPools } = usePoolsContext();
     const { tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
     const { isLoading: loadingStates } = useLoadingContext();
+    const { simulatedTimestamp } = useTimeContext(); // <<< Get simulated time
     const { handleCalculateReward, handleCollectReward } = useRewardActions();
 
     const [positionIdStr, setPositionIdStr] = useState<string>('');
-    const [calculatedRewards, setCalculatedRewards] = useState<{ amount0: string; amount1: string } | null>(null);
+    // <<< Update state type >>>
+    const [calculatedRewards, setCalculatedRewards] = useState<CalculatedRewardState | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [tokenIdHistory, setTokenIdHistory] = useState<string[]>([]);
 
@@ -35,10 +45,8 @@ const Rewards: React.FC = () => {
 
     // --- Load history on mount ---
     useEffect(() => {
-        // *** Read from the SHARED key ***
         const history = getTokenIdHistory(LS_TOKEN_ID);
         setTokenIdHistory(history);
-        // Set initial value from the SHARED history
         setPositionIdStr(getMostRecentTokenId(LS_TOKEN_ID));
     }, []);
 
@@ -46,9 +54,8 @@ const Rewards: React.FC = () => {
     const handlePositionIdChange = (event: React.SyntheticEvent, newValue: string | null) => {
         setPositionIdStr(newValue ?? '');
         setErrorMsg(null);
-        setCalculatedRewards(null);
+        setCalculatedRewards(null); // Clear calculated rewards when ID changes
     };
-
 
     const handleCalculateClick = async () => {
         setErrorMsg(null);
@@ -57,10 +64,11 @@ const Rewards: React.FC = () => {
             setErrorMsg('Please enter or select a valid Position Token ID.');
             return;
         }
-        const rewards = await handleCalculateReward(positionIdStr);
-        if (rewards) {
-            setCalculatedRewards(rewards);
-            // *** REMOVED addTokenIdToHistory call here ***
+        // <<< handleCalculateReward now returns timestamp too >>>
+        const rewardsResult = await handleCalculateReward(positionIdStr);
+        if (rewardsResult) {
+            // <<< Store the full result including timestamp >>>
+            setCalculatedRewards(rewardsResult);
         }
     };
 
@@ -70,13 +78,19 @@ const Rewards: React.FC = () => {
              setErrorMsg('Please enter or select a valid Position Token ID.');
             return;
         }
-        const success = await handleCollectReward(positionIdStr);
+        // <<< Pass the stored earnedTimestamp to the action handler >>>
+        const success = await handleCollectReward(positionIdStr, calculatedRewards?.earnedTimestamp ?? null);
         if (success) {
+            // Clear calculated rewards after successful collection
             setCalculatedRewards(null);
-            // *** REMOVED history refresh - it's read-only here ***
-            // setTokenIdHistory(getTokenIdHistory(LS_TOKEN_ID));
         }
     };
+
+    // --- Derived Values for UI ---
+    const currentSimulatedTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
+    const unlockTimestamp = calculatedRewards ? calculatedRewards.earnedTimestamp + REWARD_LOCK_PERIOD_S : null;
+    const isLocked = unlockTimestamp !== null && currentSimulatedTime < unlockTimestamp;
+    const timeUntilUnlockS = unlockTimestamp !== null ? Math.max(0, unlockTimestamp - currentSimulatedTime) : null;
 
     // --- Render Logic ---
     const tokenA = selectedPool?.tokenA;
@@ -88,7 +102,7 @@ const Rewards: React.FC = () => {
     const symbolB = tokenBAddress ? (tokenSymbols[tokenBAddress] ?? tokenB ?? 'Token B') : 'Token B';
 
     if (isLoadingPools || isLoadingBalances) {
-         return (
+         return ( /* ... Skeleton Loader ... */
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
                 <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Rewards Center</Typography>
                 <Card sx={{ width: '100%', maxWidth: 500, borderRadius: 3 }}>
@@ -105,7 +119,7 @@ const Rewards: React.FC = () => {
     }
 
     if (!selectedPool) {
-        return (
+        return ( /* ... No Pool Selected Message ... */
             <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '30vh' }}>
                 {errorPools ? (
                     <Alert severity="error">Error loading pool: {errorPools}</Alert>
@@ -132,16 +146,18 @@ const Rewards: React.FC = () => {
                         {errorMsg && <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ mb: 2 }}>{errorMsg}</Alert>}
 
                         <Typography variant="body1" sx={{ mb: 2 }}>
-                            Check and collect rewards associated with your Desired Price Pool liquidity position (NFT).
+                            Check and collect rewards associated with your Desired Price Pool liquidity position (NFT). Rewards are locked for 1 day after calculation.
                         </Typography>
 
                         <Autocomplete
                             freeSolo
-                            options={tokenIdHistory} // Read from shared history state
+                            options={tokenIdHistory}
                             value={positionIdStr}
-                            onChange={handlePositionIdChange} // Handles selection/clearing
-                            onInputChange={(event, newInputValue) => { // Handles typing
+                            onChange={handlePositionIdChange}
+                            onInputChange={(event, newInputValue) => {
                                 setPositionIdStr(newInputValue ?? '');
+                                // Clear calculated rewards if input changes manually
+                                if (calculatedRewards) setCalculatedRewards(null);
                             }}
                             disabled={isLoadingCalculate || isLoadingCollect}
                             fullWidth
@@ -174,7 +190,7 @@ const Rewards: React.FC = () => {
                             }}
                         >
                            {calculatedRewards ? (
-                                <Grid container spacing={2} textAlign="center">
+                                <Grid container spacing={1} textAlign="center">
                                     <Grid item xs={6}>
                                          <Typography variant="overline" color="text.secondary">Reward {symbolA}</Typography>
                                         <Typography variant="h6">{calculatedRewards.amount0}</Typography>
@@ -183,6 +199,14 @@ const Rewards: React.FC = () => {
                                          <Typography variant="overline" color="text.secondary">Reward {symbolB}</Typography>
                                         <Typography variant="h6">{calculatedRewards.amount1}</Typography>
                                     </Grid>
+                                    {/* Display Unlock Time Info */}
+                                     {isLocked && timeUntilUnlockS !== null && (
+                                         <Grid item xs={12} sx={{ mt: 1 }}>
+                                             <Typography variant="caption" color="text.secondary">
+                                                 Locked for: {formatDuration(timeUntilUnlockS)}
+                                             </Typography>
+                                         </Grid>
+                                     )}
                                 </Grid>
                             ) : isLoadingCalculate ? (
                                 <CircularProgress size={24} />
@@ -212,7 +236,15 @@ const Rewards: React.FC = () => {
                                     variant="contained"
                                     fullWidth
                                     onClick={handleCollectClick}
-                                    disabled={!positionIdStr || isLoadingCalculate || isLoadingCollect || !calculatedRewards || (calculatedRewards.amount0 === '0.0' && calculatedRewards.amount1 === '0.0')}
+                                    // <<< Update disabled logic >>>
+                                    disabled={
+                                        !positionIdStr ||
+                                        isLoadingCalculate ||
+                                        isLoadingCollect ||
+                                        !calculatedRewards || // No rewards calculated
+                                        (calculatedRewards.amount0 === '0.0' && calculatedRewards.amount1 === '0.0') || // No rewards to collect
+                                        isLocked // Check if still locked based on simulated time
+                                    }
                                     size="large"
                                     startIcon={isLoadingCollect ? <CircularProgress size={20} color="inherit"/> : <RedeemIcon />}
                                 >
@@ -222,7 +254,7 @@ const Rewards: React.FC = () => {
                         </Grid>
 
                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-                            Collected rewards will be sent to your connected wallet address.
+                            Collected rewards will be sent to your connected wallet address. Collection is possible after the 1-day lock period.
                         </Typography>
 
                     </CardContent>
@@ -231,5 +263,18 @@ const Rewards: React.FC = () => {
         </Box>
     );
 };
+
+// Helper (can be moved)
+const formatDuration = (seconds: number): string => {
+    if (seconds <= 0) return "now";
+    if (seconds < 60) return `${Math.floor(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ${Math.floor(minutes % 60)}m`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ${Math.floor(hours % 24)}h`;
+};
+
 
 export default Rewards;
