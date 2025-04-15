@@ -1,13 +1,15 @@
+// src/components/Dashboard.tsx
 import React from 'react';
 import {
   Box, Typography, Autocomplete, TextField, Card, CardContent,
   Paper, Grid, Collapse, Skeleton, Alert, Divider
 } from '@mui/material';
-import { usePoolsContext } from '../contexts/PoolsContext';
+import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 
 const Dashboard: React.FC = () => {
-  const { pools, selectedPool, isLoadingPools, errorPools } = usePoolsContext();
+  // Get handlePoolSelection from context
+  const { pools, selectedPool, isLoadingPools, errorPools, handlePoolSelection } = usePoolsContext();
   const { userBalances, tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
 
   // Get the correct addresses from the selected pool
@@ -15,12 +17,13 @@ const Dashboard: React.FC = () => {
   const tokenBAddress = selectedPool?.tokenB_Address;
 
   // Access balances using the ADDRESSES as keys
-  const tokenABalanceStr = tokenAAddress ? userBalances[tokenAAddress] : undefined;
-  const tokenBBalanceStr = tokenBAddress ? userBalances[tokenBAddress] : undefined;
+  const tokenABalanceStr = tokenAAddress && userBalances[tokenAAddress] ? userBalances[tokenAAddress] : '0.0';
+  const tokenBBalanceStr = tokenBAddress && userBalances[tokenBAddress] ? userBalances[tokenBAddress] : '0.0';
 
   // Get symbols using addresses
-  const tokenASymbol = tokenAAddress ? tokenSymbols[tokenAAddress] : 'N/A';
-  const tokenBSymbol = tokenBAddress ? tokenSymbols[tokenBAddress] : 'N/A';
+  const tokenASymbol = tokenAAddress && tokenSymbols[tokenAAddress] ? tokenSymbols[tokenAAddress] : 'N/A';
+  const tokenBSymbol = tokenBAddress && tokenSymbols[tokenBAddress] ? tokenSymbols[tokenBAddress] : 'N/A';
+
 
   // --- Render logic ---
   return (
@@ -42,9 +45,12 @@ const Dashboard: React.FC = () => {
               <Autocomplete
                   options={pools}
                   value={selectedPool}
-                  // onChange={handlePoolChange}
+                  onChange={(event: any, newValue: V4Pool | null) => {
+                      handlePoolSelection(newValue);
+                  }}
                   getOptionLabel={(option) =>
-                      `${option.name} (${option.tokenA}/${option.tokenB})`
+                      // Display pool name and constituent tokens clearly
+                      `${option.name} (${option.tokenA} / ${option.tokenB})`
                   }
                   isOptionEqualToValue={(option, value) => option.id === value.id}
                   renderInput={(params) => (
@@ -74,7 +80,7 @@ const Dashboard: React.FC = () => {
           )}
           <Grid container spacing={2} rowSpacing={1.5}>
 
-            {/* User Balances */}
+            {/* User Balances for the SELECTED pool's tokens */}
             {(isLoadingBalances || selectedPool) && (
               <Grid item xs={12}>
                 <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
@@ -86,25 +92,27 @@ const Dashboard: React.FC = () => {
                  <>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
-                    {selectedPool && <Grid item xs={12}><Skeleton width="60%" /></Grid>}
                  </>
              ) : selectedPool ? (
                 <>
+                    {/* Display balance for Token A of the selected pool */}
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
                         <strong>{tokenASymbol}:</strong>{' '}
                         {tokenABalanceStr}
                       </Typography>
                     </Grid>
+                     {/* Display balance for Token B of the selected pool */}
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
                         <strong>{tokenBSymbol}:</strong>{' '}
                         {tokenBBalanceStr}
                       </Typography>
-                    </Grid>         
+                    </Grid>
                 </>
              ) : null}
 
+             {/* Other sections (Liquidity, etc.) would go here */}
             {/* Divider */}
             {(isLoadingBalances || selectedPool) && (
               <Grid item xs={12}>
@@ -112,30 +120,18 @@ const Dashboard: React.FC = () => {
               </Grid>
             )}
 
-             {/* Liquidity*/}
-            {(isLoadingBalances || selectedPool) && (
+             {/* Liquidity - Placeholder content */}
+            {(isLoadingPools || selectedPool) && (
               <Grid item xs={12}>
                 <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
                   Liquidity (TODO)
                 </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Liquidity details for the selected pool will appear here.
+                </Typography>
               </Grid>
             )}
-             {isLoadingBalances ? (
-                 <>
-                    <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
-                    <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
-                    {selectedPool && <Grid item xs={12}><Skeleton width="60%" /></Grid>}
-                 </>
-             ) : selectedPool ? (
-                <>
-                    <Grid item xs={12}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>LP Tokens ({"lpTokenSymbol TBD"}):</strong>{' '}
-                          {'lpTokenBalance TBD'}
-                        </Typography>
-                    </Grid>                   
-                </>
-             ) : null}
+
           </Grid>
         </Paper>
       </Collapse>
@@ -148,7 +144,7 @@ const Dashboard: React.FC = () => {
        )}
        {!isLoadingPools && !errorPools && pools.length === 0 && (
           <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
-              No pools are currently available.
+              No pools are currently available. Check constants and script logs.
           </Typography>
        )}
     </Box>

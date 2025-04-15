@@ -9,6 +9,7 @@ const desiredPricePoolHelperRaw = "0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141";
 const positionManagerRaw = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // <<< FROM LOGS (Example, check your Anvil output)
 const token0Raw = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";        // <<< FROM LOGS (Token0)
 const token1Raw = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";        // <<< FROM LOGS (Token1)
+const token2Raw = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";        // <<< FROM LOGS (Token2)
 const governanceTokenRaw = "0x055c997F9fC1F8C5049999D6077Ebc2671B9a7C2";     // <<< REPLACE (Your vDPP or equivalent)
 const governanceContractRaw = desiredPricePoolHookRaw; // <<< REPLACE (If you have one)
 
@@ -19,6 +20,7 @@ export const DESIRED_PRICE_POOL_HELPER_ADDRESS = desiredPricePoolHelperRaw ? eth
 export const POSITION_MANAGER_ADDRESS = positionManagerRaw ? ethers.getAddress(positionManagerRaw) : ethers.ZeroAddress; // <<< ADDED
 export const TOKEN_A_ADDRESS = token0Raw ? ethers.getAddress(token0Raw) : ethers.ZeroAddress; // Renaming for consistency if needed
 export const TOKEN_B_ADDRESS = token1Raw ? ethers.getAddress(token1Raw) : ethers.ZeroAddress; // Renaming for consistency if needed
+export const TOKEN_C_ADDRESS = token2Raw ? ethers.getAddress(token2Raw) : ethers.ZeroAddress; // Renaming for consistency if needed
 export const GOVERNANCE_TOKEN_ADDRESS = governanceTokenRaw ? ethers.getAddress(governanceTokenRaw) : ethers.ZeroAddress;
 export const GOVERNANCE_CONTRACT_ADDRESS = governanceContractRaw ? ethers.getAddress(governanceContractRaw) : ethers.ZeroAddress;
 
@@ -36,6 +38,7 @@ export const EXPLORER_URL_BASE = null; // No explorer for local Anvil
 export const RELEVANT_TOKEN_ADDRESSES = [
     TOKEN_A_ADDRESS,
     TOKEN_B_ADDRESS,
+    TOKEN_C_ADDRESS,
     GOVERNANCE_TOKEN_ADDRESS,
     // Add WETH address for the target network if not Token A/B
     // "0x...", // WETH Address for TARGET_NETWORK
