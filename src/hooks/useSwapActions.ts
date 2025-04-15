@@ -120,13 +120,13 @@ export const useSwapActions = () => {
 
             const zeroForOne = sellTokenAddress.toLowerCase() === poolKey.currency0.toLowerCase();
 
-            // Define sqrtPriceLimitX96 based on swap direction
-             const sqrtPriceLimitX96 = zeroForOne
-                ? 4295128739n + 1n // TickMath.MIN_SQRT_RATIO + 1
-                : 1461446703485210103287273052203988822378723970342n -1n; // TickMath.MAX_SQRT_RATIO - 1  (Using actual TickMath constant values is safer if possible)
+            // Define sqrtPriceLimitX96 based on swap direction - THIS IS NOT NEEDED FOR THE HELPER CALL
+            // const sqrtPriceLimitX96 = zeroForOne
+            //    ? 4295128739n + 1n
+            //    : 1461446703485210103287273052203988822378723970342n -1n;
 
-
-            console.log(`[useSwapActions] Calling helper.swapExactIn: zeroForOne=${zeroForOne}, amount=${amountInWei.toString()}, limit=${sqrtPriceLimitX96.toString()}`);
+            // <<< FIX: REMOVE sqrtPriceLimitX96 from the arguments list >>>
+            console.log(`[useSwapActions] Calling helper.swapExactIn: zeroForOne=${zeroForOne}, amount=${amountInWei.toString()}`);
 
             // Determine if ETH is involved for msg.value
             let txValue = 0n;
@@ -139,7 +139,7 @@ export const useSwapActions = () => {
                 poolKey,
                 zeroForOne,
                 amountInWei, // Use the bigint value
-                sqrtPriceLimitX96,
+                // sqrtPriceLimitX96, // <<< REMOVE THIS ARGUMENT >>>
                 { value: txValue } // Pass ETH value if needed
             );
 
