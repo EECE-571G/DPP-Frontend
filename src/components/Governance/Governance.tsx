@@ -5,7 +5,7 @@ import { Box, Typography, Grid, CircularProgress, Alert } from '@mui/material';
 // Context Imports
 import { useGovernanceContext } from '../../contexts/GovernanceContext';
 import { useBalancesContext } from '../../contexts/BalancesContext';
-import { usePoolsContext } from '../../contexts/PoolsContext';
+import { usePoolsContext } from '../../contexts/PoolsContext'; // Import PoolsContext
 
 // Child Component Imports
 import GovernanceInfoBar from './GovernanceInfoBar';
@@ -22,7 +22,7 @@ const Governance: React.FC = () => {
 
     // --- Derived State ---
     // Use raw bigint balance, default to 0n if not found
-    const DPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
+    const vDPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
     const isLoading = isLoadingGovernanceData || isLoadingBalances; // Simplified loading check
     const displayError = errorGovernanceData || errorBalances; // Simplified error check
 
@@ -43,9 +43,9 @@ const Governance: React.FC = () => {
 
             {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading data: {displayError}</Alert>}
 
-            {/* Pass potentially null metaData and the raw balance */}
+            {/* Pass potentially null metaData and the raw balance with CORRECT prop name */}
             <GovernanceInfoBar
-                DPPBalanceRaw={DPPBalanceRaw} // Pass raw bigint balance
+                vDPPBalanceRaw={vDPPBalanceRaw} // <<< CORRECTED PROP NAME
                 metaData={metaData}
             />
 
@@ -53,7 +53,7 @@ const Governance: React.FC = () => {
              <GovernanceStatusChart governanceStatus={governanceStatus || []} />
 
             {/* VoteForm & Delegation Area */}
-            <Grid container spacing={3} alignItems="stretch"> {/* Added alignItems */}
+            <Grid container spacing={3} alignItems="stretch">
                 {/* VoteForm - Needs robust proposal ID handling if proposals were fetched */}
                 {/* For now, disable if metadata (implying pool context) is missing */}
                 <Grid item xs={12} md={6}>

@@ -16,11 +16,11 @@ import { ethers, formatUnits } from 'ethers'; // <<< Use formatUnits
 
 // Context and Hook Imports
 import { useBalancesContext } from '../../contexts/BalancesContext';
-import { useGovernanceContext } from '../../contexts/GovernanceContext'; // <<< Import Governance Context
+import { useGovernanceContext } from '../../contexts/GovernanceContext';
 import { useLoadingContext } from '../../contexts/LoadingContext';
 import { useGovernanceActions } from '../../hooks/useGovernanceActions';
-import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants'; // <<< IMPORT CONSTANT
-import { formatBalance } from '../../utils/formatters'; // <<< ADD IMPORT
+import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
+import { formatBalance } from '../../utils/formatters'; // <<< ADDED IMPORT
 
 interface VoteFormProps {
     proposalId: number; // Assuming this is still needed, might relate to Pool ID conceptually now
@@ -28,8 +28,8 @@ interface VoteFormProps {
 
 const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
     // --- Get state/actions from Contexts/Hooks ---
-    const { userBalancesRaw, tokenDecimals } = useBalancesContext(); // <<< Use raw balance and get decimals
-    const { metaData, isLoadingGovernanceData } = useGovernanceContext(); // <<< Get metadata for stage check
+    const { userBalancesRaw, tokenDecimals } = useBalancesContext();
+    const { metaData, isLoadingGovernanceData } = useGovernanceContext();
     const { isLoading: loadingStates } = useLoadingContext();
     const { handleVoteWithRange } = useGovernanceActions();
 
@@ -39,24 +39,19 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
     const [voteError, setVoteError] = useState<string | null>(null);
 
     // --- Derived State ---
-    // *** FIX: Use address from constants to get balance ***
-    const DPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
-    // *** END FIX ***
-    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
-    const DPPBalanceFormatted = formatUnits(DPPBalanceRaw, DPPDecimals);
+    const vDPPBalanceRaw = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
+    const vDPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+    const vDPPBalanceFormatted = formatUnits(vDPPBalanceRaw, vDPPDecimals);
 
     const voteLowerNum = parseFloat(voteLowerStr);
     const voteUpperNum = parseFloat(voteUpperStr);
-    // Use a unique loading key per proposal/action (or pool if proposalId maps to pool)
-    const voteKey = `castVote_${proposalId}`; // Adjust key if needed
+    const voteKey = `castVote_${proposalId}`;
     const isLoading = loadingStates[voteKey] ?? false;
-    // Determine if voting is allowed based on balance and poll stage
     const canVote = !isLoadingGovernanceData &&
-                    DPPBalanceRaw > 0n &&
+                    vDPPBalanceRaw > 0n &&
                     metaData?.pollStage &&
                     (metaData.pollStage === 'Vote' || metaData.pollStage === 'Final Vote');
 
-    // handleVoteSubmit (keep as before)
     const handleVoteSubmit = async () => {
          setVoteError(null);
         if (isLoading || !proposalId) return;
@@ -65,19 +60,16 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
             setVoteError('Please enter valid numbers for bounds.');
             return;
         }
-        // Check balance again, now using the correctly fetched value
-        if (DPPBalanceRaw <= 0n) {
-            setVoteError('You have no voting power (DPP) to cast a vote.');
+        if (vDPPBalanceRaw <= 0n) {
+            setVoteError('You have no voting power (vDPP) to cast a vote.');
             return;
         }
-        // Check lower < upper
          if (voteLowerNum >= voteUpperNum) {
             setVoteError('Lower bound must be strictly less than upper bound.');
             return;
         }
 
         try {
-            // Pass numbers directly to the hook
             const success = await handleVoteWithRange(proposalId, voteLowerNum, voteUpperNum);
             if (success) {
                 setVoteLowerStr('');
@@ -89,7 +81,6 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
         }
     };
 
-    // useEffect to clear form (keep as before)
      useEffect(() => {
         setVoteLowerStr('');
         setVoteUpperStr('');
@@ -102,37 +93,36 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId }) => {
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                     <PollIcon sx={{ mr: 1 }} /> Pool Target Price Voting
                 </Typography>
-                 {/* Display the correct balance */}
                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Your vote will utilize your full DPP balance: {formatBalance(DPPBalanceFormatted, 2)} DPP {/* Use formatted balance */}
+                    {/* Use imported formatBalance */}
+                    Your vote will utilize your full vDPP balance: {formatBalance(vDPPBalanceFormatted, 2)} vDPP
                 </Typography>
 
                 {voteError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setVoteError(null)}>{voteError}</Alert>}
 
                 <Stack spacing={1.5}>
                     <TextField
-                        label="Lower Bound (Tick, Inclusive)" // <<< Clarify range
+                        label="Lower Bound (Tick, Inclusive)"
                         type="number"
                         size="small"
                         value={voteLowerStr}
                         onChange={(e) => setVoteLowerStr(e.target.value)}
-                        disabled={isLoading || !canVote} // <<< Disable based on canVote
+                        disabled={isLoading || !canVote}
                         InputProps={{ inputProps: { step: "any" } }}
                     />
                     <TextField
-                        label="Upper Bound (Tick, Exclusive)" // <<< Clarify range
+                        label="Upper Bound (Tick, Exclusive)"
                         type="number"
                         size="small"
                         value={voteUpperStr}
                         onChange={(e) => setVoteUpperStr(e.target.value)}
-                        disabled={isLoading || !canVote} // <<< Disable based on canVote
+                        disabled={isLoading || !canVote}
                         InputProps={{ inputProps: { step: "any" } }}
                     />
                     <Button
                         variant="contained"
                         size="medium"
                         onClick={handleVoteSubmit}
-                        // Disable check now uses derived canVote state and input validity
                         disabled={isLoading || !voteLowerStr || !voteUpperStr || !canVote}
                         startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                     >

@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
@@ -19,6 +20,7 @@ import { PoolsProvider } from './contexts/PoolsContext';
 import { GovernanceProvider } from './contexts/GovernanceContext';
 import { LoadingProvider } from './contexts/LoadingContext';
 import { SnackbarProvider } from './contexts/SnackbarProvider';
+import { TimeProvider } from './contexts/TimeContext'; // Import TimeProvider
 
 // Types
 import { Navigation } from './types';
@@ -42,6 +44,7 @@ const NAVIGATION_CONFIG: Navigation = [
 
 // --- Main App Content Component ---
 // This component renders the main layout OR the WalletConnect screen
+// It no longer needs to render TimeProvider itself
 const AppContent: React.FC = () => {
     const location = useLocation();
     const { session } = useAuthContext();
@@ -57,6 +60,8 @@ const AppContent: React.FC = () => {
     }
 
     // --- Render Main Application Layout ---
+    // AppProvider handles theme/basic layout context
+    // DashboardLayout is the visual structure
     return (
         <AppProvider
             navigation={navigation}
@@ -88,25 +93,23 @@ const AppContent: React.FC = () => {
 
 
 // --- Root App Component ---
-// This component sets up all the providers
+// Corrected Provider nesting
 const App: React.FC = () => {
     return (
-        // Order of Providers Matters:
-        // SnackbarProvider at the top so any hook can use it.
-        // LoadingProvider next for action loading states.
-        // AuthProvider next as BalancesProvider depends on it.
-        // BalancesProvider next.
-        // PoolsProvider and GovernanceProvider can be parallel.
         <SnackbarProvider>
             <LoadingProvider>
                  <AuthProvider>
-                    <BalancesProvider>
-                        <PoolsProvider>
-                            <GovernanceProvider>
-                                <AppContent />
-                            </GovernanceProvider>
-                        </PoolsProvider>
-                    </BalancesProvider>
+                    {/* TimeProvider wraps components needing time context */}
+                    <TimeProvider>
+                        <BalancesProvider>
+                            <PoolsProvider>
+                                {/* GovernanceProvider is now correctly inside TimeProvider */}
+                                <GovernanceProvider>
+                                    <AppContent /> {/* Renders UI, can access all contexts */}
+                                </GovernanceProvider>
+                            </PoolsProvider>
+                        </BalancesProvider>
+                    </TimeProvider>
                  </AuthProvider>
             </LoadingProvider>
          </SnackbarProvider>

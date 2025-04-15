@@ -1,33 +1,34 @@
 // src/components/Governance/GovernanceInfoBar.tsx
-import React from 'react';
+import React, { useCallback } from 'react'; // Import useCallback
 import {
     Grid, Paper, Box, ListItemIcon, Typography, Chip, Tooltip, IconButton
 } from '@mui/material';
 import TagIcon from '@mui/icons-material/Tag';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import FlagIcon from '@mui/icons-material/Flag';
-import PriceCheckIcon from '@mui/icons-material/PriceCheck';
+import PriceCheckIcon from '@mui/icons-material/PriceCheck'; // Keep just in case
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
-import RefreshIcon from '@mui/icons-material/Refresh'; // <<< Add Refresh Icon
-import { ethers, formatUnits } from 'ethers'; // <<< Import formatUnits
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { ethers, formatUnits } from 'ethers';
 
-import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext'; // Import context hook
+import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext';
+import { useTimeContext } from '../../contexts/TimeContext'; // <<< Import TimeContext hook
 import InfoBox from './InfoBox';
-import { formatBalance } from '../../utils/formatters'; // Keep for general formatting if needed elsewhere
+import { formatBalance } from '../../utils/formatters';
 import { TickMath } from '../../utils/tickMath';
 import { useBalancesContext } from '../../contexts/BalancesContext';
-import { usePoolsContext } from '../../contexts/PoolsContext'; // <<< Import PoolsContext
-import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants'; // <<< Import constant
+import { usePoolsContext } from '../../contexts/PoolsContext';
+import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 
 interface GovernanceInfoBarProps {
-    DPPBalanceRaw: bigint; // <<< Receive raw bigint balance
+    vDPPBalanceRaw: bigint;
     metaData: GovernanceMetaData | null;
 }
 
-// MetaItem component (Keep as before, it handles ReactNode)
+// MetaItem component (Keep as before)
 const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string | React.ReactNode;}> =
-    ({ icon, label, value }) => (
+    ({ icon, label, value }) => ( /* ... implementation ... */
      <Box display="flex" alignItems="center" sx={{ width: '100%', py: 0.5 }}>
         <ListItemIcon sx={{ minWidth: 'auto', mr: 1.5, color: 'action.active', display: 'flex', alignItems: 'center' }}>
             {icon}
@@ -47,12 +48,14 @@ const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string |
     </Box>
 );
 
-const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DPPBalanceRaw, metaData }) => {
-    const { tokenDecimals } = useBalancesContext();
-    const { selectedPool } = usePoolsContext(); // <<< Get selected pool
-    const { fetchGovernanceData } = useGovernanceContext(); // Get fetch function
 
-    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalanceRaw, metaData }) => {
+    const { tokenDecimals } = useBalancesContext();
+    const { selectedPool } = usePoolsContext();
+    const { fetchGovernanceData } = useGovernanceContext();
+    const { fetchRealTimestamp } = useTimeContext(); // <<< Get function to sync time
+
+    const vDPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
 
      const decimals0 = selectedPool?.tokenA_Address ? (tokenDecimals[selectedPool.tokenA_Address] ?? 18) : 18;
      const decimals1 = selectedPool?.tokenB_Address ? (tokenDecimals[selectedPool.tokenB_Address] ?? 18) : 18;
@@ -64,15 +67,18 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DP
      const pollIdDisplay = metaData?.pollId ?? 'N/A';
      const pollStageDisplay = metaData?.pollStage ?? 'N/A';
      const pollPausedDisplay = metaData?.pollIsPaused ?? true;
-     const pollTimeLeftDisplay = metaData?.pollTimeLeft ?? 'N/A'; // Get time left
-    // Format the raw balance
-    const DPPBalanceFormatted = formatUnits(DPPBalanceRaw, DPPDecimals);
+     const pollTimeLeftDisplay = metaData?.pollTimeLeft ?? 'N/A';
+    const vDPPBalanceFormatted = formatUnits(vDPPBalanceRaw, vDPPDecimals);
 
-    const handleRefreshClick = () => {
+    // Refresh handler syncs time AND governance data
+    const handleRefreshClick = useCallback(async () => {
+        // First, sync the time context back to the actual block time
+        await fetchRealTimestamp();
+        // Then, refetch governance data which will now use the real time for calcs
         if (selectedPool) {
-            fetchGovernanceData(selectedPool); // Refetch data for the current pool
+            await fetchGovernanceData(selectedPool);
         }
-    };
+    }, [fetchRealTimestamp, fetchGovernanceData, selectedPool]);
 
     return (
         <Grid container spacing={2} sx={{ mb: 3 }} alignItems="stretch">
@@ -91,16 +97,15 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DP
                          <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2 }}>
                             Poll Status
                         </Typography>
-                        <Tooltip title="Refresh Poll Status (Mock)">
+                        {/* Refresh button now calls combined handler */}
+                        <Tooltip title="Refresh Poll Status & Sync Time">
                             <IconButton size="small" onClick={handleRefreshClick}>
                                 <RefreshIcon fontSize="inherit" />
                             </IconButton>
                         </Tooltip>
                     </Box>
                     <MetaItem icon={<TagIcon fontSize="small" />} label="Poll ID" value={pollIdDisplay} />
-                     {/* --- ADD TIME LEFT --- */}
                      <MetaItem icon={<AccessTimeIcon fontSize="small" />} label="Time Left" value={pollTimeLeftDisplay} />
-                     {/* --- END ADD TIME LEFT --- */}
                     <MetaItem
                         icon={<FlagIcon fontSize="small" />}
                         label="Stage"
@@ -109,7 +114,7 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DP
                                 icon={pollPausedDisplay ? <PauseCircleOutlineIcon /> : <PlayCircleOutlineIcon />}
                                 label={pollStageDisplay}
                                 size="small"
-                                color={pollPausedDisplay ? "warning" : "success"}
+                                color={pollPausedDisplay ? "warning" : pollStageDisplay.startsWith('Exec') ? 'info' : 'success'} // Color logic
                                 variant="outlined"
                                 sx={{ fontWeight: 500 }}
                             />
@@ -121,12 +126,12 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DP
             {/* Voting Power and Balance */}
              <Grid item xs={6} sm={6} md={3}>
                  <InfoBox title="Your Voting Power">
-                     {formatBalance(DPPBalanceFormatted, 2)} DPP {/* Format the already formatted string */}
+                     {formatBalance(vDPPBalanceFormatted, 2)} vDPP
                  </InfoBox>
              </Grid>
              <Grid item xs={6} sm={6} md={3}>
-                 <InfoBox title="DPP Balance">
-                     {formatBalance(DPPBalanceFormatted, 2)} {/* Format the already formatted string */}
+                 <InfoBox title="vDPP Balance">
+                     {formatBalance(vDPPBalanceFormatted, 2)}
                  </InfoBox>
              </Grid>
         </Grid>
