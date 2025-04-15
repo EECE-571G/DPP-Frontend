@@ -14,8 +14,46 @@ import GovernanceStatusChart from './GovernanceStatusChart';
 import DelegationForm from './DelegationForm';
 import VoteForm from './VoteForm';
 import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
-// Import action hook to pass setters
 import { useGovernanceActions } from '../../hooks/useGovernanceActions';
+
+// --- localStorage Keys ---
+const LS_MOCK_DPP_BALANCE = 'governance_mockDppBalanceRaw';
+const LS_MOCK_VOTING_POWER = 'governance_mockVotingPowerRaw';
+const LS_MOCK_GOV_STATUS = 'governance_mockGovernanceStatus';
+
+// Helper to read bigint from localStorage
+const getBigIntFromLS = (key: string): bigint | null => {
+    const stored = localStorage.getItem(key);
+    if (stored === null) return null;
+    try {
+        return BigInt(stored);
+    } catch (e) {
+        console.warn(`Failed to parse BigInt from localStorage key "${key}", removing item.`);
+        localStorage.removeItem(key);
+        return null;
+    }
+};
+
+// Helper to read number array from localStorage
+const getNumberArrayFromLS = (key: string): number[] | null => {
+    const stored = localStorage.getItem(key);
+    if (stored === null) return null;
+    try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'number')) {
+            return parsed;
+        } else {
+            console.warn(`Invalid array data in localStorage key "${key}", removing item.`);
+            localStorage.removeItem(key);
+            return null;
+        }
+    } catch (e) {
+        console.warn(`Failed to parse JSON array from localStorage key "${key}", removing item.`);
+        localStorage.removeItem(key);
+        return null;
+    }
+};
+
 
 const Governance: React.FC = () => {
     // --- Get state from Contexts ---
@@ -26,94 +64,154 @@ const Governance: React.FC = () => {
         errorGovernanceData,
         fetchGovernanceData
     } = useGovernanceContext();
-    // <<< Destructure isLoadingBalances directly >>>
     const { userBalancesRaw, tokenDecimals, isLoadingBalances, errorBalances } = useBalancesContext();
     const { selectedPool } = usePoolsContext();
     const { handleVoteWithRange, handleDelegate } = useGovernanceActions();
 
-    // --- Mock State Management ---
-    const [mockDppBalanceRaw, setMockDppBalanceRaw] = useState<bigint | null>(null);
-    const [mockVotingPowerRaw, setMockVotingPowerRaw] = useState<bigint | null>(null);
-    const [mockGovernanceStatus, setMockGovernanceStatus] = useState<number[] | null>(null); // Initialize as null
+    // --- Mock State Management with localStorage Initialization ---
+    // Initialize state from localStorage OR null if not found/invalid
+    const [mockDppBalanceRaw, setMockDppBalanceRaw] = useState<bigint | null>(
+        () => getBigIntFromLS(LS_MOCK_DPP_BALANCE)
+    );
+    const [mockVotingPowerRaw, setMockVotingPowerRaw] = useState<bigint | null>(
+        () => getBigIntFromLS(LS_MOCK_VOTING_POWER) ?? 0n // Default power to 0 if not in LS
+    );
+    const [mockGovernanceStatus, setMockGovernanceStatus] = useState<number[] | null>(
+        () => getNumberArrayFromLS(LS_MOCK_GOV_STATUS)
+    );
 
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
 
-    // --- Initialize Mock State Effect ---
+    // --- Effect to Sync with Context/Defaults IF localStorage was empty ---
     useEffect(() => {
-        // <<< CONDITION 1: Only proceed if balances are NOT loading >>>
-        if (!isLoadingBalances) {
-            const initialBalance = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS]; // Get potential balance
+        let balanceUpdated = false;
+        let statusUpdated = false;
 
-            // <<< CONDITION 2: Only initialize if the specific balance exists and mock state is still null >>>
-            if (initialBalance !== undefined && mockDppBalanceRaw === null) {
-                console.log("[Governance Mock] Initializing mock balance:", initialBalance.toString());
-                setMockDppBalanceRaw(initialBalance);
-            } else if (mockDppBalanceRaw === null) {
-                 // If balance isn't found after loading, default to 0
-                 console.log("[Governance Mock] Balance not found after load, initializing mock balance to 0");
-                 setMockDppBalanceRaw(0n);
-            }
-
-            // Initialize voting power similarly (should happen only once)
-            if (mockVotingPowerRaw === null) {
-                console.log("[Governance Mock] Initializing mock voting power to: 0");
-                setMockVotingPowerRaw(0n);
-            }
+        // If balance wasn't loaded from LS, try to initialize from context *after* it loads
+        if (mockDppBalanceRaw === null && !isLoadingBalances) {
+            const initialBalance = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
+            console.log("[Governance Mock] LS empty, initializing mock balance from context:", initialBalance.toString());
+            setMockDppBalanceRaw(initialBalance);
+            balanceUpdated = true;
         }
 
-        // Always try to initialize chart data from context when it changes
+        // If voting power is still null (should only happen on first ever load with empty LS), set to 0
+        if (mockVotingPowerRaw === null) {
+             console.log("[Governance Mock] LS empty, initializing mock voting power to: 0");
+             setMockVotingPowerRaw(0n);
+             // No need for powerUpdated flag, it defaults above
+        }
+
+        // If chart status wasn't loaded from LS, try to initialize from context
         if (mockGovernanceStatus === null && initialGovernanceStatus) {
-             setMockGovernanceStatus(initialGovernanceStatus || []);
+            console.log("[Governance Mock] LS empty, initializing mock status from context");
+            setMockGovernanceStatus(initialGovernanceStatus);
+            statusUpdated = true;
+        } else if (mockGovernanceStatus === null && !initialGovernanceStatus) {
+            // If context is also empty/null, initialize to default empty array
+            // This might happen briefly during initial load cycles
+             console.log("[Governance Mock] LS and Context empty, initializing mock status to default");
+             setMockGovernanceStatus([]);
+             statusUpdated = true;
         }
 
+        // If we initialized balance/status from context/defaults because LS was empty,
+        // immediately save these initial values back to LS.
+        // Check the initial values read *during this effect run*
+        const initialBalanceForLS = userBalancesRaw[GOVERNANCE_TOKEN_ADDRESS] ?? 0n;
+        if (balanceUpdated && initialBalanceForLS !== null) {
+             localStorage.setItem(LS_MOCK_DPP_BALANCE, initialBalanceForLS.toString());
+        }
+        // Power defaults to 0n if LS is empty, save that
+        if (getBigIntFromLS(LS_MOCK_VOTING_POWER) === null) { // Check LS directly to avoid race condition with state update
+             localStorage.setItem(LS_MOCK_VOTING_POWER, '0');
+        }
+        if (statusUpdated && (initialGovernanceStatus || [])) {
+            try {
+                localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(initialGovernanceStatus || []));
+            } catch (e) { console.error("Failed to stringify initial governance status for LS:", e); }
+        }
 
-    }, [
-        userBalancesRaw, // Re-run if balances change
-        initialGovernanceStatus,
-        isLoadingBalances, // Re-run when loading state changes
-        mockDppBalanceRaw, // Prevent re-init balance once set
-        mockVotingPowerRaw, // Prevent re-init power once set
-        mockGovernanceStatus // Prevent re-init chart once set
-    ]);
+    // Dependencies carefully chosen: only run when context values we initialize *from* change,
+    // or when the loading state allows initialization. Avoid depending on the mock states themselves here.
+    }, [userBalancesRaw, isLoadingBalances, initialGovernanceStatus]);
+
+    // --- Effects to Persist Mock State Changes to localStorage ---
+    useEffect(() => {
+        if (mockDppBalanceRaw !== null) {
+            localStorage.setItem(LS_MOCK_DPP_BALANCE, mockDppBalanceRaw.toString());
+            console.log("[Governance Mock] Saved mockDppBalanceRaw to LS:", mockDppBalanceRaw.toString());
+        }
+    }, [mockDppBalanceRaw]);
+
+    useEffect(() => {
+        if (mockVotingPowerRaw !== null) {
+            localStorage.setItem(LS_MOCK_VOTING_POWER, mockVotingPowerRaw.toString());
+            console.log("[Governance Mock] Saved mockVotingPowerRaw to LS:", mockVotingPowerRaw.toString());
+        }
+    }, [mockVotingPowerRaw]);
+
+    useEffect(() => {
+        if (mockGovernanceStatus !== null) {
+             try {
+                 localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(mockGovernanceStatus));
+                 console.log("[Governance Mock] Saved mockGovernanceStatus to LS:", mockGovernanceStatus);
+             } catch (e) { console.error("Failed to stringify governance status for LS:", e); }
+        }
+    }, [mockGovernanceStatus]);
 
     // --- Derived State ---
-    // <<< Adjust isLoading check to handle null state during init >>>
-    const isLoading = isLoadingGovernanceData || isLoadingBalances || mockDppBalanceRaw === null || mockVotingPowerRaw === null;
+    // Updated isLoading check: Now waits for all mock states to be non-null
+    const isLoading = isLoadingGovernanceData || isLoadingBalances || mockDppBalanceRaw === null || mockVotingPowerRaw === null || mockGovernanceStatus === null;
     const displayError = errorGovernanceData || errorBalances;
 
     const canVote = !!(
-        !isLoadingGovernanceData && // Keep check on real gov data loading
+        !isLoadingGovernanceData && // Still check real metadata loading
         (mockVotingPowerRaw ?? 0n) > 0n &&
         metaData?.pollStage &&
         (metaData.pollStage === 'Vote' || metaData.pollStage === 'Final Vote')
     );
 
-    // --- Mock Action Wrappers (remain the same) ---
-     const handleMockVote = useCallback(async (proposalId: number, lower: number, upper: number) => {
-          if (mockVotingPowerRaw === null || mockGovernanceStatus === null) return false;
-          return handleVoteWithRange(
-              proposalId, lower, upper,
-              mockVotingPowerRaw, mockGovernanceStatus,
-              setMockVotingPowerRaw, setMockGovernanceStatus
+    // --- Mock Action Wrappers (pass current state and setters) ---
+    const handleMockVote = useCallback(async (proposalId: number, lower: number, upper: number) => {
+        // Guard against null state before calling action
+         if (mockVotingPowerRaw === null || mockGovernanceStatus === null) {
+             console.error("Cannot vote: Mock state not initialized.");
+             return false;
+         }
+         return handleVoteWithRange(
+             proposalId,
+             lower,
+             upper,
+             mockVotingPowerRaw,
+             mockGovernanceStatus,
+             setMockVotingPowerRaw,
+             setMockGovernanceStatus
+         );
+     }, [handleVoteWithRange, mockVotingPowerRaw, mockGovernanceStatus]); // Removed setters from deps, they are stable
+
+     const handleMockDelegate = useCallback(async (targetAddress: string, amount: number) => {
+         // Guard against null state before calling action
+          if (mockVotingPowerRaw === null || mockDppBalanceRaw === null) {
+               console.error("Cannot delegate: Mock state not initialized.");
+               return false;
+          }
+          return handleDelegate(
+              targetAddress,
+              amount,
+              mockVotingPowerRaw,
+              mockDppBalanceRaw,
+              setMockVotingPowerRaw,
+              setMockDppBalanceRaw
           );
-      }, [handleVoteWithRange, mockVotingPowerRaw, mockGovernanceStatus]);
-
-      const handleMockDelegate = useCallback(async (targetAddress: string, amount: number) => {
-           if (mockVotingPowerRaw === null || mockDppBalanceRaw === null) return false;
-           return handleDelegate(
-               targetAddress, amount,
-               mockVotingPowerRaw, mockDppBalanceRaw,
-               setMockVotingPowerRaw, setMockDppBalanceRaw
-           );
-       }, [handleDelegate, mockVotingPowerRaw, mockDppBalanceRaw]);
-
+      }, [handleDelegate, mockVotingPowerRaw, mockDppBalanceRaw]); // Removed setters from deps
 
     // --- Render Logic ---
     if (isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
                 <CircularProgress />
-                <Typography sx={{ ml: 2 }}>Loading Governance Data...</Typography>
+                <Typography sx={{ ml: 2 }}>Initializing Governance Data...</Typography>
             </Box>
         );
     }
@@ -121,14 +219,14 @@ const Governance: React.FC = () => {
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-                Governance Center
+                Governance Center (Mock Actions)
             </Typography>
 
             {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading data: {displayError}</Alert>}
 
             {/* Pass MOCKED balance and voting power to InfoBar */}
             <GovernanceInfoBar
-                mockDppBalanceRaw={mockDppBalanceRaw ?? 0n} // Default to 0n if still null (shouldn't happen after loading)
+                mockDppBalanceRaw={mockDppBalanceRaw ?? 0n} // Default 0n if somehow still null
                 mockVotingPowerRaw={mockVotingPowerRaw ?? 0n}
                 metaData={metaData} // Pass real metadata
             />
