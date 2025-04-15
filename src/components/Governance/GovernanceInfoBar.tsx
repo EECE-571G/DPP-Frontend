@@ -24,6 +24,7 @@ import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 interface GovernanceInfoBarProps {
     DPPBalanceRaw: bigint;
     metaData: GovernanceMetaData | null;
+    votingPower?: number;
 }
 
 // MetaItem component (Keep as before)
@@ -49,7 +50,7 @@ const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string |
 );
 
 
-const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DPPBalanceRaw, metaData }) => {
+const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DPPBalanceRaw, metaData, votingPower }) => {
     const { tokenDecimals } = useBalancesContext();
     const { selectedPool } = usePoolsContext();
     const { fetchGovernanceData } = useGovernanceContext();
@@ -126,7 +127,7 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ DPPBalanceRaw: DP
             {/* Voting Power and Balance */}
              <Grid item xs={6} sm={6} md={3}>
                  <InfoBox title="Your Voting Power">
-                     {formatBalance(DPPBalanceFormatted, 2)} DPP
+                     {formatBalance(votingPower, 2)}
                  </InfoBox>
              </Grid>
              <Grid item xs={6} sm={6} md={3}>

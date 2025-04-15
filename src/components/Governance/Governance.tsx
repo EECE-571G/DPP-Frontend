@@ -1,5 +1,5 @@
 // src/components/Governance/Governance.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Grid, CircularProgress, Alert } from '@mui/material';
 
 // Context Imports
@@ -19,6 +19,7 @@ const Governance: React.FC = () => {
     const { governanceStatus, metaData, isLoadingGovernanceData, errorGovernanceData, fetchGovernanceData } = useGovernanceContext();
     const { userBalancesRaw, isLoadingBalances, errorBalances } = useBalancesContext(); // Use raw for bigint
     const { selectedPool } = usePoolsContext(); // Get selected pool for context
+    const [votingPower, setVotingPower] = useState(0); // Local state for voting power
 
     // --- Derived State ---
     // Use raw bigint balance, default to 0n if not found
@@ -47,6 +48,7 @@ const Governance: React.FC = () => {
             <GovernanceInfoBar
                 DPPBalanceRaw={DPPBalanceRaw} // <<< CORRECTED PROP NAME
                 metaData={metaData}
+                votingPower={votingPower} // Pass local voting power state
             />
 
              {/* Status Chart - Pass empty array if governanceStatus is null/undefined */}
