@@ -1,24 +1,26 @@
 // src/hooks/useLiquidityActions.ts
 import { useCallback } from 'react';
-import { ethers, parseUnits, MaxUint256, ZeroAddress, isAddress, Contract, AbiCoder } from 'ethers';
+import { ethers, parseUnits, MaxUint256, ZeroAddress, isAddress, Contract, Interface } from 'ethers'; // Import Interface
 import { useAuthContext } from '../contexts/AuthContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import {
-    POSITION_MANAGER_ADDRESS, // No longer needed directly
-    DESIRED_PRICE_POOL_HELPER_ADDRESS, // <<< Use Helper Address
+    POSITION_MANAGER_ADDRESS, // <<< MAKE SURE THIS IS CORRECT IN constants/index.js
+    DESIRED_PRICE_POOL_HELPER_ADDRESS,
     EXPLORER_URL_BASE,
     TARGET_NETWORK_CHAIN_ID,
 } from '../constants';
 // ABIs
-// import PositionManagerABI from '../abis/PositionManager.json'; // No longer needed
-import DesiredPricePoolHelperABI from '../abis/DesiredPricePoolHelper.json'; // <<< Use Helper ABI
+import DesiredPricePoolHelperABI from '../abis/DesiredPricePoolHelper.json';
 import Erc20ABI from '../abis/ERC20.json';
 
 // Local storage keys
 const LS_TOKEN_ID = 'liquidity_tokenId';
+
+// Define the standard ERC721 Transfer event ABI fragment
+const ERC721_TRANSFER_EVENT = "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)";
 
 export const useLiquidityActions = () => {
     const { signer, account, network } = useAuthContext();
@@ -27,10 +29,10 @@ export const useLiquidityActions = () => {
     const { showSnackbar } = useSnackbarContext();
     const { selectedPool } = usePoolsContext();
 
-    // Approval check - approves the HELPER contract
-     const checkAndRequestApproval = useCallback(async (tokenAddress: string): Promise<boolean> => {
+    const checkAndRequestApproval = useCallback(/* ... as before ... */ async (tokenAddress: string): Promise<boolean> => {
         if (!signer || !account || !tokenAddress || tokenAddress === ZeroAddress) {
             console.error("Approval check prerequisites failed");
+            showSnackbar("Approval failed: Wallet/Token missing.", "error");
             return false;
         }
          if (DESIRED_PRICE_POOL_HELPER_ADDRESS === ZeroAddress) {
@@ -39,17 +41,15 @@ export const useLiquidityActions = () => {
          }
          try {
              const tokenContract = new Contract(tokenAddress, Erc20ABI, signer);
-             // Check allowance for the HELPER contract
              const currentAllowance = await tokenContract.allowance(account, DESIRED_PRICE_POOL_HELPER_ADDRESS);
 
-             // Request MaxUint256 for simplicity, as helper handles interactions
-             if (currentAllowance < (MaxUint256 / 2n)) { // Check if allowance is effectively less than max
+             if (currentAllowance < (MaxUint256 / 2n)) {
                 const symbol = tokenSymbols[tokenAddress] ?? 'token';
                 showSnackbar(`Max approval required for ${symbol} by Helper Contract. Please confirm.`, 'info');
                 const loadingKey = `approve_liq_${tokenAddress}`;
                 setLoading(loadingKey, true);
 
-                 const tx = await tokenContract.approve(DESIRED_PRICE_POOL_HELPER_ADDRESS, MaxUint256); // Approve helper
+                 const tx = await tokenContract.approve(DESIRED_PRICE_POOL_HELPER_ADDRESS, MaxUint256);
                  let message = `Approval transaction submitted`;
                  if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
                  showSnackbar(message, 'info');
@@ -70,24 +70,24 @@ export const useLiquidityActions = () => {
          }
      }, [signer, account, tokenSymbols, showSnackbar, setLoading]);
 
-
-    // --- Mint New Position ---
     const handleMintPosition = useCallback(async (lowerTick: number, upperTick: number, liquidityStr: string): Promise<boolean> => {
+        // ... (initial checks remain the same) ...
         if (!signer || !account || !selectedPool?.poolKey || !selectedPool.tokenA_Address || !selectedPool.tokenB_Address || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
-            showSnackbar('Cannot mint: Wallet/Pool/Network issue.', 'error'); return false;
-        }
-         if (DESIRED_PRICE_POOL_HELPER_ADDRESS === ZeroAddress) {
-             showSnackbar("Helper contract address not configured.", "error"); return false;
+             showSnackbar('Cannot mint: Wallet/Pool/Network issue.', 'error'); return false;
          }
-        if (lowerTick >= upperTick) {
-            showSnackbar("Lower tick must be less than upper tick.", "warning"); return false;
-        }
-        // Validate ticks against absolute min/max if needed
-        // if (lowerTick < MIN_TICK || upperTick > MAX_TICK) { ... }
+         if (DESIRED_PRICE_POOL_HELPER_ADDRESS === ZeroAddress) {
+              showSnackbar("Helper contract address not configured.", "error"); return false;
+          }
+         if (POSITION_MANAGER_ADDRESS === ZeroAddress) { // <<< Add check for Position Manager
+             showSnackbar("Position Manager address not configured.", "error"); return false;
+         }
+         if (lowerTick >= upperTick) {
+             showSnackbar("Lower tick must be less than upper tick.", "warning"); return false;
+         }
 
         let liquidityWei: bigint;
         try {
-            liquidityWei = parseUnits(liquidityStr, 0); // Liquidity is uint256 in helper's mint
+            liquidityWei = parseUnits(liquidityStr, 0);
             if (liquidityWei <= 0n) {
                 showSnackbar('Liquidity amount must be positive.', 'warning'); return false;
             }
@@ -96,14 +96,9 @@ export const useLiquidityActions = () => {
         }
 
         const { poolKey, tokenA_Address, tokenB_Address } = selectedPool;
-        // Estimate required amounts (rough - real calculation needs pool state)
-        // For now, request approval for both tokens
-        const amount0MaxPlaceholder = MaxUint256; // Use MaxUint256 or a very large number
-        const amount1MaxPlaceholder = MaxUint256;
 
         try {
             setLoading('mintPosition_approve', true);
-             // Approve helper for both tokens only if they are ERC20
              const approvedA = tokenA_Address === ZeroAddress ? true : await checkAndRequestApproval(tokenA_Address);
              const approvedB = tokenB_Address === ZeroAddress ? true : await checkAndRequestApproval(tokenB_Address);
             setLoading('mintPosition_approve', false);
@@ -116,61 +111,63 @@ export const useLiquidityActions = () => {
             showSnackbar('Preparing mint position transaction...', 'info');
 
             const helperContract = new Contract(DESIRED_PRICE_POOL_HELPER_ADDRESS, DesiredPricePoolHelperABI, signer);
-
-            // Determine ETH value if tokenA is ZeroAddress
-            let txValue = 0n;
-            // The helper's _receive logic expects msg.value IF currency0 is ETH
-            if (poolKey.currency0 === ZeroAddress) {
-                // We don't know the exact amount needed, so this is tricky.
-                // The helper will refund excess, but we need to send *enough*.
-                // A better approach would involve simulating the mint via static call first.
-                // For now, let's skip sending ETH value directly in mint as it's complex without simulation.
-                // Users should wrap ETH first if needed.
-                console.warn("Minting with ETH directly via helper is complex without amount estimation. Please wrap ETH first.");
-                // txValue = parseUnits("1", 18); // Example: Send 1 ETH - VERY UNSAFE without estimation
-            }
-
+            const txValue = 0n; // Do not send ETH value
 
             console.log(`[useLiquidityActions] Calling helper.mint: key=${JSON.stringify(poolKey)}, lower=${lowerTick}, upper=${upperTick}, liq=${liquidityWei.toString()}`);
 
-            // Call the helper's mint function
             const tx = await helperContract.mint(
                 poolKey,
                 lowerTick,
                 upperTick,
-                liquidityWei,
-                amount0MaxPlaceholder, // Let helper calculate amounts
-                amount1MaxPlaceholder,
-                { value: txValue } // Send ETH if needed (currently disabled)
+                liquidityWei
             );
-
 
             let message = `Mint Position tx submitted`;
              if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
             showSnackbar(message, 'info');
 
             const receipt = await tx.wait(1);
+            // console.log('Mint Receipt:', JSON.stringify(receipt, null, 2)); // <<< Add detailed logging
 
             if (receipt?.status === 1) {
                 let mintedTokenId = "Unknown";
-                 const erc721Interface = new ethers.Interface([ "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)" ]);
-                 if (receipt.logs) {
+                 // Use the specific event fragment
+                 const erc721Interface = new Interface([ERC721_TRANSFER_EVENT]);
+
+                 if (receipt.logs && POSITION_MANAGER_ADDRESS !== ZeroAddress) {
+                    const lowerCasePosM = POSITION_MANAGER_ADDRESS.toLowerCase(); // Cache lowercase address
+
                     for (const log of receipt.logs) {
+                         // Optimization: Check address match first
+                         if (log.address.toLowerCase() !== lowerCasePosM) {
+                             continue;
+                         }
                          try {
-                             // IMPORTANT: The NFT transfer event comes from the POSITION MANAGER, not the helper
-                            if (log.address.toLowerCase() === POSITION_MANAGER_ADDRESS.toLowerCase()) {
-                                const parsedLog = erc721Interface.parseLog(log);
-                                if (parsedLog && parsedLog.name === "Transfer" && parsedLog.args.from === ZeroAddress) {
-                                    mintedTokenId = parsedLog.args.tokenId.toString();
-                                    localStorage.setItem(LS_TOKEN_ID, mintedTokenId);
-                                    console.log("Minted Token ID found and saved:", mintedTokenId);
-                                    break;
-                                }
+                            const parsedLog = erc721Interface.parseLog({ topics: [...log.topics], data: log.data }); // Use spread for safety
+
+                            // Check for mint event (from address 0) and correct event name
+                            if (parsedLog && parsedLog.name === "Transfer" && parsedLog.args.from === ZeroAddress) {
+                                mintedTokenId = parsedLog.args.tokenId.toString();
+                                localStorage.setItem(LS_TOKEN_ID, mintedTokenId);
+                                console.log("Minted Token ID found and saved:", mintedTokenId);
+                                break; // Exit loop once found
                             }
-                         } catch (parseError) { /* ignore */ }
+                         } catch (parseError) {
+                            // Only log if the address matched but parsing failed
+                            console.warn(`Could not parse log from Position Manager (${log.address}):`, parseError, log);
+                         }
                     }
+                 } else {
+                    console.warn("Receipt has no logs or Position Manager address is ZeroAddress");
                  }
-                showSnackbar(`Position minted successfully! Token ID: ${mintedTokenId}`, 'success');
+
+                if (mintedTokenId === "Unknown") {
+                    console.error("Failed to extract Token ID from mint transaction logs.");
+                    showSnackbar(`Position minted, but failed to retrieve Token ID. Check console/explorer. Tx: ${receipt.hash}`, 'warning');
+                } else {
+                    showSnackbar(`Position minted successfully! Token ID: ${mintedTokenId}`, 'success');
+                }
+
                 await fetchBalances();
                 return true;
             } else {
@@ -186,15 +183,14 @@ export const useLiquidityActions = () => {
             setLoading('mintPosition', false);
             setLoading('mintPosition_approve', false);
         }
+        // Added POSITION_MANAGER_ADDRESS to dependencies via selectedPool
     }, [signer, account, network, selectedPool, checkAndRequestApproval, fetchBalances, setLoading, showSnackbar]);
 
-
-    // --- Add Liquidity to Existing Position ---
+    // --- handleAddLiquidity (Keep modified version from previous step) ---
     const handleAddLiquidity = useCallback(async (tokenIdStr: string, liquidityStr: string): Promise<boolean> => {
-        // ... (initial checks remain the same) ...
          if (!signer || !account || !selectedPool?.poolKey || !selectedPool.tokenA_Address || !selectedPool.tokenB_Address || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
-            showSnackbar('Cannot add liquidity: Wallet/Pool/Network issue.', 'error'); return false;
-        }
+             showSnackbar('Cannot add liquidity: Wallet/Pool/Network issue.', 'error'); return false;
+         }
          if (DESIRED_PRICE_POOL_HELPER_ADDRESS === ZeroAddress) {
              showSnackbar("Helper contract address not configured.", "error"); return false;
          }
@@ -204,18 +200,15 @@ export const useLiquidityActions = () => {
          try {
              tokenId = BigInt(tokenIdStr);
              if (tokenId <= 0n) throw new Error("Invalid Token ID");
-             liquidityWei = parseUnits(liquidityStr, 0); // uint256
+             liquidityWei = parseUnits(liquidityStr, 0);
              if (liquidityWei <= 0n) {
                  showSnackbar('Liquidity amount must be positive.', 'warning'); return false;
              }
          } catch (e: any) {
-              showSnackbar(`Invalid Token ID or Liquidity amount: ${e.message}`, 'error'); return false;
+             showSnackbar(`Invalid Token ID or Liquidity amount: ${e.message}`, 'error'); return false;
          }
 
-         const { tokenA_Address, tokenB_Address, poolKey } = selectedPool;
-          const amount0MaxPlaceholder = MaxUint256;
-          const amount1MaxPlaceholder = MaxUint256;
-
+         const { tokenA_Address, tokenB_Address } = selectedPool;
 
         try {
             setLoading(`addLiquidity_approve_${tokenIdStr}`, true);
@@ -231,28 +224,15 @@ export const useLiquidityActions = () => {
              showSnackbar(`Preparing to add liquidity to token ${tokenIdStr}...`, 'info');
 
              const helperContract = new Contract(DESIRED_PRICE_POOL_HELPER_ADDRESS, DesiredPricePoolHelperABI, signer);
-
-            // Handle ETH value if needed
-            let txValue = 0n;
-             if (poolKey.currency0 === ZeroAddress) {
-                 console.warn("Adding liquidity with ETH directly via helper is complex without amount estimation. Please wrap ETH first.");
-                 // txValue = ...; // Needs estimation
-             }
+             const txValue = 0n;
 
             console.log(`[useLiquidityActions] Calling helper.addLiquidity: tokenId=${tokenIdStr}, liq=${liquidityWei.toString()}`);
 
-             const tx = await helperContract.addLiquidity(
-                 tokenId,
-                 liquidityWei,
-                 amount0MaxPlaceholder,
-                 amount1MaxPlaceholder,
-                  { value: txValue } // Send ETH if needed (currently disabled)
-             );
+             const tx = await helperContract.addLiquidity(tokenId, liquidityWei);
 
-            // ... (rest of the transaction handling remains the same) ...
              let message = `Add Liquidity tx submitted for token ${tokenIdStr}`;
              if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
-            showSnackbar(message, 'info');
+             showSnackbar(message, 'info');
 
             const receipt = await tx.wait(1);
 
@@ -275,8 +255,7 @@ export const useLiquidityActions = () => {
         }
     }, [signer, account, network, selectedPool, checkAndRequestApproval, fetchBalances, setLoading, showSnackbar]);
 
-
-    // --- Remove Liquidity from Existing Position ---
+    // --- handleRemoveLiquidity (Keep modified version from previous step) ---
     const handleRemoveLiquidity = useCallback(async (tokenIdStr: string, liquidityStr: string): Promise<boolean> => {
          if (!signer || !account || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             showSnackbar('Cannot remove liquidity: Wallet/Network issue.', 'error'); return false;
@@ -290,7 +269,7 @@ export const useLiquidityActions = () => {
          try {
              tokenId = BigInt(tokenIdStr);
              if (tokenId <= 0n) throw new Error("Invalid Token ID");
-             liquidityWei = parseUnits(liquidityStr, 0); // uint256
+             liquidityWei = parseUnits(liquidityStr, 0);
              if (liquidityWei <= 0n) {
                  showSnackbar('Liquidity amount to remove must be positive.', 'warning'); return false;
              }
@@ -298,33 +277,25 @@ export const useLiquidityActions = () => {
               showSnackbar(`Invalid Token ID or Liquidity amount: ${e.message}`, 'error'); return false;
          }
 
-
        try {
             setLoading(`removeLiquidity_${tokenIdStr}`, true);
             showSnackbar(`Preparing to remove liquidity from token ${tokenIdStr}...`, 'info');
 
             const helperContract = new Contract(DESIRED_PRICE_POOL_HELPER_ADDRESS, DesiredPricePoolHelperABI, signer);
-             const amount0MinPlaceholder = 0n; // Set minimums to 0 for basic removal
-             const amount1MinPlaceholder = 0n;
 
-             console.log(`[useLiquidityActions] Calling helper.removeLiquidity: tokenId=${tokenIdStr}, liq=${liquidityWei.toString()}`);
+            console.log(`[useLiquidityActions] Calling helper.removeLiquidity: tokenId=${tokenIdStr}, liq=${liquidityWei.toString()}`);
 
-             const tx = await helperContract.removeLiquidity(
-                 tokenId,
-                 liquidityWei,
-                 amount0MinPlaceholder,
-                 amount1MinPlaceholder
-             );
+             const tx = await helperContract.removeLiquidity(tokenId, liquidityWei);
 
              let message = `Remove Liquidity tx submitted for token ${tokenIdStr}`;
              if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
-            showSnackbar(message, 'info');
+             showSnackbar(message, 'info');
 
             const receipt = await tx.wait(1);
 
             if (receipt?.status === 1) {
                 showSnackbar(`Liquidity removal initiated for token ${tokenIdStr}!`, 'success');
-                await fetchBalances(); // Refresh token balances
+                await fetchBalances();
                 return true;
             } else {
                 throw new Error('Remove liquidity transaction failed.');
@@ -339,7 +310,6 @@ export const useLiquidityActions = () => {
             setLoading(`removeLiquidity_${tokenIdStr}`, false);
        }
     }, [signer, account, network, fetchBalances, setLoading, showSnackbar]);
-
 
     return { handleMintPosition, handleAddLiquidity, handleRemoveLiquidity };
 };

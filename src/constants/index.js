@@ -5,11 +5,11 @@ import { ethers } from 'ethers';
 
 const poolManagerRaw = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // <<< FROM LOGS
 const desiredPricePoolHookRaw = "0x7C0931F9df3C8A50B16BfFAfc893DC802Ee9AaC4"; // <<< FROM LOGS
-const desiredPricePoolHelperRaw = "0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141";
+const desiredPricePoolHelperRaw = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
 const positionManagerRaw = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // <<< FROM LOGS (Example, check your Anvil output)
-const token0Raw = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";        // <<< FROM LOGS (Token0)
-const token1Raw = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";        // <<< FROM LOGS (Token1)
-const token2Raw = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";        // <<< FROM LOGS (Token2)
+const token0Raw = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";        // <<< FROM LOGS (Token0)
+const token1Raw = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";        // <<< FROM LOGS (Token1)
+const token2Raw = "0x0165878A594ca255338adfa4d48449f69242Eb8F";        // <<< FROM LOGS (Token2)
 const governanceTokenRaw = "0x800cAFaACC4991e415BFec4488d49D302C4DB13C";     // <<< REPLACE (Your vDPP or equivalent)
 const governanceContractRaw = desiredPricePoolHookRaw; // <<< REPLACE (If you have one)
 
