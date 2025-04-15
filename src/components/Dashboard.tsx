@@ -203,9 +203,6 @@ const Dashboard: React.FC = () => {
                     </Typography>
                      <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>
                         Enter the Token ID of a position NFT to view its current liquidity amount. You can find your Token IDs under the "Liquidity" tab after minting.
-                        <Link href={EXPLORER_URL_BASE ? `${EXPLORER_URL_BASE}/address/${POSITION_MANAGER_ADDRESS}` : '#'} target="_blank" rel="noopener noreferrer" sx={{ ml: 0.5 }}>
-                            (View Position Manager Contract)
-                        </Link>
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                          <TextField
