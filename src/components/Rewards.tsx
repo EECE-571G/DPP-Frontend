@@ -11,7 +11,7 @@ import RedeemIcon from '@mui/icons-material/Redeem';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
-import { useTimeContext } from '../contexts/TimeContext'; // <<< IMPORT TimeContext
+import { useTimeContext } from '../contexts/TimeContext';
 import { useRewardActions } from '../hooks/useRewardActions';
 import { formatBalance } from '../utils/formatters';
 import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUtils';
@@ -19,25 +19,38 @@ import { getTokenIdHistory, getMostRecentTokenId } from '../utils/localStorageUt
 const LS_TOKEN_ID = 'liquidity_tokenId';
 const REWARD_LOCK_PERIOD_S = 1 * 24 * 60 * 60; // 1 day in seconds
 
-// Define the state shape for calculated rewards including timestamp
 interface CalculatedRewardState {
     amount0: string;
     amount1: string;
-    earnedTimestamp: number; // Unix timestamp (seconds)
+    earnedTimestamp: number;
 }
+
+// Helper function (can be moved)
+const formatDuration = (seconds: number): string => {
+    if (seconds <= 0) return "now";
+    if (seconds < 60) return `${Math.floor(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ${Math.floor(minutes % 60)}m`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ${Math.floor(hours % 24)}h`;
+};
+
 
 const Rewards: React.FC = () => {
     const { selectedPool, isLoadingPools, errorPools } = usePoolsContext();
     const { tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
     const { isLoading: loadingStates } = useLoadingContext();
-    const { simulatedTimestamp } = useTimeContext(); // <<< Get simulated time
+    const { simulatedTimestamp } = useTimeContext();
     const { handleCalculateReward, handleCollectReward } = useRewardActions();
 
     const [positionIdStr, setPositionIdStr] = useState<string>('');
-    // <<< Update state type >>>
     const [calculatedRewards, setCalculatedRewards] = useState<CalculatedRewardState | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [tokenIdHistory, setTokenIdHistory] = useState<string[]>([]);
+    // --- State to track the last collected ID ---
+    const [justCollectedTokenId, setJustCollectedTokenId] = useState<string | null>(null);
 
     // --- Loading States ---
     const isLoadingCalculate = loadingStates[`calculateReward_${positionIdStr}`] ?? false;
@@ -47,50 +60,93 @@ const Rewards: React.FC = () => {
     useEffect(() => {
         const history = getTokenIdHistory(LS_TOKEN_ID);
         setTokenIdHistory(history);
-        setPositionIdStr(getMostRecentTokenId(LS_TOKEN_ID));
-    }, []);
+        const mostRecentId = getMostRecentTokenId(LS_TOKEN_ID);
+        setPositionIdStr(mostRecentId);
+        setJustCollectedTokenId(null); // Reset collected tracker on mount/pool change implicitly
+    }, []); // Run only once on mount
+
+     // Effect to reset 'justCollected' if the position ID changes
+     useEffect(() => {
+        setJustCollectedTokenId(null);
+        setCalculatedRewards(null); // Also clear calculated rewards
+    }, [positionIdStr]);
 
     // --- Handlers ---
     const handlePositionIdChange = (event: React.SyntheticEvent, newValue: string | null) => {
-        setPositionIdStr(newValue ?? '');
-        setErrorMsg(null);
-        setCalculatedRewards(null); // Clear calculated rewards when ID changes
+        const newId = newValue ?? '';
+        // Check if the ID actually changed before updating state
+        // This prevents resetting 'justCollectedTokenId' unnecessarily if user clicks the same value
+        if (newId !== positionIdStr) {
+            setPositionIdStr(newId);
+            setErrorMsg(null);
+            // State reset happens in the useEffect dependent on positionIdStr
+        }
     };
+
+     const handlePositionIdInputChange = (event: React.SyntheticEvent, newInputValue: string) => {
+         // Update the input field value directly
+         setPositionIdStr(newInputValue ?? '');
+         // Don't reset justCollectedTokenId here, wait for blur or selection (handled by useEffect)
+         // Clear error/rewards immediately on typing
+         setErrorMsg(null);
+         setCalculatedRewards(null);
+     };
 
     const handleCalculateClick = async () => {
         setErrorMsg(null);
-        setCalculatedRewards(null);
+        setCalculatedRewards(null); // Clear previous display first
         if (!positionIdStr || isNaN(parseInt(positionIdStr))) {
             setErrorMsg('Please enter or select a valid Position Token ID.');
             return;
         }
-        // <<< handleCalculateReward now returns timestamp too >>>
+
+        // If we just collected this ID, show 0 immediately and skip hook call
+        if (positionIdStr === justCollectedTokenId) {
+            console.log(`[Rewards] Showing 0 for recently collected ID: ${positionIdStr}`);
+            setCalculatedRewards({
+                amount0: '0.0',
+                amount1: '0.0',
+                earnedTimestamp: simulatedTimestamp ?? Math.floor(Date.now() / 1000) // Use current time for timestamp
+            });
+            return; // Stop here
+        }
+
+        // Otherwise, call the hook to get calculated rewards
         const rewardsResult = await handleCalculateReward(positionIdStr);
         if (rewardsResult) {
-            // <<< Store the full result including timestamp >>>
             setCalculatedRewards(rewardsResult);
         }
+        // If rewardsResult is null (error in hook), state remains null
     };
 
     const handleCollectClick = async () => {
         setErrorMsg(null);
-        if (!positionIdStr || isNaN(parseInt(positionIdStr))) {
+        const currentTokenIdToCollect = positionIdStr; // Capture ID before potential state changes
+        if (!currentTokenIdToCollect || isNaN(parseInt(currentTokenIdToCollect))) {
              setErrorMsg('Please enter or select a valid Position Token ID.');
             return;
         }
-        // <<< Pass the stored earnedTimestamp to the action handler >>>
-        const success = await handleCollectReward(positionIdStr, calculatedRewards?.earnedTimestamp ?? null);
+
+        const success = await handleCollectReward(currentTokenIdToCollect, calculatedRewards?.earnedTimestamp ?? null);
         if (success) {
-            // Clear calculated rewards after successful collection
+            // Set the ID that was just collected
+            setJustCollectedTokenId(currentTokenIdToCollect);
+            // Clear the displayed reward amounts
             setCalculatedRewards(null);
         }
     };
 
     // --- Derived Values for UI ---
     const currentSimulatedTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
+    // Check based on calculatedRewards state, which might be null or zeroed out
     const unlockTimestamp = calculatedRewards ? calculatedRewards.earnedTimestamp + REWARD_LOCK_PERIOD_S : null;
     const isLocked = unlockTimestamp !== null && currentSimulatedTime < unlockTimestamp;
     const timeUntilUnlockS = unlockTimestamp !== null ? Math.max(0, unlockTimestamp - currentSimulatedTime) : null;
+    // Can collect if rewards are calculated, amounts > 0, and not locked
+    const canCollect = calculatedRewards !== null &&
+                       (parseFloat(calculatedRewards.amount0) > 0 || parseFloat(calculatedRewards.amount1) > 0) &&
+                       !isLocked;
+
 
     // --- Render Logic ---
     const tokenA = selectedPool?.tokenA;
@@ -153,11 +209,9 @@ const Rewards: React.FC = () => {
                             freeSolo
                             options={tokenIdHistory}
                             value={positionIdStr}
-                            onChange={handlePositionIdChange}
-                            onInputChange={(event, newInputValue) => {
-                                setPositionIdStr(newInputValue ?? '');
-                                // Clear calculated rewards if input changes manually
-                                if (calculatedRewards) setCalculatedRewards(null);
+                            onChange={handlePositionIdChange} // Handles selection/clearing
+                            onInputChange={(event, newInputValue) => { // Handles typing
+                                handlePositionIdInputChange(event, newInputValue ?? ''); // Use specific handler
                             }}
                             disabled={isLoadingCalculate || isLoadingCollect}
                             fullWidth
@@ -193,17 +247,25 @@ const Rewards: React.FC = () => {
                                 <Grid container spacing={1} textAlign="center">
                                     <Grid item xs={6}>
                                          <Typography variant="overline" color="text.secondary">Reward {symbolA}</Typography>
-                                        <Typography variant="h6">{calculatedRewards.amount0}</Typography>
+                                        <Typography variant="h6">{formatBalance(calculatedRewards.amount0, 6)}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
                                          <Typography variant="overline" color="text.secondary">Reward {symbolB}</Typography>
-                                        <Typography variant="h6">{calculatedRewards.amount1}</Typography>
+                                        <Typography variant="h6">{formatBalance(calculatedRewards.amount1, 6)}</Typography>
                                     </Grid>
                                     {/* Display Unlock Time Info */}
                                      {isLocked && timeUntilUnlockS !== null && (
                                          <Grid item xs={12} sx={{ mt: 1 }}>
                                              <Typography variant="caption" color="text.secondary">
                                                  Locked for: {formatDuration(timeUntilUnlockS)}
+                                             </Typography>
+                                         </Grid>
+                                     )}
+                                     {/* Indicate if showing zero due to recent collection */}
+                                     {positionIdStr === justCollectedTokenId && (
+                                          <Grid item xs={12} sx={{ mt: 1 }}>
+                                             <Typography variant="caption" color="text.secondary">
+                                                 (Rewards just collected)
                                              </Typography>
                                          </Grid>
                                      )}
@@ -236,14 +298,11 @@ const Rewards: React.FC = () => {
                                     variant="contained"
                                     fullWidth
                                     onClick={handleCollectClick}
-                                    // <<< Update disabled logic >>>
                                     disabled={
                                         !positionIdStr ||
                                         isLoadingCalculate ||
                                         isLoadingCollect ||
-                                        !calculatedRewards || // No rewards calculated
-                                        (calculatedRewards.amount0 === '0.0' && calculatedRewards.amount1 === '0.0') || // No rewards to collect
-                                        isLocked // Check if still locked based on simulated time
+                                        !canCollect // Use derived boolean
                                     }
                                     size="large"
                                     startIcon={isLoadingCollect ? <CircularProgress size={20} color="inherit"/> : <RedeemIcon />}
@@ -263,18 +322,5 @@ const Rewards: React.FC = () => {
         </Box>
     );
 };
-
-// Helper (can be moved)
-const formatDuration = (seconds: number): string => {
-    if (seconds <= 0) return "now";
-    if (seconds < 60) return `${Math.floor(seconds)}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ${Math.floor(minutes % 60)}m`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ${Math.floor(hours % 24)}h`;
-};
-
 
 export default Rewards;

@@ -1,6 +1,6 @@
 // src/hooks/useRewardActions.ts
 import { useCallback } from 'react';
-import { ethers, ZeroAddress, isAddress, Contract, formatUnits } from 'ethers';
+import { ethers, ZeroAddress, isAddress, Contract, formatUnits, parseUnits } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
@@ -8,21 +8,34 @@ import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import { useTimeContext } from '../contexts/TimeContext'; // <<< IMPORT TimeContext
 import {
-    DESIRED_PRICE_POOL_HOOK_ADDRESS,
+    DESIRED_PRICE_POOL_HOOK_ADDRESS, // The contract implementing IHookReward
     EXPLORER_URL_BASE,
     TARGET_NETWORK_CHAIN_ID,
 } from '../constants';
-import HookRewardABI from '../abis/IHookReward.json';
+// ABI for the contract implementing IHookReward (likely your DesiredPricePool hook)
+import HookRewardABI from '../abis/IHookReward.json'; // Adjust if your ABI file is named differently
 
 // Define the lock period in seconds (matching the contract if possible)
 const REWARD_LOCK_PERIOD_S = 1 * 24 * 60 * 60; // 1 day in seconds
 
+// Helper function (can be moved to formatters.ts if used elsewhere)
+const formatDuration = (seconds: number): string => {
+    if (seconds <= 0) return "now";
+    if (seconds < 60) return `${Math.floor(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ${Math.floor(minutes % 60)}m`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ${Math.floor(hours % 24)}h`;
+};
+
 export const useRewardActions = () => {
     const { signer, account, network } = useAuthContext();
-    const { fetchBalances, tokenDecimals } = useBalancesContext();
+    const { fetchBalances, tokenDecimals } = useBalancesContext(); // Need decimals for formatting
     const { setLoading } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
-    const { selectedPool } = usePoolsContext();
+    const { selectedPool } = usePoolsContext(); // Need for token info
     const { simulatedTimestamp } = useTimeContext(); // <<< Get simulated timestamp
 
     // --- Calculate Rewards ---
@@ -31,6 +44,7 @@ export const useRewardActions = () => {
         // <<< Get current simulated time for timestamping >>>
         const currentSimulatedTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
 
+        // --- Prerequisite checks (keep these) ---
         if (!signer || !account || !selectedPool || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             showSnackbar('Cannot calculate rewards: Wallet/Pool/Network issue.', 'error');
             return null;
@@ -39,11 +53,15 @@ export const useRewardActions = () => {
             showSnackbar("Reward contract address not configured.", "error");
             return null;
         }
+        if (!HookRewardABI || HookRewardABI.length === 0) {
+             showSnackbar("Reward hook ABI is missing.", "error");
+             return null;
+        }
 
-        let positionId: bigint;
+        let positionIdBigInt: bigint; // Use specific name for bigint version
         try {
-            positionId = BigInt(positionIdStr);
-            if (positionId <= 0n) throw new Error("Invalid Token ID");
+            positionIdBigInt = BigInt(positionIdStr);
+            if (positionIdBigInt <= 0n) throw new Error("Invalid Token ID");
         } catch (e) {
             showSnackbar('Invalid Position Token ID entered.', 'error');
             return null;
@@ -53,18 +71,39 @@ export const useRewardActions = () => {
         setLoading(loadingKey, true);
 
         try {
-            const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer);
-            console.log(`Statically calling calculateReward for position ID: ${positionIdStr}`);
-            const result = await rewardContract.calculateReward.staticCall(positionId);
-            const [amount0Raw, amount1Raw]: [bigint, bigint] = result;
+            // --- MOCK REWARD VALUES ---
+            console.log(`[MOCK] Simulating reward calculation for position ID: ${positionIdStr}`);
+            // Simulate some non-zero rewards after a brief delay
+            await new Promise(resolve => setTimeout(resolve, 400)); // Simulate network lag
 
             const decimals0 = tokenDecimals[selectedPool.tokenA_Address ?? ''] ?? 18;
             const decimals1 = tokenDecimals[selectedPool.tokenB_Address ?? ''] ?? 18;
 
+            // Generate mock amounts (e.g., based on position ID or just fixed)
+            // Ensure these are plausible values for your token decimals
+            const mockAmount0Raw = parseUnits((Number(positionIdStr) * 0.01).toFixed(decimals0), decimals0); // Example: scale with ID
+            const mockAmount1Raw = parseUnits((Number(positionIdStr) * 1.23).toFixed(decimals1), decimals1); // Example: scale with ID
+
+            const amount0Formatted = formatUnits(mockAmount0Raw, decimals0);
+            const amount1Formatted = formatUnits(mockAmount1Raw, decimals1);
+            // --- END MOCK ---
+
+            /*
+            // --- REAL CALCULATION (Commented out) ---
+            const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer);
+            console.log(`Statically calling calculateReward for position ID: ${positionIdStr}`);
+            // Use staticCall to get return values without sending a transaction
+            const result = await rewardContract.calculateReward.staticCall(positionIdBigInt); // Use bigint ID
+            const [amount0Raw, amount1Raw]: [bigint, bigint] = result;
+            const decimals0 = tokenDecimals[selectedPool.tokenA_Address ?? ''] ?? 18;
+            const decimals1 = tokenDecimals[selectedPool.tokenB_Address ?? ''] ?? 18;
             const amount0Formatted = formatUnits(amount0Raw, decimals0);
             const amount1Formatted = formatUnits(amount1Raw, decimals1);
+            // --- END REAL CALCULATION ---
+            */
 
-            console.log(`Calculated Rewards: ${amount0Formatted} TKA, ${amount1Formatted} TKB`);
+
+            console.log(`[MOCK] Calculated Rewards: ${amount0Formatted} ${selectedPool.tokenA || 'TKA'}, ${amount1Formatted} ${selectedPool.tokenB || 'TKB'}`);
 
             // <<< Return the timestamp along with amounts >>>
             return {
@@ -93,6 +132,7 @@ export const useRewardActions = () => {
         // <<< Get current simulated time for the check >>>
         const currentSimulatedTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
 
+        // --- Prerequisite Checks ---
         if (!signer || !account || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             showSnackbar('Cannot collect rewards: Wallet/Network issue.', 'error');
             return false;
@@ -101,16 +141,20 @@ export const useRewardActions = () => {
             showSnackbar("Reward contract address not configured.", "error");
             return false;
         }
+         if (!HookRewardABI || HookRewardABI.length === 0) {
+             showSnackbar("Reward hook ABI is missing.", "error");
+             return false;
+         }
         // <<< Check if we have an earned timestamp to compare against >>>
         if (earnedTimestamp === null) {
              showSnackbar('Cannot collect: Calculate rewards first to determine lock period.', 'warning');
              return false;
         }
 
-        let positionId: bigint;
+        let positionIdBigInt: bigint; // Use specific name
         try {
-            positionId = BigInt(positionIdStr);
-             if (positionId <= 0n) throw new Error("Invalid Token ID");
+            positionIdBigInt = BigInt(positionIdStr);
+             if (positionIdBigInt <= 0n) throw new Error("Invalid Token ID");
         } catch (e) {
             showSnackbar('Invalid Position Token ID entered.', 'error');
             return false;
@@ -133,7 +177,8 @@ export const useRewardActions = () => {
             const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer);
 
             console.log(`Collecting rewards for position ID: ${positionIdStr} to recipient: ${account}`);
-            const tx = await rewardContract.collectReward(positionId, account); // recipient is the connected account
+            // Call the actual contract function
+            const tx = await rewardContract.collectReward(positionIdBigInt, account); // recipient is the connected account
 
             let message = `Collect Rewards tx submitted for token ${positionIdStr}`;
             if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
@@ -152,25 +197,17 @@ export const useRewardActions = () => {
         } catch (error: any) {
             console.error(`Collect Reward Error for token ${positionIdStr}:`, error);
             const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Collection failed.";
+            // Handle specific contract errors if necessary
+            // Example: if (reason.includes('NotPositionOwner')) { ... }
             showSnackbar(`Reward collection failed: ${reason}`, 'error');
             return false;
         } finally {
             setLoading(loadingKey, false);
         }
         // <<< Add simulatedTimestamp to dependency array >>>
-    }, [signer, account, network, fetchBalances, setLoading, showSnackbar, simulatedTimestamp]);
+    }, [signer, account, network, fetchBalances, setLoading, showSnackbar, simulatedTimestamp]); // Dependencies
+
 
     return { handleCalculateReward, handleCollectReward };
 };
-
-// Helper function (can be moved to formatters.ts if used elsewhere)
-const formatDuration = (seconds: number): string => {
-    if (seconds <= 0) return "now";
-    if (seconds < 60) return `${Math.floor(seconds)}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ${Math.floor(minutes % 60)}m`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ${Math.floor(hours % 24)}h`;
-};
+// Note: formatDuration helper is duplicated here for completeness, move it to utils if preferred.
