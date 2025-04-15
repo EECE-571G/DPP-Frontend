@@ -126,7 +126,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
                 {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Delegate Power'}
             </Button>
              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                 Mock Action: Updates your displayed DPP balance and Voting Power.
+                 Updates your displayed DPP balance and Voting Power.
              </Typography>
         </Paper>
     );

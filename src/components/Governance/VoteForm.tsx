@@ -138,7 +138,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
                 </Stack>
                 <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
                     {/* --- CORRECTED TEXT WRAPPING --- */}
-                    {`Mock Action: Updates chart and sets voting power to 0. Requires DPP balance > 0 and correct poll stage.`}
+                    {`Updates chart and sets voting power to 0. Requires DPP balance > 0 and correct poll stage.`}
                     {/* --- END CORRECTION --- */}
                 </Typography>
             </Box>
