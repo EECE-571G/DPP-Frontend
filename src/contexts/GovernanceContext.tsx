@@ -236,10 +236,10 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
                     ethers.parseUnits("100", 18),   // Slot -4
                     ethers.parseUnits("150", 18),   // Slot -3
                     ethers.parseUnits("200", 18),   // Slot -2
-                    0n,                             // Slot -1
-                    ethers.parseUnits("-250", 18), // Slot 0
-                    ethers.parseUnits("-100", 18), // Slot +1
-                    ethers.parseUnits("-50", 18),  // Slot +2
+                    ethers.parseUnits("100", 18),                             // Slot -1
+                    ethers.parseUnits("250", 18), // Slot 0
+                    ethers.parseUnits("100", 18), // Slot +1
+                    ethers.parseUnits("50", 18),  // Slot +2
                     0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n // Slots +3 to +10
                  ]
              };
