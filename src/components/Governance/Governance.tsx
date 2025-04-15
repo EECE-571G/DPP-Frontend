@@ -10,16 +10,17 @@ import GovernanceInfoBar from './GovernanceInfoBar';
 import GovernanceStatusChart from './GovernanceStatusChart';
 import DelegationForm from './DelegationForm';
 import VoteForm from './VoteForm';
+import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 
 const Governance: React.FC = () => {
     // --- Get state from Contexts ---
-    const { proposals, governanceStatus, metaData, isLoadingProposals, isLoadingGovernanceData, errorProposals, errorGovernanceData } = useGovernanceContext();
+    const { governanceStatus, metaData, isLoadingGovernanceData, errorGovernanceData } = useGovernanceContext();
     const { userBalances, isLoadingBalances, errorBalances } = useBalancesContext();
 
     // --- Derived State ---
-    const vDPPBalance = typeof userBalances['vDPP'] === 'string' ? parseFloat(userBalances['vDPP']) : (userBalances['vDPP'] ?? 0);
-    const isLoading = isLoadingProposals || isLoadingGovernanceData || isLoadingBalances;
-    const displayError = errorProposals || errorGovernanceData || errorBalances;
+    const vDPPBalance = parseFloat(userBalances[GOVERNANCE_TOKEN_ADDRESS] ?? '0'); // Use constant
+    const isLoading = isLoadingGovernanceData || isLoadingBalances; // Simplified loading check
+    const displayError = errorGovernanceData || errorBalances; // Simplified error check
 
     // --- Render Logic ---
     if (isLoading) {
@@ -36,23 +37,24 @@ const Governance: React.FC = () => {
                 Governance Center
             </Typography>
 
-            {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading governance data: {displayError}</Alert>}
+            {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading data: {displayError}</Alert>}
 
-            {/* Top Row - Pass only needed data */}
+            {/* Pass potentially null metaData */}
             <GovernanceInfoBar
                 vDPPBalance={vDPPBalance}
-                metaData={metaData ?? { id: 'N/A', time: 'N/A', stage: 'Loading...' }}
+                metaData={metaData}
             />
 
-            {/* Status Chart */}
-            <GovernanceStatusChart governanceStatus={governanceStatus} />
+             {/* Status Chart - Pass empty array if governanceStatus is null/undefined */}
+             <GovernanceStatusChart governanceStatus={governanceStatus || []} />
 
             {/* VoteForm & Delegation Area */}
             <Grid container spacing={3}>
-                {/* VoteForm */}
+                {/* VoteForm - Needs robust proposal ID handling if proposals were fetched */}
+                {/* For now, disable if metadata (implying pool context) is missing */}
                 <Grid item xs={12} md={6}>
-                    <VoteForm proposalId={proposals[0]?.id} />
-                </Grid>
+                     <VoteForm proposalId={metaData ? 1 : 0} /> {/* Placeholder ID, disabled logic inside VoteForm should handle no pool */}
+                 </Grid>
 
                 {/* Delegation */}
                 <Grid item xs={12} md={6}>

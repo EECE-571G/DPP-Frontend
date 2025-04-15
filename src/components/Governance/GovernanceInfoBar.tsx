@@ -12,10 +12,14 @@ import FlagIcon from '@mui/icons-material/Flag';
 
 import InfoBox from './InfoBox';
 import { formatBalance } from '../../utils/formatters';
+import { TickMath } from '../../utils/tickMath'; // Import if needed for price calc
+import { useBalancesContext } from '../../contexts/BalancesContext'; // If needed for decimals
+import { usePoolsContext } from '../../contexts/PoolsContext'; // If needed for decimals
+import { GovernanceMetaData } from '../../contexts/GovernanceContext';
 
 interface GovernanceInfoBarProps {
     vDPPBalance: number;
-    metaData: { id: string; time: string; stage: string };
+    metaData: GovernanceMetaData | null; // Allow null
 }
 
 // Define MetaItem
@@ -37,52 +41,50 @@ const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string }
 
 
 const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ vDPPBalance, metaData }) => {
-    return (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-            {/* Meta Section */}
-            <Grid item xs={12} sm={12} md={4}>
-                <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
-                    <Typography
-                        variant="overline"
-                        color="text.secondary"
-                        display="block"
-                        align="center"
-                        gutterBottom
-                        sx={{ lineHeight: 1.2, mb: 1 }}
-                    >
-                        Meta
-                    </Typography>
-                    {/* Nested Grid to arrange MetaItems */}
-                    <Grid container spacing={1} alignItems="center" justifyContent="flex-start">
-                        {/* Grid item for ID */}
-                        <Grid item xs={12} sm={4} > {/* Takes full width on xs, 1/3 on sm+ */}
-                            <MetaItem icon={<TagIcon fontSize="small" />} label="ID" value={metaData.id} />
-                        </Grid>
-                        {/* Grid item for Time Left */}
-                        <Grid item xs={12} sm={4} > {/* Takes full width on xs, 1/3 on sm+ */}
-                            <MetaItem icon={<AccessTimeIcon fontSize="small" />} label="Time Left" value={metaData.time} />
-                        </Grid>
-                        {/* Grid item for Stage */}
-                        <Grid item xs={12} sm={4} > {/* Takes full width on xs, 1/3 on sm+ */}
-                            <MetaItem icon={<FlagIcon fontSize="small" />} label="Stage" value={metaData.stage} />
-                        </Grid>
-                    </Grid>
-                </Paper>
+    const { tokenDecimals } = useBalancesContext();
+    const { selectedPool } = usePoolsContext();
+
+    const decimals0 = selectedPool?.tokenA_Address ? (tokenDecimals[selectedPool.tokenA_Address] ?? 18) : 18;
+    const decimals1 = selectedPool?.tokenB_Address ? (tokenDecimals[selectedPool.tokenB_Address] ?? 18) : 18;
+
+    const desiredPriceDisplay = metaData?.desiredPriceTick !== null && metaData?.desiredPriceTick !== undefined
+       ? formatBalance(TickMath.getPriceAtTick(metaData.desiredPriceTick, decimals0, decimals1), 6) // Format calculated price
+       : 'N/A';
+
+   return (
+       <Grid container spacing={2} sx={{ mb: 3 }}>
+           {/* Desired Price InfoBox */}
+           <Grid item xs={12} sm={4} md={3}>
+                <InfoBox title="Current Desired Price">
+                   {desiredPriceDisplay}
+               </InfoBox>
             </Grid>
 
-            {/* Voting Power and Balance using InfoBox */}
-            <Grid item xs={6} sm={6} md={4}>
+           {/* Poll Status InfoBox */}
+            <Grid item xs={12} sm={8} md={3}>
+               <InfoBox title="Poll Status">
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>ID: {metaData?.pollId ?? 'N/A'}</Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>Stage: {metaData?.pollStage ?? 'N/A'}</Typography>
+                    {/* <Typography variant="body2">Time Left: {metaData?.pollTimeLeft ?? 'N/A'}</Typography> */}
+                    <Typography variant="caption" color="text.secondary">
+                        {metaData?.pollIsPaused ? (metaData?.pollStage === 'Pause Requested' ? '(Pause Requested)' : '(Paused)') : ''}
+                    </Typography>
+                </InfoBox>
+            </Grid>
+
+           {/* Voting Power and Balance */}
+            <Grid item xs={6} sm={6} md={3}>
                 <InfoBox title="Your Voting Power">
                     {formatBalance(vDPPBalance, 2)} vDPP
                 </InfoBox>
             </Grid>
-            <Grid item xs={6} sm={6} md={4}>
+            <Grid item xs={6} sm={6} md={3}>
                 <InfoBox title="vDPP Balance">
                     {formatBalance(vDPPBalance, 2)}
                 </InfoBox>
             </Grid>
-        </Grid>
-    );
+       </Grid>
+   );
 };
 
 export default GovernanceInfoBar;
