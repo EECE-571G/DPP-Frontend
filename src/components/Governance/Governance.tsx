@@ -121,7 +121,7 @@ const Governance: React.FC = () => {
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-                Governance Center (Mock Actions)
+                Governance Center
             </Typography>
 
             {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading data: {displayError}</Alert>}
