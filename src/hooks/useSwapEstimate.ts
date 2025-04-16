@@ -34,9 +34,9 @@ const HOOK_FEE_PERCENT_DENOMINATOR = 100;
 const FEE_RATE_DENOMINATOR = 1_000_000;
 // --- ADJUST THIS FOR SENSITIVITY ---
 // Lower value -> MORE sensitive adjustment (fee changes more drastically with tick diff)
-const DYNAMIC_FEE_SENSITIVITY_FACTOR = 1.0; // *** DECREASED FOR MORE SENSITIVITY ***
+const DYNAMIC_FEE_SENSITIVITY_FACTOR = 1.0;
 
-// --- Helper to Estimate Tick Difference (APPROXIMATION - DEMO) ---
+// --- Helper to Estimate Tick Difference ---
 const estimateTickDiff = (
     sellAmountWei: bigint,
     sellBalanceWei: bigint,
@@ -49,7 +49,7 @@ const estimateTickDiff = (
     const percentageScaled = ((sellAmountWei * 10000n) / sellBalanceWei) + basePercentageOffset;
 
     // --- INCREASED SENSITIVITY MULTIPLIER ---
-    const multiplier = 40n; // *** INCREASED multiplier ***
+    const multiplier = 40n;
     const estimatedDiffBigInt = (BigInt(maxTickImpactEstimate) * percentageScaled * multiplier) / 10000n;
 
     const diffNum = Number(estimatedDiffBigInt);
