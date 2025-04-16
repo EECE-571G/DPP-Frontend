@@ -20,15 +20,15 @@ import {
   Grid
 } from '@mui/material';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
-import { ethers, isAddress, parseUnits } from 'ethers'; // Import necessary ethers utils
+import { isAddress, parseUnits } from 'ethers';
 
 // Contexts and Hooks
-import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
+import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useSwapActions } from '../hooks/useSwapActions';
-import { useSwapEstimate } from '../hooks/useSwapEstimate'; // Import the estimate hook
-import { formatBalance } from '../utils/formatters'; // Import formatter
+import { useSwapEstimate } from '../hooks/useSwapEstimate';
+import { formatBalance } from '../utils/formatters';
 
 // --- SwapInputSection Component ---
 interface SwapInputSectionProps {
@@ -37,7 +37,7 @@ interface SwapInputSectionProps {
     tokenSymbol: string;
     tokenDecimals: number;
     amountStr: string;
-    balance: number; // Expects a number for display formatting
+    balance: number;
     poolTokenAddresses: string[];
     onAmountChange?: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
     onTokenChange: (event: SelectChangeEvent<string>) => void;
@@ -45,7 +45,7 @@ interface SwapInputSectionProps {
     disabled?: boolean;
     readOnly?: boolean;
     tokenSymbols: Record<string, string>;
-    isLoadingEstimate?: boolean; // Loading state for estimate display
+    isLoadingEstimate?: boolean;
 }
 
 const SwapInputSection: React.FC<SwapInputSectionProps> = ({

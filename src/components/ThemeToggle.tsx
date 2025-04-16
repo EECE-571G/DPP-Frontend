@@ -16,7 +16,6 @@ const ThemeToggleButton: React.FC = () => {
          aria-label={colorMode.mode === 'dark' ? "switch to light mode" : "switch to dark mode"}
          sx={{ ml: 1 }}
        >
-        {/* Conditionally render the correct icon based on the current mode */}
         {colorMode.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
       </IconButton>
     </Tooltip>
