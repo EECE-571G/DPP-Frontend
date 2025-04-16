@@ -32,8 +32,6 @@ function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (.
 // --- Fee Calculation Constants ---
 const HOOK_FEE_PERCENT_DENOMINATOR = 100;
 const FEE_RATE_DENOMINATOR = 1_000_000;
-// --- ADJUST THIS FOR SENSITIVITY ---
-// Lower value -> MORE sensitive adjustment (fee changes more drastically with tick diff)
 const DYNAMIC_FEE_SENSITIVITY_FACTOR = 1.0;
 
 // --- Helper to Estimate Tick Difference ---
@@ -41,11 +39,11 @@ const estimateTickDiff = (
     sellAmountWei: bigint,
     sellBalanceWei: bigint,
     tickSpacing: number,
-    maxTickImpactEstimate: number = 50 // Base impact estimate
+    maxTickImpactEstimate: number = 50
 ): number => {
     if (sellBalanceWei <= 0n || sellAmountWei <= 0n) return 0;
 
-    const basePercentageOffset = 10n; // Add 0.1% base effect
+    const basePercentageOffset = 10n;
     const percentageScaled = ((sellAmountWei * 10000n) / sellBalanceWei) + basePercentageOffset;
 
     // --- INCREASED SENSITIVITY MULTIPLIER ---
@@ -55,7 +53,7 @@ const estimateTickDiff = (
     const diffNum = Number(estimatedDiffBigInt);
     let roundedTickDiff = Math.round(diffNum / tickSpacing) * tickSpacing;
 
-    // Ensure non-zero diff for non-zero input (Demo Mod)
+    // Ensure non-zero diff for non-zero input
     if (roundedTickDiff === 0 && sellAmountWei > 0n) {
         if (diffNum > 0 || basePercentageOffset > 0n) {
              console.log(`[EstimateTickDiff] Forcing minimum tick difference of ${tickSpacing} (Original unrounded: ${diffNum.toFixed(4)})`);
@@ -149,7 +147,7 @@ export const useSwapEstimate = (
             let estimatedTickDiff = zeroForOne ? estimatedTickDiffMagnitude : -estimatedTickDiffMagnitude;
             console.log(`Estimated Tick Difference (Signed): ${estimatedTickDiff}`);
 
-            // --- Dynamic Hook Fee Adjustment (SIMPLIFIED Ratio) ---
+            // --- Dynamic Hook Fee Adjustment ---
             let adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed;
             let dynamicFactorString = "1.0 (No adjustment)";
 
@@ -249,7 +247,7 @@ export const useSwapEstimate = (
         } finally {
              setTimeout(() => setIsLoadingEstimate(false), 50);
         }
-    }, [tokenDecimals, userBalancesRaw]); // Dependencies
+    }, [tokenDecimals, userBalancesRaw]);
 
     // Debounced estimation trigger
     const debouncedFrontendEstimate = useMemo(() => debounce(performFrontendEstimate, 400), [performFrontendEstimate]);

@@ -163,6 +163,5 @@ export const useSwapActions = () => {
         }
     }, [signer, account, network, selectedPool, tokenDecimals, checkAndRequestApproval, fetchBalances, setLoading, showSnackbar]);
 
-    // Return only handleSwap, approval is internal now
     return { handleSwap };
 };
