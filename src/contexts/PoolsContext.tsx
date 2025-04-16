@@ -8,31 +8,26 @@ import React, {
   ReactNode,
   useMemo,
 } from 'react';
-// Ethers v6 imports
-import { ZeroAddress, Contract, solidityPackedKeccak256, getAddress, FixedNumber, formatUnits } from 'ethers';
+import { ZeroAddress, Contract, solidityPackedKeccak256 } from 'ethers';
 import { Pool } from '../types';
 import { useAuthContext } from './AuthContext';
 import { useBalancesContext } from './BalancesContext';
 import {
-  POOL_MANAGER_ADDRESS,
   TOKEN_A_ADDRESS,
   TOKEN_B_ADDRESS,
   TOKEN_C_ADDRESS,
   POOL_TICK_SPACING,
   DESIRED_PRICE_POOL_HOOK_ADDRESS,
-  DESIRED_PRICE_POOL_HELPER_ADDRESS, // Keep if other helper functions are used
   DYNAMIC_FEE_FLAG,
   TARGET_NETWORK_CHAIN_ID,
 } from '../constants';
-// Import necessary ABIs
 import DesiredPricePoolABI from '../abis/DesiredPricePool.json';
-// Import utility
 import { TickMath } from '../utils/tickMath';
 
-// --- Constants for Mocking ---
-const MOCK_INITIAL_DESIRED_TICK = 0; // <<< Set desired tick to 0 for demo
-const MOCK_INITIAL_CURRENT_TICK = 0; // <<< Start current tick at 0 for demo
-const LS_MOCK_CURRENT_TICK_KEY = 'dpp_mock_current_tick_'; // Add poolId suffix
+// --- Constants ---
+const MOCK_INITIAL_DESIRED_TICK = 0;
+const MOCK_INITIAL_CURRENT_TICK = 0;
+const LS_MOCK_CURRENT_TICK_KEY = 'dpp_mock_current_tick_';
 
 // --- Define PoolKey Struct Matching Solidity ---
 export interface PoolKey {
@@ -47,17 +42,15 @@ export interface PoolKey {
 export interface V4Pool extends Pool {
   poolKey: PoolKey;
   poolId: string;
-  // --- Mocked/Fetched State ---
-  desiredPriceTick: number | null; // Will be mocked
-  lpFeeRate: number | null; // Can still fetch from hook
-  hookFeeRate: number | null; // Can still fetch from hook
-  currentTick: number | null; // Will be mocked
-  sqrtPriceX96: bigint | null; // Derived from mocked currentTick
+  desiredPriceTick: number | null;
+  lpFeeRate: number | null;
+  hookFeeRate: number | null;
+  currentTick: number | null;
+  sqrtPriceX96: bigint | null;
   liquidity: bigint | null;
   protocolFee: number | null;
-  // --- Calculated fields ---
-  currentPrice: number; // Derived from mocked currentTick
-  desiredPrice: number; // Derived from mocked desiredPriceTick
+  currentPrice: number;
+  desiredPrice: number;
 }
 
 interface PoolsContextType {
@@ -65,12 +58,11 @@ interface PoolsContextType {
   selectedPool: V4Pool | null;
   isLoadingPools: boolean;
   errorPools: string | null;
-  fetchPoolData: () => Promise<void>; // Keep fetch for non-mocked data if needed
+  fetchPoolData: () => Promise<void>;
   handlePoolSelection: (pool: V4Pool | null) => void;
-  // <<< ADDED: Mock state and update function >>>
-  mockCurrentTickMap: Record<string, number | null>; // Store mock ticks per poolId
+  mockCurrentTickMap: Record<string, number | null>;
   updateMockCurrentTick: (poolId: string, newTick: number) => void;
-  mockDesiredTick: number; // Global mock desired tick for demo simplicity
+  mockDesiredTick: number;
 }
 
 const PoolsContext = createContext<PoolsContextType | undefined>(undefined);
@@ -88,7 +80,7 @@ interface PoolsProviderProps {
 }
 
 export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
-  const { provider, network } = useAuthContext(); // Still needed for hook contract calls
+  const { provider, network } = useAuthContext();
   const { tokenSymbols, tokenDecimals } = useBalancesContext();
 
   const [pools, setPools] = useState<V4Pool[]>([]);
@@ -96,12 +88,12 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
   const [isLoadingPools, setIsLoadingPools] = useState<boolean>(false);
   const [errorPools, setErrorPools] = useState<string | null>(null);
 
-  // <<< ADDED: State for Mock Ticks >>>
+  // State for Ticks
   const [mockCurrentTickMap, setMockCurrentTickMap] = useState<Record<string, number | null>>({});
   // Use a fixed desired tick for the demo
   const mockDesiredTick = MOCK_INITIAL_DESIRED_TICK;
 
-  // <<< ADDED: Function to initialize mock state from localStorage >>>
+  // Function to initialize state from localStorage >>>
   const initializeMockTicks = useCallback(() => {
       const initialMap: Record<string, number | null> = {};
        // Define pool IDs based on definitions (ensure this matches fetchPoolData)
@@ -123,26 +115,26 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
                const storedTick = localStorage.getItem(storageKey);
                if (storedTick !== null && !isNaN(Number(storedTick))) {
                    initialMap[poolId] = Number(storedTick);
-                   console.log(`[PoolsContext Mock] Initialized mock tick for ${poolId} from LS: ${initialMap[poolId]}`);
+                   console.log(`[PoolsContext] Initialized tick for ${poolId} from LS: ${initialMap[poolId]}`);
                } else {
                    initialMap[poolId] = MOCK_INITIAL_CURRENT_TICK; // Default if not in LS
                    localStorage.setItem(storageKey, String(initialMap[poolId])); // Store default
-                   console.log(`[PoolsContext Mock] Initialized mock tick for ${poolId} to default: ${initialMap[poolId]}`);
+                   console.log(`[PoolsContext] Initialized tick for ${poolId} to default: ${initialMap[poolId]}`);
                }
           } catch (e) {
-               console.error("Error initializing mock tick for definition:", def, e);
+               console.error("Error initializing tick for definition:", def, e);
           }
        }
       setMockCurrentTickMap(initialMap);
-  }, []); // Dependencies should be constants from '../constants'
+  }, []);
 
-  // <<< ADDED: Initialize mock state on mount >>>
+  // Initialize state on mount >>>
   useEffect(() => {
       initializeMockTicks();
   }, [initializeMockTicks]);
 
 
-  // <<< ADDED: Function to update mock tick state and localStorage >>>
+  // Function to update tick state and localStorage
   const updateMockCurrentTick = useCallback((poolId: string, newTick: number) => {
       setMockCurrentTickMap(prevMap => {
           const updatedMap = { ...prevMap, [poolId]: newTick };
@@ -150,9 +142,9 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
           const storageKey = `${LS_MOCK_CURRENT_TICK_KEY}${poolId}`;
           try {
               localStorage.setItem(storageKey, String(newTick));
-              console.log(`[PoolsContext Mock] Updated mock tick for ${poolId} to ${newTick} and saved to LS.`);
+              console.log(`[PoolsContext] Updated tick for ${poolId} to ${newTick} and saved to LS.`);
           } catch (e) {
-              console.error(`[PoolsContext Mock] Failed to save mock tick to LS for ${poolId}:`, e);
+              console.error(`[PoolsContext] Failed to save tick to LS for ${poolId}:`, e);
           }
           return updatedMap;
       });
@@ -185,7 +177,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
       console.log('[PoolsContext] Pool selected:', pool?.name ?? 'None');
   }, []);
 
-  // <<< MODIFIED: Fetch only hook data (lpFee, hookFee) if needed, use MOCK ticks/prices >>>
+  // Fetch only hook data (lpFee, hookFee) if needed, use ticks/prices
   const fetchPoolData = useCallback(async () => {
       // Prerequisite checks (mostly for provider/network/addresses for hook calls)
       if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
@@ -198,9 +190,9 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
            setIsLoadingPools(false); setPools([]); setSelectedPool(null);
            return;
       }
-      // Check if mock ticks are loaded, if not, maybe wait or re-initialize?
+      // Check if ticks are loaded, if not, maybe wait or re-initialize?
       if (Object.keys(mockCurrentTickMap).length === 0) {
-          console.warn("[PoolsContext] Mock ticks not yet initialized in fetchPoolData. Attempting re-init.");
+          console.warn("[PoolsContext] Ticks not yet initialized in fetchPoolData. Attempting re-init.");
           initializeMockTicks(); // Try to initialize if map is empty
            // Consider returning or setting loading if initialization is async and needed first
       }
@@ -234,10 +226,10 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
               const poolKey: PoolKey = { currency0, currency1, fee: feeValue, tickSpacing: tickSpacingValue, hooks: hooksAddress };
               const poolId = solidityPackedKeccak256(["address", "address", "uint24", "int24", "address"], [poolKey.currency0, poolKey.currency1, poolKey.fee, poolKey.tickSpacing, poolKey.hooks]);
 
-              console.log(`[PoolsContext] Processing Pool (Mock Mode): ${def.nameTemplate}, ID: ${poolId}`);
+              console.log(`[PoolsContext] Processing Pool (Mode): ${def.nameTemplate}, ID: ${poolId}`);
 
               try {
-                  // Fetch only hook data (optional, could be mocked too)
+                  // Fetch only hook data
                    const [lpFeeBigInt, hFeeBigInt] = await Promise.all([
                         hookContract.lpFees(poolId).catch(() => null),
                         hookContract.hookFees(poolId).catch(() => null),
@@ -246,11 +238,11 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
                   const lpFeePips: number | null = lpFeeBigInt !== null ? Number(lpFeeBigInt) : null;
                   const hookFeePercent: number | null = hFeeBigInt !== null ? Number(hFeeBigInt) : null;
 
-                  // <<< USE MOCKED TICKS >>>
+                  // USE TICKS
                   const desiredPriceTick = mockDesiredTick;
                   const currentTick = mockCurrentTickMap[poolId] ?? MOCK_INITIAL_CURRENT_TICK; // Use map value or default
 
-                  // --- Calculate Prices from MOCKED Ticks ---
+                  // --- Calculate Prices from Ticks ---
                   const decimals0 = tokenDecimals[poolKey.currency0] ?? 18;
                   const decimals1 = tokenDecimals[poolKey.currency1] ?? 18;
 
@@ -258,7 +250,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
                   const sqrtPriceX96 = TickMath.getSqrtRatioAtTick(currentTick);
                   const currentPrice = TickMath.getPriceAtSqrtRatio(sqrtPriceX96, decimals0, decimals1);
 
-                  // --- Create Pool Data Object with Mocked Values ---
+                  // --- Create Pool Data Object with Values ---
                   const poolData: V4Pool = {
                       id: def.id,
                       name: def.nameTemplate,
@@ -280,7 +272,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
                       protocolFee: null,
                       baseFee: poolKey.fee,
                   };
-                   console.log(`[PoolsContext Mock] Pool ${def.id} state: DesiredTick=${desiredPriceTick}, CurrentTick=${currentTick}, CurrentPrice=${currentPrice}`);
+                   console.log(`[PoolsContext] Pool ${def.id} state: DesiredTick=${desiredPriceTick}, CurrentTick=${currentTick}, CurrentPrice=${currentPrice}`);
                   return poolData; // Return the processed pool data
 
               } catch (poolError: any) {
@@ -297,36 +289,33 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
           setPools(successfulPools);
           // Select the first successfully processed pool
           setSelectedPool(successfulPools.length > 0 ? successfulPools[0] : null);
-          console.log(`[PoolsContext] Mock pool data processing complete. ${successfulPools.length} pools processed.`);
+          console.log(`[PoolsContext] Pool data processing complete. ${successfulPools.length} pools processed.`);
 
       } catch (err: any) {
-          console.error('[PoolsContext] Major error during mock pool data processing:', err);
-          setErrorPools(`Failed to process mock pool data: ${err.message || String(err)}`);
+          console.error('[PoolsContext] Major error during pool data processing:', err);
+          setErrorPools(`Failed to process pool data: ${err.message || String(err)}`);
           setPools([]);
           setSelectedPool(null);
       } finally {
           setIsLoadingPools(false);
       }
-  // <<< Added mockCurrentTickMap and initializeMockTicks dependencies >>>
   }, [provider, network, tokenSymbols, tokenDecimals, mockDesiredTick, mockCurrentTickMap, initializeMockTicks]);
 
-  // <<< MODIFIED: useEffect dependencies - depend on mock map readiness >>>
   useEffect(() => {
-      // Fetch only when provider, network, token data, AND mock ticks are ready
+      // Fetch only when provider, network, token data, AND ticks are ready
       if (provider && network?.chainId === TARGET_NETWORK_CHAIN_ID && Object.keys(tokenSymbols).length > 0 && Object.keys(tokenDecimals).length > 0 && Object.keys(mockCurrentTickMap).length > 0) {
           fetchPoolData();
       } else {
-          // Don't clear pools if mock map isn't ready yet, just ensure loading state is handled
+          // Don't clear pools if map isn't ready yet, just ensure loading state is handled
           // setPools([]); setSelectedPool(null); // Avoid clearing unnecessarily
           setErrorPools(null);
-          // Maybe set loading based on mock map readiness?
+          // Maybe set loading based on map readiness?
           setIsLoadingPools(Object.keys(mockCurrentTickMap).length === 0);
       }
-  // <<< ADDED mockCurrentTickMap, REMOVED fetchPoolData (called internally) >>>
   }, [provider, network, tokenSymbols, tokenDecimals, mockCurrentTickMap]);
 
 
-  // <<< ADDED: Expose mock state and updater in context value >>>
+  // Expose state and updater in context value
   const contextValue = useMemo(
       () => ({
           pools,
@@ -339,7 +328,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
           updateMockCurrentTick,
           mockDesiredTick,
       }),
-      [pools, selectedPool, isLoadingPools, errorPools, fetchPoolData, handlePoolSelection, mockCurrentTickMap, updateMockCurrentTick, mockDesiredTick] // Added mock state/updater
+      [pools, selectedPool, isLoadingPools, errorPools, fetchPoolData, handlePoolSelection, mockCurrentTickMap, updateMockCurrentTick, mockDesiredTick]
   );
 
   return (
