@@ -14,7 +14,7 @@ interface DelegationFormProps {
     onDelegateSubmit: (targetAddress: string, amount: number) => Promise<boolean>;
 }
 
-// Accept mocked props and callback
+// Accept props and callback
 const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDelegateSubmit }) => {
     // --- Contexts (only need decimals) ---
     const { tokenDecimals } = useBalancesContext();
@@ -27,14 +27,13 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
 
     // --- Derived State ---
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
-    // <<< Use mocked balance for display >>>
     const DPPBalanceFormatted = formatUnits(mockDppBalanceRaw, DPPDecimals);
 
     const delegatePowerNum = parseFloat(delegatePowerStr) || 0;
     const delegateKey = 'delegateVotes';
     const isLoading = loadingStates[delegateKey] ?? false;
 
-    // <<< Updated: Call the passed handler >>>
+    // Call the passed handler >>>
     const handleDelegateClickInternal = async () => {
         setDelegateError(null);
         if (!delegateTarget || !delegatePowerStr || isLoading) return;
@@ -49,7 +48,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
              setDelegateError('Invalid amount to delegate.'); return;
         }
 
-        // <<< Balance check against mocked balance >>>
+        // Balance check against balance
         if (delegatePowerWei > mockDppBalanceRaw) {
             setDelegateError(`Cannot delegate more DPP than you have (${DPPBalanceFormatted}).`);
             return;
@@ -69,7 +68,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
         }
     };
 
-    // <<< canDelegate check uses mocked balance >>>
+    // canDelegate check uses balance
     let canDelegate = false;
     if (delegateTarget && delegatePowerStr && ethers.isAddress(delegateTarget)) {
         try {
@@ -101,7 +100,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
                 disabled={isLoading}
                 InputLabelProps={{ shrink: true }} />
             <TextField
-                // <<< Use mocked balance for max display >>>
+                // Use balance for max display
                 label={`Amount of DPP to Delegate (Max: ${DPPBalanceFormatted})`}
                 variant="outlined"
                 type="number"
@@ -118,7 +117,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
                 variant="contained"
                 fullWidth
                 onClick={handleDelegateClickInternal} // Use internal handler
-                // <<< Use mocked balance for canDelegate check >>>
+                // Use balance for canDelegate check
                 disabled={!canDelegate || isLoading}
                 size="large">
                 {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Delegate Power'}

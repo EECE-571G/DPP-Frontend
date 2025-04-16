@@ -4,12 +4,12 @@ import { Box, Typography, Grid, CircularProgress, Alert } from '@mui/material';
 import { formatUnits, parseUnits } from 'ethers';
 
 // Context Imports
-import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext'; // Import GovernanceMetaData
+import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext';
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { usePoolsContext } from '../../contexts/PoolsContext';
 import { useTimeContext } from '../../contexts/TimeContext';
-import { useLoadingContext } from '../../contexts/LoadingContext'; // Import LoadingContext
-import { useSnackbarContext } from '../../contexts/SnackbarProvider'; // Import SnackbarContext
+import { useLoadingContext } from '../../contexts/LoadingContext';
+import { useSnackbarContext } from '../../contexts/SnackbarProvider';
 
 // Child Component Imports
 import GovernanceInfoBar from './GovernanceInfoBar';
@@ -110,7 +110,6 @@ const Governance: React.FC = () => {
     // --- Get state from Contexts ---
     const {
         metaData: realMetaData,
-        // initialGovernanceStatus is not directly used for mock state init anymore
         isLoadingGovernanceData,
         errorGovernanceData,
     } = useGovernanceContext();
@@ -121,7 +120,7 @@ const Governance: React.FC = () => {
     const { setLoading, isLoading: loadingStates } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
 
-    // --- Mock State Management ---
+    // --- State Management ---
     const [mockDppBalanceRaw, setMockDppBalanceRaw] = useState<bigint | null>(null);
     const [mockVotingPowerRaw, setMockVotingPowerRaw] = useState<bigint | null>(null);
     const [mockGovernanceStatus, setMockGovernanceStatus] = useState<number[] | null>(null);
@@ -130,7 +129,7 @@ const Governance: React.FC = () => {
 
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? DEFAULT_DPP_DECIMALS;
 
-    // --- Effect to Initialize Mock State from localStorage or Defaults (Runs Once) ---
+    // --- Effect to Initialize State from localStorage or Defaults (Runs Once) ---
      useEffect(() => {
         const initBalance = getBigIntFromLS(LS_MOCK_DPP_BALANCE) ?? DEFAULT_MOCK_BALANCE_RAW;
         const initPower = getBigIntFromLS(LS_MOCK_VOTING_POWER) ?? 0n;
@@ -160,12 +159,9 @@ const Governance: React.FC = () => {
             pollId: initPollId,
             startTime: initStartTime,
         });
+    }, []);
 
-    // Run only on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Empty dependency array ensures this runs only once
-
-    // --- Effects to Persist Mock State Changes to localStorage ---
+    // --- Effects to Persist State Changes to localStorage ---
     useEffect(() => { if (mockDppBalanceRaw !== null) localStorage.setItem(LS_MOCK_DPP_BALANCE, mockDppBalanceRaw.toString()); }, [mockDppBalanceRaw]);
     useEffect(() => { if (mockVotingPowerRaw !== null) localStorage.setItem(LS_MOCK_VOTING_POWER, mockVotingPowerRaw.toString()); }, [mockVotingPowerRaw]);
     useEffect(() => { if (mockGovernanceStatus !== null) try { localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(mockGovernanceStatus)); } catch (e) { console.error("LS Error (Status Save):", e); } }, [mockGovernanceStatus]);
@@ -207,7 +203,7 @@ const Governance: React.FC = () => {
     }, [mockPollIdNum, mockPollStartTime, simulatedTimestamp]);
 
 
-    // --- Combine Real Meta with Mock Poll Info ---
+    // --- Combine Meta with Poll Info ---
     const finalMetaData: GovernanceMetaData | null = useMemo(() => {
          if (!realMetaData || mockPollIdNum === null || mockPollStartTime === null) return null;
          // Ensure poolId from selectedPool takes precedence if available
@@ -216,17 +212,17 @@ const Governance: React.FC = () => {
              // Data likely coming from the real hook/contract
              desiredPriceTick: realMetaData.desiredPriceTick,
              governanceTokenAddress: realMetaData.governanceTokenAddress,
-             // Data now primarily derived from mock state
+             // Data now primarily derived from state
              poolId: currentPoolId, // Use selected pool's ID primarily
              pollId: mockPollIdNum.toString(),
              pollStartTime: mockPollStartTime,
-             pollPauseRequested: false, // Mocked value
-             pollFlags: 0, // Mocked value
+             pollPauseRequested: false,
+             pollFlags: 0,
              pollStage: derivedMockPollInfo.stage,
              pollTimeLeft: derivedMockPollInfo.timeLeft,
              pollIsPaused: derivedMockPollInfo.isPaused,
              pollIsMajor: derivedMockPollInfo.isMajor,
-             pollIsManualExecution: false, // Mocked value
+             pollIsManualExecution: false,
          };
     }, [realMetaData, mockPollIdNum, mockPollStartTime, derivedMockPollInfo, selectedPool?.poolId]);
 
@@ -242,7 +238,7 @@ const Governance: React.FC = () => {
         (finalMetaData.pollStage === 'Vote' || finalMetaData.pollStage === 'Final Vote')
     );
 
-    // --- Mock Action Wrappers ---
+    // --- Action Wrappers ---
      const handleMockVote = useCallback(async (proposalId: number, lower: number, upper: number) => {
           if (mockVotingPowerRaw === null || mockGovernanceStatus === null) {
                console.error("Cannot vote: Mock state not initialized."); return false;
@@ -291,7 +287,6 @@ const Governance: React.FC = () => {
             setMockPollIdNum(newPollId);
             setMockPollStartTime(newStartTime);
             setMockGovernanceStatus(DEFAULT_MOCK_STATUS); // Reset chart
-            // setMockVotingPowerRaw(mockDppBalanceRaw); // Reset voting power to full balance
             console.log(`[Mock Execute] New Poll Started: ID=${newPollId}, StartTime=${newStartTime}, VotingPower Reset to ${mockDppBalanceRaw.toString()}`);
 
 
@@ -315,7 +310,7 @@ const Governance: React.FC = () => {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
                 <CircularProgress />
-                <Typography sx={{ ml: 2 }}>Initializing Governance Mock State...</Typography>
+                <Typography sx={{ ml: 2 }}>Initializing Governance State...</Typography>
             </Box>
         );
     }
@@ -328,11 +323,11 @@ const Governance: React.FC = () => {
 
             {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading pool data: {displayError}</Alert>}
 
-            {/* Pass derived metaData (combined real + mock poll state) */}
+            {/* Pass derived metaData */}
             <GovernanceInfoBar
                 mockDppBalanceRaw={mockDppBalanceRaw ?? 0n}
                 mockVotingPowerRaw={mockVotingPowerRaw ?? 0n}
-                metaData={finalMetaData} // Use the combined metadata
+                metaData={finalMetaData}
                 onExecute={handleMockExecute} // Pass execute handler
                 isLoadingExecute={loadingStates[`executePoll_${mockPollIdNum ?? 0}`] ?? false} // Pass loading state for execute
             />
@@ -342,7 +337,7 @@ const Governance: React.FC = () => {
             <Grid container spacing={3} alignItems="stretch">
                 <Grid item xs={12} md={6}>
                     <VoteForm
-                        proposalId={mockPollIdNum ?? 0} // Use mock poll ID
+                        proposalId={mockPollIdNum ?? 0}
                         mockVotingPowerRaw={mockVotingPowerRaw ?? 0n}
                         onVoteSubmit={handleMockVote}
                         canVote={canVote}
