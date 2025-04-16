@@ -1,147 +1,77 @@
+// src/components/AppBarAccount.tsx
 import React, { useState } from 'react';
-import {
-    Box,
-    Button,
-    Avatar,
-    Menu,
-    MenuItem,
-    Typography,
-    ListItemIcon,
-    Tooltip,
-    Fade,
-    // Divider,
-} from '@mui/material';
+import { Box, Button, Menu, MenuItem, Typography, ListItemIcon, Tooltip, Fade, Divider, IconButton } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
-import { useAppContext } from '../contexts/AppProvider';
-import { shortenAddress } from '../utils/formatters';
-// import LogoutIcon from '@mui/icons-material/Logout';
-
-// Helper to generate simple blockie-like background
-const generateAvatarColor = (address: string): string => {
-    // Simple hash function for color generation (not cryptographically secure)
-    let hash = 0;
-    for (let i = 0; i < address.length; i++) {
-        hash = address.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const color = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-    return "#" + "00000".substring(0, 6 - color.length) + color;
-};
-
+import LogoutIcon from '@mui/icons-material/Logout';
+import { useAuthContext } from '../contexts/AuthContext';
+import AnvilTimeControls from './AnvilTimeControls'; // Verify './AnvilTimeControls.tsx' exists and exports default
 
 const AppBarAccount: React.FC = () => {
-    const { session, availableAccounts, authentication } = useAppContext();
+    // --- Get state/actions from Context ---
+    const { session, availableAccounts, authentication } = useAuthContext();
+
+    // --- Local State ---
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
 
     const user = session?.user;
+    // --- Anvil Time Controls ---
+    // We'll render the AnvilTimeControls component here
 
-    // Only render if logged in via metamask and multiple accounts are available
-    if (!user || user.type !== 'metamask' || !availableAccounts || availableAccounts.length <= 1) {
-        // Optionally render a simpler display for single metamask account or simulation
-        if (user) {
-            return (
-                <Tooltip title={`Connected: ${user.address}`}>
-                     <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, p: 1, borderRadius: 1, '&:hover': { bgcolor: 'action.hover'} }}>
-                        <Avatar sx={{ width: 32, height: 32, bgcolor: generateAvatarColor(user.address), fontSize: '0.8rem' }}>
-                            {user.address.substring(2, 4).toUpperCase()}
-                        </Avatar>
-                        <Typography variant="body2" sx={{ ml: 1, display: { xs: 'none', sm: 'block' } }} noWrap>
-                            {shortenAddress(user.address)}
-                        </Typography>
-                    </Box>
-                </Tooltip>
-            );
-        }
-        return null; // Or render nothing if no user
-    }
+    if (!user) return null; // Render nothing if not logged in
 
-    const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-        setAnchorEl(event.currentTarget);
-    };
-
-    const handleClose = () => {
-        setAnchorEl(null);
-    };
+    const handleClick = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
+    const handleClose = () => setAnchorEl(null);
 
     const handleSwitchAccount = (newAddress: string) => {
         if (newAddress !== user.address) {
-            authentication.switchAccount(newAddress);
+            authentication.switchAccount(newAddress); // Use context action
         }
         handleClose();
     };
 
+    const handleSignOut = () => {
+        // For a cleaner disconnect without full reload:
+        // authentication.signOut(); // Assuming you add signOut to authentication in AuthContext
+        // For now, keeping reload as requested/implied
+        window.location.reload();
+        handleClose();
+    };
+
+    const canSwitchAccounts = availableAccounts && availableAccounts.length > 1;
+
     return (
         <>
-            <Tooltip title="Switch Account">
-                <Button
-                    id="account-switch-button"
-                    aria-controls={open ? 'account-switch-menu' : undefined}
-                    aria-haspopup="true"
-                    aria-expanded={open ? 'true' : undefined}
-                    onClick={handleClick}
-                    color="inherit"
-                    sx={{ textTransform: 'none', ml: 1, borderRadius: 1 }}
-                    endIcon={<KeyboardArrowDownIcon />}
-                >
-                    {/* <Avatar sx={{ width: 32, height: 32, mr: 1, bgcolor: generateAvatarColor(user.address), fontSize: '0.8rem' }}>
-                         {user.address.substring(2, 4).toUpperCase()}
-                    </Avatar> */}
-                    <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 'bold' }} noWrap>
-                        {(user.type === 'metamask' ? 'Metamask' : 'Simulation') + " Account: " + shortenAddress(user.address)}
-                    </Typography>
+            {/* Add Anvil Time Controls */}
+            <AnvilTimeControls />
+            <Tooltip title={canSwitchAccounts ? "Switch Account / Disconnect" : `Connected: ${user.address}`}>
+                <Button id="account-button" aria-controls={open ? 'account-menu' : undefined} aria-haspopup="true" aria-expanded={open ? 'true' : undefined} onClick={handleClick} color="inherit" sx={{ textTransform: 'none', ml: 1, borderRadius: 1, p: {xs: 0.5, sm: 1}, minWidth: 'auto' }} endIcon={canSwitchAccounts ? <KeyboardArrowDownIcon /> : null}>
+                    <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }} noWrap>{user.address}</Typography>
+                    {/* Consider adding an icon or avatar here for small screens */}
                 </Button>
             </Tooltip>
-            <Menu
-                id="account-switch-menu"
-                anchorEl={anchorEl}
-                open={open}
-                onClose={handleClose}
-                MenuListProps={{
-                    'aria-labelledby': 'account-switch-button',
-                }}
-                TransitionComponent={Fade}
-                anchorOrigin={{
-                    vertical: 'bottom',
-                    horizontal: 'right',
-                }}
-                transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
-                }}
-                 slotProps={{ paper: { sx: { minWidth: 250, mt: 1 }}}}
-            >
-                <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', color: 'text.secondary' }}>
-                    Available Accounts
-                </Typography>
-                {availableAccounts.map((account) => (
-                    <MenuItem
-                        key={account}
-                        selected={account === user.address}
-                        onClick={() => handleSwitchAccount(account)}
-                        sx={{ justifyContent: 'space-between' }} // Push check icon to the right
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                             {/* <Avatar sx={{ width: 24, height: 24, mr: 1.5, bgcolor: generateAvatarColor(account), fontSize: '0.7rem' }}>
-                                {account.substring(2, 4).toUpperCase()}
-                            </Avatar> */}
-                            {(account)}
-                        </Box>
-                        {account === user.address && (
-                            <ListItemIcon sx={{ minWidth: 'auto' }}>
-                                <CheckIcon fontSize="small" color="primary" />
-                            </ListItemIcon>
-                        )}
-                    </MenuItem>
-                ))}
-                {/* Add disconnect button here if desired */}
-                {/* <Divider />
-                <MenuItem onClick={authentication.signOut} sx={{ color: 'error.main' }}>
-                    <ListItemIcon sx={{ minWidth: 'auto', mr: 1 }}>
-                        <LogoutIcon fontSize="small" color="error" />
-                    </ListItemIcon>
+            <Menu id="account-menu" anchorEl={anchorEl} open={open} onClose={handleClose} MenuListProps={{ 'aria-labelledby': 'account-button' }} TransitionComponent={Fade} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { minWidth: 250, mt: 1, maxWidth: 350 }}}}>
+                <Box sx={{ px: 2, py: 1.5 }}>
+                    <Typography variant="body1" fontWeight="medium" noWrap>{user.name || 'MetaMask User'}</Typography> {/* Use user.name if available */}
+                </Box>
+                <Divider />
+                {canSwitchAccounts && (
+                    <Box component="div">
+                        <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', color: 'text.secondary' }}>Available Accounts</Typography>
+                        {availableAccounts.map((account) => (
+                            <MenuItem key={account} selected={account === user.address} onClick={() => handleSwitchAccount(account)} sx={{ justifyContent: 'space-between' }}>
+                                <Typography variant="body2" noWrap sx={{ mr: 2 }}>{account}</Typography>
+                                {account === user.address && (<ListItemIcon sx={{ minWidth: 'auto' }}><CheckIcon fontSize="small" color="primary" /></ListItemIcon>)}
+                            </MenuItem>
+                        ))}
+                        <Divider />
+                    </Box>
+                )}
+                <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
+                    <ListItemIcon sx={{ minWidth: 'auto', mr: 1.5, color: 'error.main' }}><LogoutIcon fontSize="small" /></ListItemIcon>
                     Disconnect
-                </MenuItem> */}
+                </MenuItem>
             </Menu>
         </>
     );

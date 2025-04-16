@@ -1,522 +1,416 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// src/components/Liquidity.tsx
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  InputAdornment,
-  Tabs,
-  Tab,
-  CircularProgress,
-  Paper,
-  Tooltip,
-  Fade,
-  Alert,
-  Grid,
-  Link,
-  IconButton
+    Box, Typography, Card, CardContent, TextField, Button,
+    Tabs, Tab, CircularProgress, Fade, Alert, Skeleton,
+    Autocomplete
 } from '@mui/material';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
+import FiberNewIcon from '@mui/icons-material/FiberNew';
 
-import { Pool } from '../types';
-import { MOCK_TOKEN_PRICES } from '../utils/mockData';
-import { formatBalance } from '../utils/formatters';
-import { calculateEstimatedVdppRewards } from '../utils/simulations';
+import { usePoolsContext } from '../contexts/PoolsContext';
+import { useBalancesContext } from '../contexts/BalancesContext';
+import { useLoadingContext } from '../contexts/LoadingContext';
+import { useLiquidityActions } from '../hooks/useLiquidityActions';
+// <<< Import NEW utility functions >>>
+import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
 
-interface LiquidityProps {
-  selectedPool: Pool | null;
-  userBalances: Record<string, number>; // Assuming number type for simplicity
-  onAddLiquidity: (tokenA: string, tokenB: string, amountA: number, amountB: number) => Promise<void> | void; // Can be async
-  onRemoveLiquidity: (tokenA: string, tokenB: string, lpAmount: number) => Promise<void> | void; // Needs LP token amount for real removal
-  loadingStates: { add?: boolean; remove?: boolean };
-}
+// Local storage keys (no longer directly used here, handled by utils)
+// const LS_TOKEN_ID = 'liquidity_tokenId';
+const LS_LOWER_TICK = 'liquidity_lowerTick'; // Keep for Mint form convenience
+const LS_UPPER_TICK = 'liquidity_upperTick'; // Keep for Mint form convenience
 
-// --- Helper Component for TabPanel ---
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
+// --- Helper Components (TabPanel remains the same) ---
+interface TabPanelProps { children?: React.ReactNode; index: number; value: number; }
 function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`liquidity-tabpanel-${index}`}
-      aria-labelledby={`liquidity-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ pt: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
+    const { children, value, index, ...other } = props;
+    return (
+        <div
+            role="tabpanel"
+            hidden={value !== index}
+            id={`liquidity-tabpanel-${index}`}
+            aria-labelledby={`liquidity-tab-${index}`}
+            {...other}
+        >
+            {value === index && (<Box sx={{ pt: 3 }}>{children}</Box>)}
+        </div>
+    );
 }
-// --- End Helper Component ---
+// --- End Helper Components ---
 
-const Liquidity: React.FC<LiquidityProps> = ({
-    selectedPool,
-    userBalances,
-    onAddLiquidity,
-    onRemoveLiquidity,
-    loadingStates
-}) => {
-  const [tabValue, setTabValue] = useState(0);
+const Liquidity: React.FC = () => {
+    const { selectedPool, isLoadingPools, errorPools } = usePoolsContext();
+    const { isLoadingBalances, errorBalances } = useBalancesContext();
+    const { isLoading: loadingStates } = useLoadingContext();
+    const { handleMintPosition, handleAddLiquidity, handleRemoveLiquidity } = useLiquidityActions();
 
-  // --- Add Liquidity State ---
-  const [addAmountAStr, setAddAmountAStr] = useState("");
-  const [addAmountBStr, setAddAmountBStr] = useState("");
-  const [lockRatio, setLockRatio] = useState(true); // Lock A/B ratio by default
-  const [lastEdited, setLastEdited] = useState<'A' | 'B' | null>(null); // Track which field was last edited
+    const [tabValue, setTabValue] = useState(0);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // --- Remove Liquidity State (Simplified: using amounts, not LP tokens) ---
-  // For a real app, this should be based on LP token amount/percentage
-  const [removeLpAmountStr, setRemoveLpAmountStr] = useState(""); // Input for LP token amount
+    // --- State for Mint Tab ---
+    const [lowerTickStr, setLowerTickStr] = useState('');
+    const [upperTickStr, setUpperTickStr] = useState('');
+    const [mintLiquidityStr, setMintLiquidityStr] = useState('');
 
-  // --- Derived states ---
-  const addAmountA = useMemo(() => parseFloat(addAmountAStr) || 0, [addAmountAStr]);
-  const addAmountB = useMemo(() => parseFloat(addAmountBStr) || 0, [addAmountBStr]);
-  const removeLpAmount = useMemo(() => parseFloat(removeLpAmountStr) || 0, [removeLpAmountStr]);
+    // --- State for Add Tab ---
+    const [addTokenIdStr, setAddTokenIdStr] = useState('');
+    const [addLiquidityStr, setAddLiquidityStr] = useState('');
 
-  // --- Estimated amounts for removal ---
-  const [estRemoveA, setEstRemoveA] = useState(0);
-  const [estRemoveB, setEstRemoveB] = useState(0);
+    // --- State for Remove Tab ---
+    const [removeTokenIdStr, setRemoveTokenIdStr] = useState('');
+    const [removeLiquidityStr, setRemoveLiquidityStr] = useState('');
 
-  // --- Reward Estimation State ---
-  const [estimatedReward, setEstimatedReward] = useState({ reward: 0, explanation: '' });
+    // --- State for Token ID History (now just the IDs for Autocomplete) ---
+    const [tokenIdHistoryList, setTokenIdHistoryList] = useState<string[]>([]);
 
-  // --- Feedback State ---
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    // --- Loading State ---
+    const isMinting = loadingStates['mintPosition'] ?? false;
+    const isMintApproving = loadingStates['mintPosition_approve'] ?? false;
+    const isAdding = loadingStates[`addLiquidity_${addTokenIdStr}`] ?? false;
+    const isAddApproving = loadingStates[`addLiquidity_approve_${addTokenIdStr}`] ?? false;
+    const isRemoving = loadingStates[`removeLiquidity_${removeTokenIdStr}`] ?? false;
 
-  // --- Reset state when pool changes ---
-  useEffect(() => {
-    setAddAmountAStr("");
-    setAddAmountBStr("");
-    setRemoveLpAmountStr("");
-    setEstRemoveA(0);
-    setEstRemoveB(0);
-    setEstimatedReward({ reward: 0, explanation: '' });
-    setErrorMsg(null);
-    setLastEdited(null);
-    setLockRatio(true);
-  }, [selectedPool]);
+    // --- Load from localStorage on mount ---
+    useEffect(() => {
+        // Load history list (just IDs)
+        const historyList = getTokenIdHistoryList(); // <<< Use new util
+        setTokenIdHistoryList(historyList);
 
+        // Get the most recent full position data
+        const mostRecentPosition = getMostRecentPosition(); // <<< Use new util
 
-  // --- Handle Amount Change for Adding Liquidity ---
-  const handleAddAmountChange = useCallback((value: string, token: 'A' | 'B') => {
-    setErrorMsg(null); // Clear error on input change
-    const setter = token === 'A' ? setAddAmountAStr : setAddAmountBStr;
-    const otherSetter = token === 'A' ? setAddAmountBStr : setAddAmountAStr;
-    const currentlyEdited = token;
+        // Set initial value for token ID fields
+        const mostRecentId = mostRecentPosition?.tokenId ?? '';
+        setAddTokenIdStr(mostRecentId);
+        setRemoveTokenIdStr(mostRecentId);
 
-    setter(value);
-    setLastEdited(currentlyEdited);
+        // Pre-fill Mint ticks ONLY if the most recent position is relevant?
+        // Or just use the last individually saved ticks for Mint convenience?
+        // Let's keep using individual LS for Mint ticks for now.
+        setLowerTickStr(localStorage.getItem(LS_LOWER_TICK) || mostRecentPosition?.lowerTick || '');
+        setUpperTickStr(localStorage.getItem(LS_UPPER_TICK) || mostRecentPosition?.upperTick || '');
 
-    if (!selectedPool || !lockRatio) {
-        // If ratio isn't locked, just update the reward estimate if applicable
-        const currentA = token === 'A' ? (parseFloat(value) || 0) : addAmountA;
-        const currentB = token === 'B' ? (parseFloat(value) || 0) : addAmountB;
-        setEstimatedReward(calculateEstimatedVdppRewards(currentA, currentB, selectedPool));
-        return;
+    }, []); // Run only once on mount
+
+    // Refresh history suggestions after actions (triggered by hook now)
+    const refreshHistoryList = useCallback(() => {
+        setTokenIdHistoryList(getTokenIdHistoryList());
+    }, []);
+
+    // --- Handlers ---
+    const handleChangeTab = (event: React.SyntheticEvent, newValue: number) => {
+        setTabValue(newValue);
+        setErrorMsg(null); // Clear errors on tab change
     };
 
-    // --- Ratio Calculation (if locked) ---
-    const numValue = parseFloat(value) || 0;
-    const { currentPrice } = selectedPool;
-    const ratio = currentPrice; // 1 A = ratio B
+    // Input change handlers with localStorage saving (keep for Mint convenience)
+    const handleLowerTickChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setLowerTickStr(val);
+        localStorage.setItem(LS_LOWER_TICK, val); // Still save individually for Mint tab
+        setErrorMsg(null);
+    };
+    const handleUpperTickChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setUpperTickStr(val);
+        localStorage.setItem(LS_UPPER_TICK, val); // Still save individually for Mint tab
+        setErrorMsg(null);
+    };
+    const handleMintLiquidityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setMintLiquidityStr(e.target.value);
+        setErrorMsg(null);
+    };
 
-    let otherNumValue = 0;
-    if (numValue > 0) {
-      if (token === 'A') {
-        otherNumValue = numValue * ratio; // Calculate B from A
-      } else { // Input is Token B
-        otherNumValue = ratio !== 0 ? numValue / ratio : 0; // Calculate A from B
-      }
-      otherSetter(otherNumValue > 0 ? otherNumValue.toFixed(6) : ""); // Update the other field
-    } else {
-      otherSetter(""); // Clear the other field if input is 0 or invalid
-    }
+    // Token ID Autocomplete Handlers (remain similar, just update the string state)
+    const handleAddTokenIdInputChange = (event: React.SyntheticEvent, newValue: string | null) => {
+        setAddTokenIdStr(newValue ?? '');
+        setErrorMsg(null);
+    };
+    const handleRemoveTokenIdInputChange = (event: React.SyntheticEvent, newValue: string | null) => {
+        setRemoveTokenIdStr(newValue ?? '');
+        setErrorMsg(null);
+    };
 
-    // Update reward estimate
-    const finalA = token === 'A' ? numValue : otherNumValue;
-    const finalB = token === 'B' ? numValue : otherNumValue;
-    setEstimatedReward(calculateEstimatedVdppRewards(finalA, finalB, selectedPool));
+    // Other amount handlers (keep)
+    const handleAddLiquidityAmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setAddLiquidityStr(e.target.value);
+        setErrorMsg(null);
+    };
+    const handleRemoveLiquidityAmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setRemoveLiquidityStr(e.target.value);
+        setErrorMsg(null);
+    };
 
-  }, [selectedPool, lockRatio, addAmountA, addAmountB]); // Add dependencies
+    // Action handlers (now refresh the list state after hook success)
+    const handleMintClick = async () => {
+        setErrorMsg(null);
+        const lowerTickNum = parseInt(lowerTickStr, 10);
+        const upperTickNum = parseInt(upperTickStr, 10);
 
-    // Recalculate the non-edited field if the ratio lock is toggled ON
-    useEffect(() => {
-        if (lockRatio && lastEdited && selectedPool) {
-            if (lastEdited === 'A') {
-                handleAddAmountChange(addAmountAStr, 'A');
-            } else {
-                handleAddAmountChange(addAmountBStr, 'B');
-            }
-        }
-    }, [lockRatio, selectedPool, lastEdited, addAmountAStr, addAmountBStr, handleAddAmountChange]);
-
-
-   // --- Handle LP Amount Change for Removing Liquidity ---
-  const handleRemoveAmountChange = useCallback((value: string) => {
-      setRemoveLpAmountStr(value);
-      setErrorMsg(null);
-
-      // ** SIMULATION **: Calculate estimated return amounts
-      // This requires knowing the total LP supply and pool reserves (not available here)
-      // We'll fake it based on the current price for demonstration
-      const lpAmount = parseFloat(value) || 0;
-      if (lpAmount > 0 && selectedPool) {
-          // VERY rough estimate assuming LP value is proportional to current price
-          const mockTotalLpValue = 1000; // Assume total LP value (e.g., 1000 LP tokens exist)
-          const fractionToRemove = lpAmount / mockTotalLpValue;
-          // Estimate value based on mock prices (again, very inaccurate without reserves)
-          const approxValueA = MOCK_TOKEN_PRICES[selectedPool.tokenA] * (fractionToRemove * 50); // Fake reserves
-          const approxValueB = MOCK_TOKEN_PRICES[selectedPool.tokenB] * (fractionToRemove * 50 * selectedPool.currentPrice); // Fake reserves
-          setEstRemoveA(approxValueA / (MOCK_TOKEN_PRICES[selectedPool.tokenA] || 1));
-          setEstRemoveB(approxValueB / (MOCK_TOKEN_PRICES[selectedPool.tokenB] || 1));
-      } else {
-          setEstRemoveA(0);
-          setEstRemoveB(0);
-      }
-
-  }, [selectedPool]);
-
-
-  // Switch tabs
-  const handleChangeTab = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-    setErrorMsg(null); // Clear errors when switching tabs
-  };
-
-  // --- Action Handlers ---
-  const handleAdd = async () => {
-    setErrorMsg(null);
-    if (!selectedPool || addAmountA <= 0 || addAmountB <= 0 || loadingStates.add) return;
-    const { tokenA, tokenB } = selectedPool;
-    const balanceA = userBalances[tokenA] ?? 0;
-    const balanceB = userBalances[tokenB] ?? 0;
-
-    if (addAmountA > balanceA) {
-        setErrorMsg(`Insufficient ${tokenA} balance. Need ${formatBalance(addAmountA, 6)}, have ${formatBalance(balanceA, 6)}.`);
-        return;
-    }
-     if (addAmountB > balanceB) {
-        setErrorMsg(`Insufficient ${tokenB} balance. Need ${formatBalance(addAmountB, 6)}, have ${formatBalance(balanceB, 6)}.`);
-        return;
-    }
-
-    try {
-        await onAddLiquidity(tokenA, tokenB, addAmountA, addAmountB);
-        // Clear inputs on successful submission
-        setAddAmountAStr("");
-        setAddAmountBStr("");
-        setEstimatedReward({ reward: 0, explanation: ''});
-    } catch (error: any) {
-        console.error("Add Liquidity Error:", error);
-        setErrorMsg(error.message || "Failed to add liquidity.");
-    }
-  };
-
-  const handleRemove = async () => {
-      setErrorMsg(null);
-      if (!selectedPool || removeLpAmount <= 0 || loadingStates.remove) return;
-
-       const { tokenA, tokenB } = selectedPool;
-       // LP Token Balance Check (using mock symbol for now)
-       const lpTokenSymbol = `LP-${tokenA}/${tokenB}`;
-       const lpBalance = userBalances[lpTokenSymbol] ?? 0;
-
-       if (removeLpAmount > lpBalance) {
-            setErrorMsg(`Insufficient LP token balance. Need ${formatBalance(removeLpAmount, 8)}, have ${formatBalance(lpBalance, 8)}.`);
+        if (isNaN(lowerTickNum) || isNaN(upperTickNum)) {
+            setErrorMsg("Ticks must be valid numbers.");
             return;
-       }
+        }
 
-       try {
-            // Pass the LP token amount to the handler
-           await onRemoveLiquidity(tokenA, tokenB, removeLpAmount);
-           // Clear input on success
-           setRemoveLpAmountStr("");
-           setEstRemoveA(0);
-           setEstRemoveB(0);
-       } catch (error: any) {
-           console.error("Remove Liquidity Error:", error);
-           setErrorMsg(error.message || "Failed to remove liquidity.");
-       }
-  };
+        const success = await handleMintPosition(lowerTickNum, upperTickNum, mintLiquidityStr);
+        if (success) {
+            setMintLiquidityStr('');
+            // Refresh history LIST state after mint
+            refreshHistoryList();
+            // Set the new ID as the current selection in Add/Remove
+            const latestPosition = getMostRecentPosition(); // Get the full item
+            const latestId = latestPosition?.tokenId ?? '';
+            setAddTokenIdStr(latestId);
+            setRemoveTokenIdStr(latestId);
+            // Optionally update tick fields based on the new position
+            // setLowerTickStr(latestPosition?.lowerTick ?? '');
+            // setUpperTickStr(latestPosition?.upperTick ?? '');
+        }
+    };
 
-  // --- Max Button Handlers ---
-   const setMax = (token: 'A' | 'B') => {
-       if (!selectedPool) return;
-       const balance = userBalances[token === 'A' ? selectedPool.tokenA : selectedPool.tokenB] ?? 0;
-       handleAddAmountChange(balance.toString(), token);
-   };
-    const setMaxLp = () => {
-       if (!selectedPool) return;
-       const lpTokenSymbol = `LP-${selectedPool.tokenA}/${selectedPool.tokenB}`;
-       const lpBalance = userBalances[lpTokenSymbol] ?? 0;
-       handleRemoveAmountChange(lpBalance.toString());
-   };
+    const handleAddClick = async () => {
+        setErrorMsg(null);
+        const success = await handleAddLiquidity(addTokenIdStr, addLiquidityStr);
+        if (success) {
+            setAddLiquidityStr('');
+            // Refresh history LIST state after add
+            refreshHistoryList();
+        }
+    };
 
-  // --- USD Value Calculation ---
-  const toUsd = (tokenSymbol: string | undefined, amountStr: string) => {
-    if (!tokenSymbol) return 0;
-    const price = MOCK_TOKEN_PRICES[tokenSymbol] || 0; // Use mock prices
-    const amt = parseFloat(amountStr) || 0;
-    return amt * price;
-  };
-
-  // Check balances and amounts for enabling buttons
-  const canAdd = selectedPool && addAmountA > 0 && addAmountB > 0 && addAmountA <= (userBalances[selectedPool.tokenA] ?? 0) && addAmountB <= (userBalances[selectedPool.tokenB] ?? 0);
-  const canRemove = selectedPool && removeLpAmount > 0 && removeLpAmount <= (userBalances[`LP-${selectedPool.tokenA}/${selectedPool.tokenB}`] ?? 0);
-
-  // Loading states
-  const isAdding = loadingStates.add ?? false;
-  const isRemoving = loadingStates.remove ?? false;
+    const handleRemoveClick = async () => {
+        setErrorMsg(null);
+        const success = await handleRemoveLiquidity(removeTokenIdStr, removeLiquidityStr);
+         if (success) {
+            setRemoveLiquidityStr('');
+            // Refresh history LIST state after remove
+            refreshHistoryList();
+        }
+    };
 
 
-  if (!selectedPool) {
-     return (
-         <Box sx={{ p:3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '30vh' }}>
-             <Typography variant="h6" color="text.secondary" align="center">
-                 Please select a pool from the Dashboard to manage liquidity.
-             </Typography>
-         </Box>
-     );
-   }
+    // --- Render Logic (Skeleton/No Pool checks remain the same) ---
+     if (isLoadingPools || isLoadingBalances) {
+        return (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
+                <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Manage Liquidity</Typography>
+                <Card sx={{ width: '100%', maxWidth: 500, borderRadius: 3 }}>
+                    <Skeleton variant="rectangular" height={48} sx={{ borderBottom: 1, borderColor: 'divider' }} />
+                    <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                        <Skeleton variant="rounded" height={100} sx={{ mb: 2 }} />
+                        <Skeleton variant="rounded" height={100} sx={{ mb: 2 }} />
+                        <Skeleton variant="rounded" height={50} />
+                    </CardContent>
+                </Card>
+            </Box>
+        );
+    }
 
-  // Destructure pool tokens for easier access
-  const { tokenA, tokenB } = selectedPool;
-
-  // Calculate USD display values
-  const addAUsd = toUsd(tokenA, addAmountAStr);
-  const addBUsd = toUsd(tokenB, addAmountBStr);
-  // Removal USD values are based on estimates
-  const removeAUsd = toUsd(tokenA, estRemoveA.toString());
-  const removeBUsd = toUsd(tokenB, estRemoveB.toString());
-
-  return (
-    <Box
-      sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}
-    >
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-        Manage Liquidity
-      </Typography>
-      <Fade in={true} timeout={500}>
-          <Card
-            elevation={1}
-            sx={{
-              width: '100%',
-              maxWidth: 500,
-              borderRadius: 3,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-              overflow: 'hidden'
-            }}
-          >
-            <Tabs
-                value={tabValue}
-                onChange={handleChangeTab}
-                variant="fullWidth"
-                textColor="primary"
-                indicatorColor="primary"
-                sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'action.selected' }}
-            >
-              <Tab label="Add Liquidity" id="liquidity-tab-0" aria-controls="liquidity-tabpanel-0"/>
-              <Tab label="Remove Liquidity" id="liquidity-tab-1" aria-controls="liquidity-tabpanel-1"/>
-            </Tabs>
-
-            {/* --- Tab Content --- */}
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-
-                {/* Error Message Display */}
-                {errorMsg && (
-                    <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ mb: 2 }}>
-                        {errorMsg}
-                    </Alert>
+    if (!selectedPool) {
+        return (
+            <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '30vh' }}>
+                {errorPools ? (
+                    <Alert severity="error">Error loading pool: {errorPools}</Alert>
+                ) : (
+                    <Typography variant="h6" color="text.secondary" align="center">
+                        Please select a pool from the Dashboard to manage liquidity.
+                    </Typography>
                 )}
+            </Box>
+        );
+    }
 
-              {/* --- ADD LIQUIDITY PANEL --- */}
-              <TabPanel value={tabValue} index={0}>
-                <Box>
-                   {/* Ratio Lock Toggle */}
-                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2 }}>
-                       <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
-                           Lock Ratio ({`1 ${tokenA} ≈ ${formatBalance(selectedPool.currentPrice, 4)} ${tokenB}`})
-                       </Typography>
-                       <Tooltip title={lockRatio ? "Unlock ratio to enter amounts independently" : "Lock ratio to maintain current pool price"}>
-                           <IconButton size="small" onClick={() => setLockRatio(prev => !prev)} color={lockRatio ? 'primary' : 'default'}>
-                               <SyncAltIcon fontSize="small" />
-                           </IconButton>
-                       </Tooltip>
-                   </Box>
+    const renderBalanceError = errorBalances && !isLoadingBalances && (
+        <Alert severity="warning" sx={{ mb: 2 }}>Could not load balances: {errorBalances}</Alert>
+    );
 
-                  {/* Token A Input */}
-                   <TextFieldWithBalance
-                        label={`Amount of ${tokenA}`}
-                        tokenSymbol={tokenA}
-                        value={addAmountAStr}
-                        balance={userBalances[tokenA]}
-                        usdValue={addAUsd}
-                        onChange={(e) => handleAddAmountChange(e.target.value, 'A')}
-                        onMax={() => setMax('A')}
-                        disabled={isAdding}
-                   />
+    return (
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
+            <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Manage Liquidity</Typography>
+            <Fade in={true} timeout={500}>
+                <Card elevation={1} sx={{ width: '100%', maxWidth: 500, borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                    <Tabs value={tabValue} onChange={handleChangeTab} variant="fullWidth" textColor="primary" indicatorColor="primary" sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+                        <Tab label="Mint Position" icon={<FiberNewIcon />} iconPosition="start" id="liquidity-tab-0" aria-controls="liquidity-tabpanel-0" />
+                        <Tab label="Add Liquidity" icon={<AddIcon />} iconPosition="start" id="liquidity-tab-1" aria-controls="liquidity-tabpanel-1" />
+                        <Tab label="Remove Liquidity" icon={<RemoveIcon />} iconPosition="start" id="liquidity-tab-2" aria-controls="liquidity-tabpanel-2" />
+                    </Tabs>
+                    <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                        {renderBalanceError}
+                        {errorMsg && <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ mb: 2 }}>{errorMsg}</Alert>}
 
-                  {/* Token B Input */}
-                   <TextFieldWithBalance
-                        label={`Amount of ${tokenB}`}
-                        tokenSymbol={tokenB}
-                        value={addAmountBStr}
-                        balance={userBalances[tokenB]}
-                        usdValue={addBUsd}
-                        onChange={(e) => handleAddAmountChange(e.target.value, 'B')}
-                        onMax={() => setMax('B')}
-                        disabled={isAdding}
-                   />
-
-                   {/* Reward Estimation */}
-                   {(addAmountA > 0 || addAmountB > 0) && ( // Show even if one amount is entered
-                       <Paper variant="outlined" sx={{ p: 1.5, mt: 2, mb: 3, textAlign: 'center', bgcolor: 'action.hover' }}>
-                            <Typography variant="body2" fontWeight="medium">
-                               Est. vDPP Reward: {formatBalance(estimatedReward.reward, 4)} vDPP
-                               {estimatedReward.explanation && (
-                               <Tooltip title={estimatedReward.explanation} placement="top">
-                                   <InfoOutlinedIcon fontSize="inherit" sx={{ ml: 0.5, verticalAlign: 'middle', cursor: 'help', color: 'text.secondary' }}/>
-                               </Tooltip>
-                               )}
+                        {/* Mint Position Panel (Keeps using individual tick state for convenience) */}
+                        <TabPanel value={tabValue} index={0}>
+                           {/* ... Content remains the same ... */}
+                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Create a new liquidity position (NFT) within a specified price range (ticks).
                             </Typography>
-                       </Paper>
-                   )}
-
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    onClick={handleAdd}
-                    disabled={!canAdd || isAdding}
-                    size="large"
-                    sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
-                  >
-                    {isAdding ? <CircularProgress size={24} color="inherit" /> : (addAmountA > (userBalances[tokenA] ?? 0) || addAmountB > (userBalances[tokenB] ?? 0) ? 'Insufficient Balance' : 'Add Liquidity')}
-                  </Button>
-                </Box>
-              </TabPanel>
-
-              {/* --- REMOVE LIQUIDITY PANEL --- */}
-               <TabPanel value={tabValue} index={1}>
-                <Box>
-                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Enter the amount of LP tokens you wish to withdraw.
-                   </Typography>
-
-                   {/* LP Token Input */}
-                   <TextFieldWithBalance
-                        label={`Amount of LP Tokens (LP-${tokenA}/${tokenB})`}
-                        tokenSymbol={`LP-${tokenA}/${tokenB}`} // Mock symbol
-                        value={removeLpAmountStr}
-                        balance={userBalances[`LP-${tokenA}/${tokenB}`]} // Check LP balance
-                        usdValue={0} // LP token USD value estimation is complex
-                        onChange={(e) => handleRemoveAmountChange(e.target.value)}
-                        onMax={setMaxLp}
-                        disabled={isRemoving}
-                        decimals={8}
-                   />
-
-                   {/* Estimated Received Amounts */}
-                   {removeLpAmount > 0 && (
-                        <Paper variant="outlined" sx={{ p: 2, mt: 2, mb: 3, bgcolor: 'action.hover' }}>
-                            <Typography variant="body2" fontWeight="medium" sx={{ mb: 1 }}>
-                                Estimated Received:
+                            <TextField
+                                label="Lower Tick"
+                                type="number"
+                                variant="outlined"
+                                fullWidth
+                                value={lowerTickStr}
+                                onChange={handleLowerTickChange}
+                                disabled={isMinting || isMintApproving}
+                                sx={{ mb: 2 }}
+                            />
+                            <TextField
+                                label="Upper Tick"
+                                type="number"
+                                variant="outlined"
+                                fullWidth
+                                value={upperTickStr}
+                                onChange={handleUpperTickChange}
+                                disabled={isMinting || isMintApproving}
+                                sx={{ mb: 2 }}
+                            />
+                            <TextField
+                                label="Liquidity Amount" // User provides liquidity value
+                                type="text" // Use text to allow large numbers potentially
+                                variant="outlined"
+                                placeholder="e.g., 1000000000000000000"
+                                fullWidth
+                                value={mintLiquidityStr}
+                                onChange={handleMintLiquidityChange}
+                                disabled={isMinting || isMintApproving}
+                                sx={{ mb: 2 }}
+                            />
+                            <Button
+                                variant="contained"
+                                fullWidth
+                                onClick={handleMintClick}
+                                disabled={isMinting || isMintApproving || !lowerTickStr || !upperTickStr || !mintLiquidityStr}
+                                size="large"
+                                sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
+                            >
+                                {isMintApproving ? "Approving..." : isMinting ? "Minting..." : 'Mint Position'}
+                            </Button>
+                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                Note: Requires token approvals for Position Manager. Token amounts needed will be withdrawn based on liquidity and price range.
                             </Typography>
-                            <Grid container spacing={1}>
-                                <Grid item xs={6}>
-                                    <Typography variant="body2">
-                                        {tokenA}: {formatBalance(estRemoveA, 6)}
-                                        {removeAUsd > 0 && ` (~$${formatBalance(removeAUsd, 2)})`}
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={6}>
-                                     <Typography variant="body2">
-                                        {tokenB}: {formatBalance(estRemoveB, 6)}
-                                         {removeBUsd > 0 && ` (~$${formatBalance(removeBUsd, 2)})`}
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-                   )}
+                        </TabPanel>
 
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    fullWidth
-                    onClick={handleRemove}
-                    disabled={!canRemove || isRemoving}
-                    size="large"
-                    sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
-                  >
-                    {isRemoving ? <CircularProgress size={24} color="inherit" /> : (removeLpAmount > (userBalances[`LP-${tokenA}/${tokenB}`] ?? 0) ? 'Insufficient LP Balance' : 'Remove Liquidity')}
-                  </Button>
-                </Box>
-              </TabPanel>
+                        {/* Add Liquidity Panel (Uses Autocomplete with ID list) */}
+                        <TabPanel value={tabValue} index={1}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Increase the liquidity of an existing position NFT you own.
+                            </Typography>
+                            <Autocomplete
+                                freeSolo
+                                options={tokenIdHistoryList} // <<< Use list of IDs
+                                value={addTokenIdStr}
+                                onInputChange={handleAddTokenIdInputChange} // Handles typing
+                                onChange={(event, newValue) => { // Handles selection/clear
+                                    handleAddTokenIdInputChange(event, newValue ?? '');
+                                }}
+                                disabled={isAdding || isAddApproving}
+                                fullWidth
+                                size="small"
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Position Token ID"
+                                        type="number"
+                                        variant="outlined"
+                                        sx={{ mb: 2 }}
+                                        InputProps={{
+                                            ...params.InputProps, type: 'string',
+                                            inputProps: { ...params.inputProps, min: 0 }
+                                        }}
+                                    />
+                                )}
+                            />
+                             {/* ... Rest of Add Panel (liquidity amount, button) remains the same ... */}
+                            <TextField
+                                label="Liquidity Amount to Add"
+                                type="text"
+                                variant="outlined"
+                                placeholder="e.g., 500000000000000000"
+                                fullWidth
+                                value={addLiquidityStr}
+                                onChange={handleAddLiquidityAmtChange}
+                                disabled={isAdding || isAddApproving}
+                                sx={{ mb: 2 }}
+                            />
+                            <Button
+                                variant="contained"
+                                fullWidth
+                                onClick={handleAddClick}
+                                disabled={isAdding || isAddApproving || !addTokenIdStr || !addLiquidityStr}
+                                size="large"
+                                sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
+                            >
+                                {isAddApproving ? "Approving..." : isAdding ? "Adding..." : 'Add Liquidity'}
+                            </Button>
+                             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                Note: Requires token approvals. Token amounts will be withdrawn based on liquidity and price.
+                            </Typography>
+                        </TabPanel>
 
-            </CardContent>
-          </Card>
-      </Fade>
-    </Box>
-  );
-};
+                        {/* Remove Liquidity Panel (Uses Autocomplete with ID list) */}
+                        <TabPanel value={tabValue} index={2}>
+                           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Decrease the liquidity of an existing position NFT you own.
+                            </Typography>
+                            <Autocomplete
+                                freeSolo
+                                options={tokenIdHistoryList} // <<< Use list of IDs
+                                value={removeTokenIdStr}
+                                onInputChange={handleRemoveTokenIdInputChange} // Handles typing
+                                onChange={(event, newValue) => { // Handles selection/clear
+                                     handleRemoveTokenIdInputChange(event, newValue ?? '');
+                                }}
+                                disabled={isRemoving}
+                                fullWidth
+                                size="small"
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Position Token ID"
+                                        type="number"
+                                        variant="outlined"
+                                        sx={{ mb: 2 }}
+                                         InputProps={{
+                                            ...params.InputProps, type: 'string',
+                                            inputProps: { ...params.inputProps, min: 0 }
+                                        }}
+                                    />
+                                )}
+                            />
+                             {/* ... Rest of Remove Panel (liquidity amount, button) remains the same ... */}
+                            <TextField
+                                label="Liquidity Amount to Remove"
+                                type="text"
+                                variant="outlined"
+                                placeholder="e.g., 500000000000000000"
+                                fullWidth
+                                value={removeLiquidityStr}
+                                onChange={handleRemoveLiquidityAmtChange}
+                                disabled={isRemoving}
+                                sx={{ mb: 2 }}
+                            />
+                            <Button
+                                variant="contained"
+                                color="secondary"
+                                fullWidth
+                                onClick={handleRemoveClick}
+                                disabled={isRemoving || !removeTokenIdStr || !removeLiquidityStr}
+                                size="large"
+                                sx={{ borderRadius: 2, py: 1.5, mt: 1 }}
+                            >
+                                {isRemoving ? "Removing..." : 'Remove Liquidity'}
+                            </Button>
+                             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                Note: After removing, you might need to 'Collect' withdrawn tokens separately.
+                            </Typography>
+                        </TabPanel>
 
-
-// --- Helper Component for Text Field + Balance + Max Button ---
-interface TextFieldWithBalanceProps {
-    label: string;
-    tokenSymbol: string;
-    value: string;
-    balance: number | undefined;
-    usdValue: number;
-    onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-    onMax: () => void;
-    disabled?: boolean;
-    decimals?: number; // Max decimals for balance display
-}
-
-const TextFieldWithBalance: React.FC<TextFieldWithBalanceProps> = ({
-    label, tokenSymbol, value, balance, usdValue, onChange, onMax, disabled, decimals = 4
-}) => (
-    <Box sx={{ mb: 2.5 }}> {/* Increased margin bottom */}
-        <TextField
-            label={label}
-            type="number"
-            variant="outlined"
-            placeholder="0.0"
-            fullWidth
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            InputProps={{
-                endAdornment: <InputAdornment position="end">{tokenSymbol}</InputAdornment>,
-                inputProps: { min: 0, step: "any" }, // Allow decimals
-            }}
-        />
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-             <Typography variant="caption" color="text.secondary">
-               Balance: {formatBalance(balance, decimals)}
-               <Link component="button" variant="caption" onClick={onMax} disabled={disabled} sx={{ ml: 0.5, verticalAlign: 'baseline' }}>
-                    Max
-               </Link>
-             </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ minHeight: '1.2em' }}>
-              {usdValue > 0 ? `~ $${formatBalance(usdValue, 2)}` : ''}
-            </Typography>
+                    </CardContent>
+                </Card>
+            </Fade>
         </Box>
-    </Box>
-);
-// --- End Helper Component ---
-
+    );
+};
 
 export default Liquidity;

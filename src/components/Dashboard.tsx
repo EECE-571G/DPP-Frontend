@@ -1,69 +1,133 @@
-import React from 'react';
+// src/components/Dashboard.tsx
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box,
-  Typography,
-  Autocomplete,
-  TextField,
-  Card,
-  CardContent,
-  Paper,
-  Grid,
-  Collapse,
-  Divider,
-  Skeleton
+  Box, Typography, Autocomplete, TextField, Card, CardContent,
+  Paper, Grid, Collapse, Skeleton, Alert, Divider, Button,
+  CircularProgress, Link
 } from '@mui/material';
-import { Pool } from '../types';
+import InfoIcon from '@mui/icons-material/Info';
+import { ethers, Contract, ZeroAddress, isAddress } from 'ethers';
+
+import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
+import { useBalancesContext } from '../contexts/BalancesContext';
+import { useAuthContext } from '../contexts/AuthContext';
+import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID, EXPLORER_URL_BASE } from '../constants';
+import PositionManagerABI from '../abis/PositionManager.json';
 import { formatBalance } from '../utils/formatters';
+// <<< Import NEW utility functions >>>
+import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
 
-interface DashboardProps {
-  pools: Pool[]; // List of available pools
-  selectedPool: Pool | null; // Currently selected pool
-  onSelectPool: (pool: Pool | null) => void; // Callback when pool selection changes
-  userBalances: Record<string, number | string>; // User's token balances
-  isLoadingPools?: boolean; // Indicate if pools are loading
-  isLoadingBalances?: boolean; // Indicate if balances are loading
-}
+// const LS_TOKEN_ID = 'liquidity_tokenId'; // No longer needed here
 
-const Dashboard: React.FC<DashboardProps> = ({
-  pools,
-  selectedPool,
-  onSelectPool,
-  userBalances,
-  isLoadingPools = false,
-  isLoadingBalances = false,
-}) => {
-  // Derive balance information safely
-  const tokenABalance = selectedPool ? userBalances[selectedPool.tokenA] : undefined;
-  const tokenBBalance = selectedPool ? userBalances[selectedPool.tokenB] : undefined;
+const Dashboard: React.FC = () => {
+  const { pools, selectedPool, isLoadingPools, errorPools, handlePoolSelection } = usePoolsContext();
+  const { userBalances, tokenSymbols, isLoadingBalances, errorBalances } = useBalancesContext();
+  const { provider, network, account } = useAuthContext();
 
-  // Assume LP token symbol follows a pattern or comes from Pool data if available
-  // const lpTokenSymbol = selectedPool?.lpTokenSymbol ?? (selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined);
-  // Simplified for now:
-   const lpTokenSymbol = selectedPool ? `LP-${selectedPool.tokenA}/${selectedPool.tokenB}` : undefined;
-  const lpTokenBalance = lpTokenSymbol ? userBalances[lpTokenSymbol] : undefined; // Check if LP balance exists
+  const [inspectTokenId, setInspectTokenId] = useState<string>('');
+  const [positionLiquidity, setPositionLiquidity] = useState<string | null>(null);
+  const [isLoadingLiquidity, setIsLoadingLiquidity] = useState<boolean>(false);
+  const [liquidityError, setLiquidityError] = useState<string | null>(null);
+  // <<< History state now stores only IDs for Autocomplete >>>
+  const [tokenIdHistoryList, setTokenIdHistoryList] = useState<string[]>([]);
+
+  // --- Load history on mount ---
+  useEffect(() => {
+      // <<< Use new utility functions >>>
+      const historyList = getTokenIdHistoryList();
+      setTokenIdHistoryList(historyList);
+      const mostRecentPosition = getMostRecentPosition();
+      // Set initial value to the most recent ID from the SHARED history
+      setInspectTokenId(mostRecentPosition?.tokenId ?? '');
+      // <<< End history load >>>
+  }, []);
+
+  // --- Fetch Liquidity Logic (remains the same, no history update needed here) ---
+    const fetchPositionLiquidity = useCallback(async () => {
+    if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
+      setLiquidityError("Connect to the correct network first.");
+      return;
+    }
+    if (POSITION_MANAGER_ADDRESS === ZeroAddress || !PositionManagerABI) {
+      setLiquidityError("Position Manager not configured.");
+      return;
+    }
+    if (!inspectTokenId) {
+        setLiquidityError("Please enter or select a Token ID.");
+        return;
+    }
+
+    let tokenIdBigInt: bigint;
+    try {
+      tokenIdBigInt = BigInt(inspectTokenId);
+      if (tokenIdBigInt <= 0n) throw new Error("Token ID must be positive.");
+    } catch {
+      setLiquidityError("Invalid Token ID format.");
+      return;
+    }
+
+    setIsLoadingLiquidity(true);
+    setLiquidityError(null);
+    setPositionLiquidity(null);
+
+    try {
+      const positionManagerContract = new Contract(POSITION_MANAGER_ADDRESS, PositionManagerABI, provider);
+      console.log(`Fetching liquidity for Token ID: ${inspectTokenId}`);
+
+      const liquidityResult: bigint = await positionManagerContract.getPositionLiquidity(tokenIdBigInt);
+      const formattedLiquidity = liquidityResult.toLocaleString();
+      setPositionLiquidity(formattedLiquidity);
+      console.log(`Fetched Liquidity: ${formattedLiquidity}`);
+
+      // NOTE: No history update here, only when actions modify positions
+
+    } catch (err: any) {
+      console.error("Failed to fetch position liquidity:", err);
+      const reason = err?.reason || err?.data?.message?.replace('execution reverted: ', '') || err.message || "Could not fetch liquidity.";
+      if (reason.includes('ERC721NonexistentToken') || reason.includes('Invalid token ID') || reason.includes('URI query for nonexistent token')) {
+           setLiquidityError(`Token ID ${inspectTokenId} does not exist or is invalid.`);
+      } else {
+          setLiquidityError(`Error: ${reason}`);
+      }
+      setPositionLiquidity(null);
+    } finally {
+      setIsLoadingLiquidity(false);
+    }
+  }, [provider, network, inspectTokenId]);
+
+  // Handle Autocomplete input change and selection
+   const handleInspectTokenIdChange = (event: React.SyntheticEvent, newValue: string | null) => {
+       setInspectTokenId(newValue ?? ''); // Update state
+       setLiquidityError(null);
+       setPositionLiquidity(null);
+   };
+    const handleInspectTokenIdInputChange = (event: React.SyntheticEvent, newInputValue: string) => {
+       setInspectTokenId(newInputValue ?? ''); // Update state on typing
+       setLiquidityError(null);
+       setPositionLiquidity(null);
+   };
 
 
-  const handlePoolChange = (event: React.SyntheticEvent, newValue: Pool | null) => {
-      onSelectPool(newValue);
-  };
+  // Derived values (remain the same)
+  const tokenAAddress = selectedPool?.tokenA_Address;
+  const tokenBAddress = selectedPool?.tokenB_Address;
+  const tokenABalanceStr = tokenAAddress && userBalances[tokenAAddress] ? formatBalance(userBalances[tokenAAddress], 6) : '0.00';
+  const tokenBBalanceStr = tokenBAddress && userBalances[tokenBAddress] ? formatBalance(userBalances[tokenBAddress], 6) : '0.00';
+  const tokenASymbol = tokenAAddress && tokenSymbols[tokenAAddress] ? tokenSymbols[tokenAAddress] : 'N/A';
+  const tokenBSymbol = tokenBAddress && tokenSymbols[tokenBAddress] ? tokenSymbols[tokenBAddress] : 'N/A';
 
+  // --- Render logic (Update Autocomplete options) ---
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 } }}> {/* Responsive padding */}
-      <Typography
-        variant="h4"
-        sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}
-      >
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/* ... Title, Errors, Pool Selection Card ... */}
+      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}>
         Pool Dashboard
       </Typography>
 
-      {/* Pool Selection Card */}
-      <Card
-        elevation={1}
-        sx={{
-          borderRadius: 2,
-          mb: 3,
-        }}
-      >
+      {errorPools && <Alert severity="error" sx={{ mb: 2 }}>{errorPools}</Alert>}
+      {errorBalances && !isLoadingBalances && <Alert severity="warning" sx={{ mb: 2 }}>Balance Warning: {errorBalances}</Alert>}
+
+      <Card elevation={1} sx={{ borderRadius: 2, mb: 3, }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           {isLoadingPools ? (
               <Skeleton variant="rounded" height={56} />
@@ -71,13 +135,20 @@ const Dashboard: React.FC<DashboardProps> = ({
               <Autocomplete
                   options={pools}
                   value={selectedPool}
-                  onChange={handlePoolChange}
-                  getOptionLabel={(option) =>
-                      `${option.name} (${option.tokenA}/${option.tokenB})`
-                  }
+                  onChange={(event: any, newValue: V4Pool | null) => {
+                      handlePoolSelection(newValue);
+                      // Reset inspection input when pool changes
+                      const mostRecentPos = getMostRecentPosition(); // <<< Use new util
+                      setInspectTokenId(mostRecentPos?.tokenId ?? ''); // <<< Use new util
+                      setPositionLiquidity(null);
+                      setLiquidityError(null);
+                      // Refresh history suggestions when pool changes
+                      setTokenIdHistoryList(getTokenIdHistoryList()); // <<< Use new util
+                  }}
+                  getOptionLabel={(option) => `${option.name} (${option.tokenA} / ${option.tokenB})`}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => (
-                      <TextField
+                  renderInput={(params) => ( /* ... TextField ... */
+                       <TextField
                           {...params}
                           label="Select a DPP Pool"
                           variant="outlined"
@@ -92,118 +163,130 @@ const Dashboard: React.FC<DashboardProps> = ({
         </CardContent>
       </Card>
 
-      {/* Selected Pool Details + Balances Card */}
-      <Collapse in={!!selectedPool || isLoadingBalances} timeout={400} unmountOnExit>
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}
-        >
-          {selectedPool && ( // Only show title if pool is selected
+      {/* Details Card */}
+      <Collapse in={!!selectedPool || isLoadingBalances || isLoadingPools} timeout={400} unmountOnExit>
+        <Paper elevation={0} variant="outlined" sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
+          {/* ... Pool Title, Balances ... */}
+             {(isLoadingPools || selectedPool) && (
              <Typography variant="h5" sx={{ mb: 2, fontWeight: 500 }}>
-                {selectedPool.name} Details
+                {selectedPool ? selectedPool.name : <Skeleton width="50%"/>} Details
              </Typography>
           )}
           <Grid container spacing={2} rowSpacing={1.5}>
-            {/* Pool Info */}
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body1" component="div"> 
-                <strong>Token Pair:</strong> {selectedPool ? `${selectedPool.tokenA} / ${selectedPool.tokenB}` : <Skeleton width="60%"/> }
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body1">
-                <strong>Current Price:</strong>{' '}
-                 {selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.currentPrice, 6)} ${selectedPool.tokenB}` : <Skeleton width="70%"/> }
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Typography
-                variant="body1"
-                color="primary.main"
-                sx={{ fontWeight: 'medium' }}
-              >
-                <strong>Desired Price:</strong>{' '}
-                 {selectedPool ? `1 ${selectedPool.tokenA} = ${formatBalance(selectedPool.desiredPrice, 6)} ${selectedPool.tokenB}` : <Skeleton width="70%"/> }
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Base Fee:</strong>{' '}
-                 {selectedPool ? `${(selectedPool.baseFee * 100).toFixed(2)}%` : <Skeleton width="30%"/> }
-              </Typography>
-            </Grid>
 
-            {/* Divider */}
-            <Grid item xs={12}>
-              <Divider sx={{ my: 2 }} />
-            </Grid>
-
-            {/* User Balances for Selected Pool */}
-            <Grid item xs={12}>
-              <Typography
-                variant="h6"
-                sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}
-              >
-                Your Balances
-              </Typography>
-            </Grid>
-             {isLoadingBalances ? (
+            {(isLoadingBalances || selectedPool) && (
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
+                  Your Balances
+                </Typography>
+              </Grid>
+            )}
+             {isLoadingBalances ? ( /* ... Skeletons ... */
                  <>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
-                    <Grid item xs={12}><Skeleton width="60%" /></Grid>
                  </>
-             ) : selectedPool ? ( // Only show balances if a pool is selected and not loading
+             ) : selectedPool ? ( /* ... Balances ... */
                 <>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
-                        <strong>{selectedPool.tokenA}:</strong>{' '}
-                        {formatBalance(tokenABalance, 6)}
+                        <strong>{tokenASymbol}:</strong>{' '}
+                        {tokenABalanceStr}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
-                        <strong>{selectedPool.tokenB}:</strong>{' '}
-                        {formatBalance(tokenBBalance, 6)}
+                        <strong>{tokenBSymbol}:</strong>{' '}
+                        {tokenBBalanceStr}
                       </Typography>
                     </Grid>
-                    {/* Conditionally render LP token balance */}
-                    {lpTokenBalance !== undefined && lpTokenSymbol && (
-                      <Grid item xs={12}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>LP Tokens ({lpTokenSymbol}):</strong>{' '}
-                          {formatBalance(lpTokenBalance, 8)}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {lpTokenBalance === undefined && ( // Explicitly check for undefined
-                      <Grid item xs={12}>
-                        <Typography variant="caption" color="text.secondary">
-                          You have no liquidity provider tokens for this pool.
-                        </Typography>
-                      </Grid>
-                    )}
                 </>
-             ) : null /* End balance rendering condition */}
+             ) : null}
+
+            {(isLoadingBalances || selectedPool) && (
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+              </Grid>
+            )}
+
+            {/* Liquidity Inspection */}
+            {(isLoadingPools || selectedPool) && (
+                <Grid item xs={12}>
+                    <Typography variant="h6" sx={{ mb: 1.5, fontSize: '1.1rem', fontWeight: 500 }}>
+                        Inspect Position Liquidity
+                    </Typography>
+                    {/* ... Description ... */}
+                      <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>
+                        Enter or select the Token ID of a position NFT to view its current liquidity amount. Suggestions are based on recently managed IDs.
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                         <Autocomplete
+                            freeSolo
+                            options={tokenIdHistoryList} // <<< Use list of IDs
+                            value={inspectTokenId}
+                            onChange={handleInspectTokenIdChange}
+                            onInputChange={handleInspectTokenIdInputChange} // <<< Use new handler
+                            disabled={isLoadingLiquidity || !account}
+                            fullWidth
+                            size="small"
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Position Token ID"
+                                    variant="outlined"
+                                    type="number"
+                                    sx={{ flexGrow: 1 }}
+                                     InputProps={{
+                                        ...params.InputProps,
+                                        type: 'string',
+                                        inputProps: { ...params.inputProps, min: 0 }
+                                    }}
+                                />
+                            )}
+                        />
+                        {/* ... Fetch Button ... */}
+                         <Button
+                            variant="contained"
+                            onClick={fetchPositionLiquidity}
+                            disabled={!inspectTokenId || isLoadingLiquidity || !account}
+                            sx={{ height: '40px' }}
+                        >
+                            {isLoadingLiquidity ? <CircularProgress size={24} /> : "Fetch"}
+                        </Button>
+                    </Box>
+                    {/* ... Result/Error Display ... */}
+                    {liquidityError && <Alert severity="error" sx={{mt: 1}}>{liquidityError}</Alert>}
+                     {positionLiquidity !== null && !liquidityError && (
+                         <Paper variant="outlined" sx={{ p: 1.5, mt: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                             <Typography variant="body1" >
+                                <strong>Liquidity:</strong> {positionLiquidity}
+                             </Typography>
+                         </Paper>
+                     )}
+                     {!positionLiquidity && !isLoadingLiquidity && !liquidityError && !inspectTokenId && (
+                         <Typography variant="caption" color="text.secondary" sx={{mt: 1, display: 'flex', alignItems: 'center'}}>
+                             <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Enter or select a Token ID and click 'Fetch'.
+                         </Typography>
+                     )}
+                     {!positionLiquidity && !isLoadingLiquidity && !liquidityError && inspectTokenId && (
+                         <Typography variant="caption" color="text.secondary" sx={{mt: 1, display: 'flex', alignItems: 'center'}}>
+                             <InfoIcon fontSize="inherit" sx={{ mr: 0.5 }} /> Click 'Fetch' to view liquidity for ID {inspectTokenId}.
+                         </Typography>
+                    )}
+                </Grid>
+            )}
           </Grid>
         </Paper>
       </Collapse>
-
-      {/* Message when no pool is selected and not loading */}
-      {!selectedPool && !isLoadingPools && pools.length > 0 && (
-        <Typography
-          variant="body1"
-          color="text.secondary"
-          align="center"
-          sx={{ mt: 4 }}
-        >
-          Select a pool above to view details and manage liquidity or swaps.
+       {/* ... No Pool Selected Message ... */}
+       {!selectedPool && !isLoadingPools && !errorPools && pools.length > 0 && (
+        <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
+          Select a pool above to view details and inspect position liquidity.
         </Typography>
       )}
-      {!selectedPool && !isLoadingPools && pools.length === 0 && (
+      {!isLoadingPools && !errorPools && pools.length === 0 && (
          <Typography variant="body1" color="text.secondary" align="center" sx={{ mt: 4 }}>
-             No pools are currently available.
+             No pools are currently available. Check constants and deployment script logs.
          </Typography>
       )}
     </Box>

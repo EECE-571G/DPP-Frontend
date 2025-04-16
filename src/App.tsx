@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+// src/App.tsx
+import React, { useMemo } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Components & Layout
 import WalletConnect from './components/WalletConnect';
@@ -6,158 +8,111 @@ import Dashboard from './components/Dashboard';
 import Swap from './components/Swap';
 import Liquidity from './components/Liquidity';
 import Governance from './components/Governance/Governance';
+import Rewards from './components/Rewards'
 import DashboardLayout from './layout/DashboardLayout';
-import { AppProvider } from './contexts/AppProvider';
 import AppBarAccount from './components/AppBarAccount';
-import { SidebarFooterAccount } from './components/Account/SiderbarAccount'; // Import the extracted component
+
+// Context Providers
+import { AppProvider } from './contexts/AppProvider';
+import { AuthProvider, useAuthContext } from './contexts/AuthContext';
+import { BalancesProvider } from './contexts/BalancesContext';
+import { PoolsProvider } from './contexts/PoolsContext';
+import { GovernanceProvider } from './contexts/GovernanceContext';
+import { LoadingProvider } from './contexts/LoadingContext';
+import { SnackbarProvider } from './contexts/SnackbarProvider';
+import { TimeProvider } from './contexts/TimeContext'; // Import TimeProvider
 
 // Types
-import { Session, Router, Navigation, Pool, Proposal } from './types';
+import { Navigation } from './types';
 
-// Utilities & Mock Data
-import {
-    MOCK_POOLS,
-    MOCK_PROPOSALS,
-    MOCK_USER_BALANCES,
-    MOCK_GOVERNANCE_STATUS,
-} from './utils/mockData';
-
-// Hooks
-import { useLoadingState } from './hooks/useLoadingState';
-import { useSnackbar } from './hooks/useSnackbar';
-import { useAuth } from './hooks/useAuth';
-import { useAppActions } from './hooks/useAppActions';
-
-// MUI Components
-import { Snackbar, Alert, Box, Fade } from '@mui/material';
-
-// MUI Icons (Consider moving to a central export if used widely)
+// MUI Components & Icons
+import { Box, Fade } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GavelIcon from '@mui/icons-material/Gavel';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 
-const App: React.FC = () => {
-    // --- Core State ---
-    const [pathname, setPathname] = useState('/dashboard');
-    const [session, setSession] = useState<Session | null>(null);
-    const [availableAccounts, setAvailableAccounts] = useState<string[] | null>(null);
-    const [userBalances, setUserBalances] = useState<Record<string, number>>({});
+// --- Navigation Structure ---
+const NAVIGATION_CONFIG: Navigation = [
+    { segment: 'dashboard', title: 'Dashboard', icon: <DashboardIcon /> },
+    { segment: 'swap', title: 'Swap', icon: <SwapHorizIcon /> },
+    { segment: 'liquidity', title: 'Liquidity', icon: <AccountBalanceWalletIcon /> },
+    { segment: 'rewards', title: 'Rewards', icon: <EmojiEventsIcon /> },
+    { segment: 'governance', title: 'Governance', icon: <GavelIcon /> },
+];
 
-    // --- Static/Mock Data State ---
-    const [pools] = useState<Pool[]>(MOCK_POOLS);
-    const [selectedPool, setSelectedPool] = useState<Pool | null>(MOCK_POOLS[0] ?? null);
-    const [proposals, setProposals] = useState<Proposal[]>(MOCK_PROPOSALS);
-    const [governanceStatus] = useState<number[]>(MOCK_GOVERNANCE_STATUS);
+// --- Main App Content Component ---
+// This component renders the main layout OR the WalletConnect screen
+// It no longer needs to render TimeProvider itself
+const AppContent: React.FC = () => {
+    const location = useLocation();
+    const { session } = useAuthContext();
 
-    // --- Custom Hooks ---
-    const { isLoading, setLoading } = useLoadingState(); // Get loading state and setter
-    const { snackbar, showSnackbar, handleCloseSnackbar } = useSnackbar(); // Get snackbar state and controls
-    const authentication = useAuth({ // Get auth functions
-        setSession,
-        setAvailableAccounts,
-        setUserBalances,
-        setLoading,
-        showSnackbar,
-        session,
-        availableAccounts,
-        mockUserBalances: MOCK_USER_BALANCES // Pass mock data
-    });
-    const actions = useAppActions({ // Get action handlers
-        setLoading,
-        showSnackbar,
-        setUserBalances,
-        session,
-        userBalances
-    });
+    // --- Navigation Memo ---
+    const navigation = useMemo(() => NAVIGATION_CONFIG, []);
 
-    // --- Router Implementation ---
-    const router = useMemo<Router>(() => ({
-        pathname,
-        searchParams: new URLSearchParams(), // Keep simple or replace with lib
-        navigate: (path: string) => setPathname(path),
-    }), [pathname]);
-
-    // --- Navigation Structure ---
-    const NAVIGATION: Navigation = useMemo(() => [
-        { segment: 'dashboard', title: 'Dashboard', icon: <DashboardIcon /> },
-        { segment: 'swap', title: 'Swap', icon: <SwapHorizIcon /> },
-        { segment: 'liquidity', title: 'Liquidity', icon: <AccountBalanceWalletIcon /> },
-        { segment: 'governance', title: 'Governance', icon: <GavelIcon /> },
-    ], []);
-
-    // --- Render Content ---
-    const renderContent = () => {
-        const segment = pathname.substring(1);
-
-        switch (segment) {
-            case 'dashboard':
-                return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
-            case 'swap':
-                return <Swap selectedPool={selectedPool} userBalances={userBalances} onSwap={actions.handleSwap} isLoading={isLoading['swap']} />;
-            case 'liquidity':
-                return <Liquidity selectedPool={selectedPool} userBalances={userBalances} onAddLiquidity={actions.handleAddLiquidity} onRemoveLiquidity={actions.handleRemoveLiquidity} loadingStates={{ add: isLoading['addLiquidity'], remove: isLoading['removeLiquidity'] }} />;
-            case 'governance':
-                return <Governance proposals={proposals} governanceStatus={governanceStatus} userBalances={userBalances} voteWithRange={actions.handleVoteWithRange} delegateVotes={actions.handleDelegate} loadingStates={isLoading} currentUserAddress={session?.user.address} />;
-            default:
-                 // Redirect unknown paths to dashboard
-                 if (pathname !== '/dashboard') {
-                     router.navigate('/dashboard');
-                     // Return null or dashboard momentarily while redirect happens
-                     return null;
-                 }
-                return <Dashboard pools={pools} selectedPool={selectedPool} onSelectPool={setSelectedPool} userBalances={userBalances} />;
-        }
-    };
-
-    // --- Conditional Rendering: Wallet Connect vs Main App ---
+    // --- Wallet Connect Screen ---
     if (!session) {
         return (
-            <>
-                <WalletConnect
-                    onConnect={authentication.signIn}
-                    isProcessing={isLoading['connectWallet']}
-                />
-                {/* Snackbar for connection errors etc. */}
-                <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                    <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                        {snackbar.message}
-                    </Alert>
-                </Snackbar>
-            </>
+            <WalletConnect />
         );
     }
 
     // --- Render Main Application Layout ---
+    // AppProvider handles theme/basic layout context
+    // DashboardLayout is the visual structure
     return (
-        <AppProvider // Consider if AppProvider context is actively used
-            navigation={NAVIGATION}
-            router={router}
-            window={window} // Pass window object if needed by context consumers
-            session={session}
-            authentication={authentication}
-            availableAccounts={availableAccounts}
+        <AppProvider
+            navigation={navigation}
+            window={window}
         >
             <DashboardLayout
                 slots={{
-                    sidebarFooter: SidebarFooterAccount, // Use the imported component
                     toolbarContent: AppBarAccount,
                 }}
             >
-                <Fade in={true} key={pathname} timeout={300}>
-                    <Box> {/* Wrapper for Fade */}
-                        {renderContent()}
+                <Fade in={true} key={location.pathname} timeout={300}>
+                    <Box>
+                        <Routes>
+                            {/* Routes now render components that consume context directly */}
+                            <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/swap" element={<Swap />} />
+                            <Route path="/liquidity" element={<Liquidity />} />
+                            <Route path="/rewards" element={<Rewards />} />
+                            <Route path="/governance" element={<Governance />} />
+                            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                        </Routes>
                     </Box>
                 </Fade>
             </DashboardLayout>
-
-            {/* Global Snackbar */}
-            <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
         </AppProvider>
+    );
+};
+
+
+// --- Root App Component ---
+// Corrected Provider nesting
+const App: React.FC = () => {
+    return (
+        <SnackbarProvider>
+            <LoadingProvider>
+                 <AuthProvider>
+                    {/* TimeProvider wraps components needing time context */}
+                    <TimeProvider>
+                        <BalancesProvider>
+                            <PoolsProvider>
+                                {/* GovernanceProvider is now correctly inside TimeProvider */}
+                                <GovernanceProvider>
+                                    <AppContent /> {/* Renders UI, can access all contexts */}
+                                </GovernanceProvider>
+                            </PoolsProvider>
+                        </BalancesProvider>
+                    </TimeProvider>
+                 </AuthProvider>
+            </LoadingProvider>
+         </SnackbarProvider>
     );
 };
 

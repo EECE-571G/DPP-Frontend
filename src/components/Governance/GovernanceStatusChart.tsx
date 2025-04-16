@@ -1,63 +1,76 @@
+// src/components/Governance/GovernanceStatusChart.tsx
 import React, { useMemo } from 'react';
 import { Paper, Typography, Box } from '@mui/material';
-import { BarChart } from '@mui/x-charts/BarChart';
-import { ChartsXAxisProps } from '@mui/x-charts/models';
+import { BarChart, axisClasses } from '@mui/x-charts';
+import { BarChartProps } from '@mui/x-charts/BarChart';
 
 interface GovernanceStatusChartProps {
-    governanceStatus: number[];
+    mockGovernanceStatus: number[]; // <<< UPDATED PROP NAME
 }
 
-const GovernanceStatusChart: React.FC<GovernanceStatusChartProps> = ({ governanceStatus }) => {
-    const chartData = useMemo(() => governanceStatus.map((value, index) => ({
-        id: index,
-        value: value,
-        label: `Param ${index + 1}`
-    })), [governanceStatus]);
+const VOTE_RANGE = 10;
 
-    // Use useMemo and apply the type assertion here
-    const chartXAxis = useMemo(() => {
-        // Define the object here
-        const config = {
-            scaleType: 'band' as const,
-            dataKey: 'label',
-            tickLabelStyle: {
-                angle: -30,
-                textAnchor: 'end' as const,
-                fontSize: 10,
-            },
-        };
-        // Return the array containing the asserted object
-        return [config as ChartsXAxisProps];
+// <<< UPDATED: Accept mock prop >>>
+const GovernanceStatusChart: React.FC<GovernanceStatusChartProps> = ({ mockGovernanceStatus }) => {
+
+    const chartData = useMemo(() => {
+        // Use the mocked status prop
+        if (!Array.isArray(mockGovernanceStatus) || mockGovernanceStatus.length !== (VOTE_RANGE * 2 + 1)) {
+             console.warn(`GovernanceStatusChart: Received invalid data length ${mockGovernanceStatus?.length}. Expected ${VOTE_RANGE * 2 + 1}.`);
+             return [];
+        }
+         return mockGovernanceStatus.map((value, index) => ({
+            id: index,
+            slotLabel: (index - VOTE_RANGE).toString(),
+            value: value,
+        }));
+        // Depend on the mocked prop
+    }, [mockGovernanceStatus]);
+
+    // --- Chart Config (remains the same) ---
+    const chartXAxisConfig: BarChartProps['xAxis'] = useMemo(() => {
+        return [{
+            id: 'voteSlots',
+            dataKey: 'slotLabel',
+            scaleType: 'band',
+            label: "Vote Slot Delta from Desired Price",
+            tickLabelStyle: { fontSize: 10, },
+        }];
     }, []);
-
-    const chartSeries = useMemo(() => [{
+    const chartYAxisConfig: BarChartProps['yAxis'] = useMemo(() => [{ id: 'votePower', label: "Voting Power (DPP)" }], []);
+     const chartSeries = useMemo(() => [{
         dataKey: 'value',
-        label: 'Status Value',
-        color: '#6fa8dc',
+        label: 'Net Voting Power Diff',
     }], []);
+    // --- End Chart Config ---
+
+    const hasData = chartData.length > 0;
 
     return (
         <Paper elevation={1} sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-                Governance Status Parameters
+            <Typography variant="h6" gutterBottom sx={{ mb: hasData ? 0 : 2 }}>
+                Vote Distribution
             </Typography>
-            <Box sx={{ height: 300, width: '100%' }}>
-                {chartData.length > 0 ? (
+            <Box sx={{ height: hasData ? 300 : 'auto', width: '100%' }}>
+                {hasData ? (
                     <BarChart
                         dataset={chartData}
-                        xAxis={chartXAxis}
                         series={chartSeries}
-                        slotProps={{
-                            legend: { hidden: true },
-                        }}
-                        margin={{ top: 10, right: 10, bottom: 70, left: 40 }}
+                        xAxis={chartXAxisConfig}
+                        yAxis={chartYAxisConfig}
+                        slotProps={{ legend: { hidden: true } }}
+                        sx={{
+                           [`& .${axisClasses.directionX} .${axisClasses.label}`]: { transform: 'translateY(5px)' },
+                           [`& .${axisClasses.directionY} .${axisClasses.label}`]: { transform: 'translateX(-15px)' },
+                       }}
+                        margin={{ top: 20, right: 20, bottom: 50, left: 65 }}
                     />
                 ) : (
-                    <Typography>No status data available.</Typography>
+                    <Typography>No vote distribution data available.</Typography>
                 )}
             </Box>
             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1, textAlign: 'center' }}>
-                Note: Visual representation of the 21 status parameters. Locking logic based on these is handled by the protocol.
+                 Note: Visual representation of the net voting power distribution across price delta slots relative to the desired price.
             </Typography>
         </Paper>
     );

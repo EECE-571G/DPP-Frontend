@@ -1,5 +1,6 @@
 import React, { ReactNode, useState } from 'react';
-import { styled, useTheme, Theme, CSSObject } from '@mui/material/styles';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { styled, useTheme, Theme, CSSObject, alpha } from '@mui/material/styles';
 import {
   Box,
   Drawer as MuiDrawer,
@@ -22,10 +23,14 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 // Import context and components
 import { useAppContext } from '../contexts/AppProvider';
 import ThemeToggleButton from '../components/ThemeToggle';
-import { SidebarFooterProps, NavigationItem } from '../types';
+import { NavigationItem } from '../types';
+
+// --- Constants ---
+const drawerWidth = 210;
+const closedDrawerWidthSm = (theme: Theme) => `calc(${theme.spacing(7)} + 1px)`;
+const closedDrawerWidthMd = (theme: Theme) => `calc(${theme.spacing(8)} + 1px)`;
 
 // --- Styled Components ---
-const drawerWidth = 240;
 
 // Mixin for opened drawer style
 const openedMixin = (theme: Theme): CSSObject => ({
@@ -45,49 +50,45 @@ const closedMixin = (theme: Theme): CSSObject => ({
     duration: theme.transitions.duration.leavingScreen,
   }),
   overflowX: 'hidden',
-  width: `calc(${theme.spacing(7)} + 1px)`, // Width for closed state (small screens)
+  width: closedDrawerWidthSm(theme),
   [theme.breakpoints.up('sm')]: {
-    width: `calc(${theme.spacing(8)} + 1px)`, // Width for closed state (medium+ screens)
+    width: closedDrawerWidthMd(theme),
   },
   borderRight: `1px solid ${theme.palette.divider}`,
 });
 
-// Header inside the Drawer for positioning the close button
+// Header inside the Drawer
 const DrawerHeader = styled('div')(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'flex-end', // Keep button to the right
+  justifyContent: 'flex-end',
   padding: theme.spacing(0, 1),
-  ...theme.mixins.toolbar, // Necessary height for alignment with AppBar
+  ...theme.mixins.toolbar, // Keep height for alignment
 }));
 
-// Custom AppBar that shifts with the drawer
-interface AppBarProps extends React.ComponentProps<typeof MuiAppBar> { // Extend MuiAppBar props
-  open?: boolean;
-}
+// Custom AppBar - Fixed width, contrast color
+const AppBar = styled(MuiAppBar)(({ theme }) => {
+  const appBarBackgroundColor = theme.palette.mode === 'dark'
+    ? alpha(theme.palette.background.paper, 0.85)
+    : alpha(theme.palette.primary.main, 0.95);
 
-const AppBar = styled(MuiAppBar, {
-  shouldForwardProp: (prop) => prop !== 'open', // Prevent 'open' prop from reaching DOM
-})<AppBarProps>(({ theme, open }) => ({
-  zIndex: theme.zIndex.drawer + 1, // AppBar above Drawer
-  transition: theme.transitions.create(['width', 'margin'], {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  ...(open && {
-    marginLeft: drawerWidth,
-    width: `calc(100% - ${drawerWidth}px)`, // Adjust width when drawer is open
-    transition: theme.transitions.create(['width', 'margin'], {
+  return {
+    zIndex: theme.zIndex.drawer + 1,
+    position: 'fixed',
+    width: '100%',
+    marginLeft: 0,
+    backgroundColor: appBarBackgroundColor,
+    backdropFilter: 'blur(8px)',
+    boxShadow: 'none',
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.getContrastText(appBarBackgroundColor),
+    transition: theme.transitions.create(['background-color', 'color'], {
       easing: theme.transitions.easing.sharp,
-      duration: theme.transitions.duration.enteringScreen,
+      duration: theme.transitions.duration.leavingScreen,
     }),
-  }),
-  // Add background blur and subtle background color for better layering
-  // backgroundColor: alpha(theme.palette.background.paper, 0.8),
-  backdropFilter: 'blur(8px)',
-  boxShadow: 'none', // remove shadow for flatter look
-  borderBottom: `1px solid ${theme.palette.divider}`, // add border
-}));
+  };
+});
+
 
 // Custom Drawer component applying the mixins
 const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
@@ -98,11 +99,11 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
     boxSizing: 'border-box',
     ...(open && {
       ...openedMixin(theme),
-      '& .MuiDrawer-paper': openedMixin(theme), // Apply to the Paper element inside
+      '& .MuiDrawer-paper': openedMixin(theme),
     }),
     ...(!open && {
       ...closedMixin(theme),
-      '& .MuiDrawer-paper': closedMixin(theme), // Apply to the Paper element inside
+      '& .MuiDrawer-paper': closedMixin(theme),
     }),
   }),
 );
@@ -112,75 +113,64 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 // --- DashboardLayout Props ---
 interface DashboardLayoutProps {
   children: ReactNode;
-  // Define slots for customization points
   slots?: {
-    toolbarContent?: React.ComponentType; // e.g., Account button, notifications
-    sidebarFooter?: React.ComponentType<SidebarFooterProps>; // Use the specific props type
+    toolbarContent?: React.ComponentType;
   };
 }
 
 // --- DashboardLayout Component ---
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
-  slots = {}, // Default to empty object if no slots are provided
+  slots = {},
 }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // Check for mobile screens
-  const [open, setOpen] = useState(!isMobile); // Drawer starts closed on mobile, open otherwise
-  const { navigation, router } = useAppContext();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [open, setOpen] = useState(!isMobile);
+  const { navigation } = useAppContext();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const handleDrawerOpen = () => {
-    setOpen(true);
-  };
-
-  const handleDrawerClose = () => {
-    setOpen(false);
+  // Single handler to toggle the drawer state
+  const handleDrawerToggle = () => {
+    setOpen(!open);
   };
 
   // Get slot components
   const ToolbarContent = slots.toolbarContent;
-  const SidebarFooter = slots.sidebarFooter;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {/* Top Application Bar */}
-      <AppBar position="fixed" open={open} elevation={0} >
+      <AppBar elevation={0}>
         <Toolbar>
-          {/* Menu Icon (appears when drawer is closed) */}
+          {/* Single Toggle Button */}
           <IconButton
             color="inherit"
-            aria-label="open drawer"
-            onClick={handleDrawerOpen}
+            aria-label={open ? 'close drawer' : 'open drawer'}
+            onClick={handleDrawerToggle}
             edge="start"
-            sx={{
-              marginRight: 2,
-              ...(open && { display: 'none' }),
-            }}
+            sx={{ marginRight: 2, }}
           >
-            <MenuIcon />
+            {open ? <ChevronLeftIcon /> : <MenuIcon />}
           </IconButton>
+
           {/* App Title */}
           <Typography variant="h6" noWrap component="div" sx={{fontWeight: 'bold', flexGrow: { xs: 1, sm: 0 }}}>
-            DPP Frontend
+            Desired Price Pool
           </Typography>
-          {/* Spacer pushes subsequent items to the right */}
+          {/* Spacer */}
           <Box sx={{ flexGrow: 1 }} />
           {/* Theme Toggle Button */}
           <ThemeToggleButton />
-          {/* Custom Toolbar Content (e.g., Account) */}
+          {/* Custom Toolbar Content */}
           {ToolbarContent && <ToolbarContent />}
         </Toolbar>
       </AppBar>
 
       {/* Sidebar Drawer */}
       <Drawer variant="permanent" open={open}>
-        <DrawerHeader>
-          {/* Close Drawer Button */}
-          <IconButton onClick={handleDrawerClose} aria-label="close drawer">
-             {/* Use ChevronLeft or Right based on theme direction if needed */}
-            <ChevronLeftIcon />
-          </IconButton>
-        </DrawerHeader>
+        {/* DrawerHeader provides top spacing matching Toolbar height */}
+        <DrawerHeader />
         <Divider />
         {/* Navigation List */}
         <List sx={{ p: 0 }}>
@@ -188,25 +178,26 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             // Render Header sections differently
             if (item.kind === 'header') {
               return (
-                <ListItem key={index} sx={{ pt: 2, pb: 1, pl: open ? 2.5 : 0, justifyContent: open ? 'flex-start': 'center' }} dense>
-                  {open ? (
-                     <Typography variant="overline" color="text.secondary" sx={{ pl: 0.5 }}>
-                        {item.title}
-                     </Typography>
-                  ) : (
-                    // Show tooltip or nothing when closed
-                    <Divider sx={{ width: '80%', margin: 'auto'}}/>
-                  )}
-
-                </ListItem>
+                 <ListItem key={index} sx={{ pt: 2, pb: 1, pl: open ? 2.5 : 0, justifyContent: open ? 'flex-start': 'center' }} dense>
+                   {open ? (
+                      <Typography variant="overline" color="text.secondary" sx={{ pl: 0.5 }}>
+                         {item.title}
+                      </Typography>
+                   ) : (
+                     <Divider sx={{ width: '80%', margin: 'auto'}}/>
+                   )}
+                 </ListItem>
               );
             }
 
             // Render standard navigation items
-            const isSelected = router.pathname.substring(1) === item.segment;
+            // Use location.pathname to determine if selected
+            const targetPath = item.segment ? `/${item.segment}` : '#'; // Handle items without segments if any
+            const isSelected = location.pathname === targetPath;
+
             return (
               <ListItem
-                key={item.segment || item.title} // Use segment as key if available
+                key={item.segment || item.title}
                 disablePadding
                 sx={{ display: 'block' }}
               >
@@ -222,53 +213,37 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                             '&.Mui-selected': {
                                 bgcolor: 'action.selected',
                                 fontWeight: 'fontWeightBold',
-                                '&:hover': {
-                                    bgcolor: 'action.selected'
-                                }
+                                '&:hover': { bgcolor: 'action.selected' }
                             },
                         }}
                         selected={isSelected}
-                        onClick={() => item.segment && router.navigate(`/${item.segment}`)}
+                        // Use navigate function for onClick
+                        onClick={() => item.segment && navigate(targetPath)}
                         aria-current={isSelected ? 'page' : undefined}
                     >
-                    {/* Icon */}
                     {item.icon && (
                         <ListItemIcon
                         sx={{
                             minWidth: 0,
-                            mr: open ? 3 : 'auto', // Margin right only when open
+                            mr: open ? 3 : 'auto',
                             justifyContent: 'center',
-                            color: isSelected ? 'primary.main' : 'inherit', // Highlight icon color if selected
+                            color: isSelected ? 'primary.main' : 'inherit',
                         }}
                         >
                         {item.icon}
                         </ListItemIcon>
                     )}
-                    {/* Text (only visible when drawer is open) */}
                     <ListItemText
                         primary={item.title}
-                        sx={{ opacity: open ? 1 : 0, transition: theme.transitions.create('opacity') }} // Fade text in/out
+                        sx={{ opacity: open ? 1 : 0, transition: theme.transitions.create('opacity') }}
                     />
-                    {/* Optional Action Icon (visible when open) */}
-                    {open && item.action && (
-                        <Box sx={{ ml: 'auto' }}>
-                           {item.action}
-                        </Box>
-                     )}
+                    {open && item.action && ( <Box sx={{ ml: 'auto' }}> {item.action} </Box> )}
                     </ListItemButton>
                 </Tooltip>
               </ListItem>
             );
           })}
         </List>
-
-        {/* Optional Sidebar Footer */}
-        {SidebarFooter && (
-          <Box sx={{ marginTop: 'auto', mb: 1 }}>
-             {/* <Divider sx={{ mb: 1 }}/> */}
-            <SidebarFooter mini={!open} />
-          </Box>
-        )}
       </Drawer>
 
       {/* Main Content Area */}
@@ -280,11 +255,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           bgcolor: 'background.default',
           color: 'text.primary',
           overflowY: 'auto',
+          transition: theme.transitions.create('margin', {
+             easing: theme.transitions.easing.sharp,
+             duration: open ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
+          }),
         }}
       >
-        {/* Add DrawerHeader height as padding-top to prevent content from hiding under AppBar */}
-        <DrawerHeader />
-        {/* Render the page content */}
+        {/* Use Toolbar for standard height padding below fixed AppBar */}
+        <Toolbar />
+        {/* Render the page content passed as children (now managed by <Routes>) */}
         {children}
       </Box>
     </Box>

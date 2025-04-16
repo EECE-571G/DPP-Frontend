@@ -1,5 +1,7 @@
+// src/types/index.ts
 import React from 'react';
 import { createTheme, PaletteMode } from '@mui/material/styles';
+import { BigNumberish } from 'ethers'; // Import BigNumberish
 
 // --- General App Structure ---
 export interface NavigationItem {
@@ -7,16 +9,10 @@ export interface NavigationItem {
   segment?: string;
   title: string;
   icon?: React.ReactNode;
-  action?: React.ReactNode; // e.g., for badges or extra icons
+  action?: React.ReactNode;
 }
 
 export type Navigation = NavigationItem[];
-
-export interface Router {
-  pathname: string;
-  searchParams: URLSearchParams;
-  navigate: (path: string) => void;
-}
 
 export interface ColorMode {
   mode: PaletteMode;
@@ -26,10 +22,7 @@ export interface ColorMode {
 // --- User and Session ---
 export interface User {
   name?: string;
-  email?: string; // Less likely needed for Web3, but keeping for flexibility
-  address: string; // Primary identifier from wallet
-  image?: string; // e.g., ENS avatar
-  type: 'metamask' | 'simulated';
+  address: string;
 }
 
 export interface Session {
@@ -40,7 +33,6 @@ export interface Authentication {
   signIn: (
     primaryAddress: string,
     allAccounts: string[] | null,
-    type: 'metamask' | 'simulated'
   ) => void;
   signOut: () => void;
   switchAccount: (newAddress: string) => void;
@@ -66,11 +58,11 @@ export interface Pool {
 
 // --- Governance Data ---
 export interface ProposalVote {
-  yes: number; // Represents voting power (e.g., vDPP token weight)
+  yes: number; // Represents voting power (e.g., DPP token weight)
   no: number; // Represents voting power
 }
 
-export type ProposalStatus = 'pending' | 'active' | 'succeeded' | 'defeated' | 'executed';
+export type ProposalStatus = 'PreVote' | 'Vote' | 'FinalVote' | 'PreExecution' | 'ExecutionReady';
 
 export interface Proposal {
   id: number; // Unique identifier for the proposal
@@ -80,26 +72,13 @@ export interface Proposal {
   description: string; // Justification or details about the proposal
   endBlock?: number; // Block number when voting ends
   status: ProposalStatus;
-  votingPowerCommitted?: number; // Example: total vDPP power used in votes
+  votingPowerCommitted?: number; // Example: total DPP power used in votes
 }
 
 // --- Component-Specific Props ---
 
-// Account Preview Specific Props
-export interface AccountPreviewProps {
-  handleClick: (event: React.MouseEvent<HTMLElement>) => void;
-  open: boolean; // Is the popover open?
-  variant?: 'condensed' | 'expanded'; // Controls layout style
-}
-
-// Sidebar Footer Props for DashboardLayout
-export interface SidebarFooterProps {
-  mini: boolean; // Is the sidebar minimized?
-}
-
 export interface AppContextType {
   navigation: Navigation;
-  router: Router;
   theme: ReturnType<typeof createTheme>;
   window?: Window;
   session: Session | null;
@@ -107,3 +86,9 @@ export interface AppContextType {
   colorMode: ColorMode;
   availableAccounts: string[] | null;
 }
+
+// Remove the local definition causing the conflict
+// export type BalanceDelta = BigNumberish;
+
+// Use 'export type' for re-exporting when isolatedModules is true
+export type { BalanceDelta } from './BalanceDelta';

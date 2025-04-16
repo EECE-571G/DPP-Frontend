@@ -6,5 +6,4 @@ build
 coverage
 /.DS_Store
 abis
-types
 .vscode
