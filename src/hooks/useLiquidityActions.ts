@@ -1,6 +1,6 @@
 // src/hooks/useLiquidityActions.ts
 import { useCallback } from 'react';
-import { ethers, parseUnits, MaxUint256, ZeroAddress, isAddress, Contract, Interface } from 'ethers';
+import { parseUnits, MaxUint256, ZeroAddress, Contract, Interface } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
@@ -24,8 +24,6 @@ export const useLiquidityActions = () => {
     const { setLoading } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
     const { selectedPool } = usePoolsContext();
-
-    // checkAndRequestApproval remains the same
 
     const checkAndRequestApproval = useCallback(async (tokenAddress: string): Promise<boolean> => {
         if (!signer || !account || !tokenAddress || tokenAddress === ZeroAddress) {
@@ -70,7 +68,6 @@ export const useLiquidityActions = () => {
      }, [signer, account, tokenSymbols, showSnackbar, setLoading]);
 
     const handleMintPosition = useCallback(async (lowerTick: number, upperTick: number, liquidityStr: string): Promise<boolean> => {
-        // ... (prerequisite checks remain the same) ...
          if (!signer || !account || !selectedPool?.poolKey || !selectedPool.tokenA_Address || !selectedPool.tokenB_Address || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
              showSnackbar('Cannot mint: Wallet/Pool/Network issue.', 'error'); return false;
          }
@@ -86,7 +83,7 @@ export const useLiquidityActions = () => {
 
         let liquidityWei: bigint;
         try {
-            liquidityWei = parseUnits(liquidityStr, 0); // Liquidity is unitless, decimals=0
+            liquidityWei = parseUnits(liquidityStr, 0);
             if (liquidityWei <= 0n) {
                 showSnackbar('Liquidity amount must be positive.', 'warning'); return false;
             }
@@ -97,7 +94,6 @@ export const useLiquidityActions = () => {
         const { poolKey, tokenA_Address, tokenB_Address } = selectedPool;
 
         try {
-            // ... (approval logic remains the same) ...
             setLoading('mintPosition_approve', true);
              const approvedA = tokenA_Address === ZeroAddress ? true : await checkAndRequestApproval(tokenA_Address);
              const approvedB = tokenB_Address === ZeroAddress ? true : await checkAndRequestApproval(tokenB_Address);
@@ -110,7 +106,6 @@ export const useLiquidityActions = () => {
             setLoading('mintPosition', true);
             showSnackbar('Preparing mint position transaction...', 'info');
             const helperContract = new Contract(DESIRED_PRICE_POOL_HELPER_ADDRESS, DesiredPricePoolHelperABI, signer);
-            const txValue = 0n; // Do not send ETH value for helper mint
 
             console.log(`[useLiquidityActions] Calling helper.mint: key=${JSON.stringify(poolKey)}, lower=${lowerTick}, upper=${upperTick}, liq=${liquidityWei.toString()}`);
             const tx = await helperContract.mint(poolKey, lowerTick, upperTick, liquidityWei);
