@@ -1,28 +1,32 @@
 // src/components/Governance/Governance.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Typography, Grid, CircularProgress, Alert } from '@mui/material';
-import { formatUnits, parseUnits } from 'ethers'; // Need parseUnits for default value
+import { formatUnits, parseUnits } from 'ethers';
 
 // Context Imports
-import { useGovernanceContext } from '../../contexts/GovernanceContext';
-// <<< Remove BalancesContext import for balance >>>
+import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext'; // Import GovernanceMetaData
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { usePoolsContext } from '../../contexts/PoolsContext';
+import { useTimeContext } from '../../contexts/TimeContext';
+import { useLoadingContext } from '../../contexts/LoadingContext'; // Import LoadingContext
+import { useSnackbarContext } from '../../contexts/SnackbarProvider'; // Import SnackbarContext
 
 // Child Component Imports
 import GovernanceInfoBar from './GovernanceInfoBar';
 import GovernanceStatusChart from './GovernanceStatusChart';
 import DelegationForm from './DelegationForm';
 import VoteForm from './VoteForm';
-import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants'; // Still needed for decimals guess
+import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 import { useGovernanceActions } from '../../hooks/useGovernanceActions';
 
-// --- localStorage Keys (Keep these) ---
+// --- localStorage Keys ---
 const LS_MOCK_DPP_BALANCE = 'governance_mockDppBalanceRaw';
 const LS_MOCK_VOTING_POWER = 'governance_mockVotingPowerRaw';
 const LS_MOCK_GOV_STATUS = 'governance_mockGovernanceStatus';
+const LS_MOCK_POLL_ID = 'governance_mockPollIdNum';
+const LS_MOCK_POLL_START_TIME = 'governance_mockPollStartTime';
 
-// Helper to read bigint from localStorage (Keep)
+// Helper to read bigint from localStorage
 const getBigIntFromLS = (key: string): bigint | null => {
     const stored = localStorage.getItem(key);
     if (stored === null) return null;
@@ -35,7 +39,7 @@ const getBigIntFromLS = (key: string): bigint | null => {
     }
 };
 
-// Helper to read number array from localStorage (Keep)
+// Helper to read number array from localStorage
 const getNumberArrayFromLS = (key: string): number[] | null => {
     const stored = localStorage.getItem(key);
     if (stored === null) return null;
@@ -55,103 +59,190 @@ const getNumberArrayFromLS = (key: string): number[] | null => {
     }
 };
 
+// Helper to read number from localStorage
+const getNumberFromLS = (key: string): number | null => {
+    const stored = localStorage.getItem(key);
+    if (stored === null) return null;
+    try {
+        const num = parseInt(stored, 10);
+        return !isNaN(num) ? num : null;
+    } catch (e) {
+        console.warn(`Failed to parse Number from localStorage key "${key}", removing item.`);
+        localStorage.removeItem(key);
+        return null;
+    }
+};
+
+
 // --- Default Mock Values ---
-const DEFAULT_DPP_DECIMALS = 18; // Assume 18 if context isn't available/needed
-const DEFAULT_MOCK_BALANCE_RAW = parseUnits("100", DEFAULT_DPP_DECIMALS); // e.g., 1000 DPP
+const DEFAULT_DPP_DECIMALS = 18;
+const DEFAULT_MOCK_BALANCE_RAW = parseUnits("100", DEFAULT_DPP_DECIMALS);
 const VOTE_SLOTS = 21; // -10 to +10 inclusive
-const DEFAULT_MOCK_STATUS = [0, 0, 0, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 90, 80, 70, 60, 50, 40, 30]; // Example status
+const DEFAULT_MOCK_STATUS = Array(VOTE_SLOTS).fill(0);
+const DEFAULT_MOCK_POLL_ID = 1;
+const DEFAULT_MOCK_START_TIME = Math.floor(Date.now() / 1000) - (2 * 24 * 60 * 60); // Start default poll ~2 days ago
+
+// Poll Durations (Mirror Poll.sol - can move to constants)
+const CYCLE_LENGTH = 5;
+const REGULAR_POLL_PREVOTE_END_S = 1 * 24 * 60 * 60; // 1 day
+const REGULAR_POLL_VOTE_END_S = 3 * 24 * 60 * 60; // 3 days
+const REGULAR_POLL_FINALVOTE_END_S = 4 * 24 * 60 * 60; // 4 days
+const REGULAR_POLL_EXECUTION_READY_S = 5 * 24 * 60 * 60; // 5 days
+const MAJOR_POLL_PREVOTE_END_S = 1 * 24 * 60 * 60; // 1 day
+const MAJOR_POLL_VOTE_END_S = 6 * 24 * 60 * 60; // 6 days
+const MAJOR_POLL_FINALVOTE_END_S = 8 * 24 * 60 * 60; // 8 days
+const MAJOR_POLL_EXECUTION_READY_S = 10 * 24 * 60 * 60; // 10 days
+
+// Define formatDuration locally or import it
+const formatDuration = (seconds: number): string => {
+    if (seconds < 0) return "Ended";
+    if (seconds < 60) return `${Math.floor(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ${Math.floor(minutes % 60)}m`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ${Math.floor(hours % 24)}h`;
+};
+
 
 const Governance: React.FC = () => {
-    // --- Get state from Contexts (Exclude BalancesContext for balance) ---
+    // --- Get state from Contexts ---
     const {
-        metaData, // Still get real metadata (desired price, poll state etc.)
+        metaData: realMetaData,
+        // initialGovernanceStatus is not directly used for mock state init anymore
         isLoadingGovernanceData,
         errorGovernanceData,
-        fetchGovernanceData
     } = useGovernanceContext();
-    // We still need tokenDecimals for formatting, but not userBalancesRaw for the value itself
-    const { tokenDecimals } = useBalancesContext();
+    const { tokenDecimals } = useBalancesContext(); // Only need decimals
     const { selectedPool } = usePoolsContext();
     const { handleVoteWithRange, handleDelegate } = useGovernanceActions();
+    const { simulatedTimestamp } = useTimeContext();
+    const { setLoading, isLoading: loadingStates } = useLoadingContext();
+    const { showSnackbar } = useSnackbarContext();
 
-    // --- Mock State Management with localStorage Initialization & Defaults ---
+    // --- Mock State Management ---
     const [mockDppBalanceRaw, setMockDppBalanceRaw] = useState<bigint | null>(null);
     const [mockVotingPowerRaw, setMockVotingPowerRaw] = useState<bigint | null>(null);
     const [mockGovernanceStatus, setMockGovernanceStatus] = useState<number[] | null>(null);
+    const [mockPollIdNum, setMockPollIdNum] = useState<number | null>(null);
+    const [mockPollStartTime, setMockPollStartTime] = useState<number | null>(null);
 
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? DEFAULT_DPP_DECIMALS;
 
     // --- Effect to Initialize Mock State from localStorage or Defaults (Runs Once) ---
-    useEffect(() => {
-        const initialBalance = getBigIntFromLS(LS_MOCK_DPP_BALANCE);
-        if (initialBalance === null) {
-            console.log("[Governance Mock] LS empty for balance, initializing to default:", DEFAULT_MOCK_BALANCE_RAW.toString());
-            setMockDppBalanceRaw(DEFAULT_MOCK_BALANCE_RAW);
-            localStorage.setItem(LS_MOCK_DPP_BALANCE, DEFAULT_MOCK_BALANCE_RAW.toString());
-        } else {
-            setMockDppBalanceRaw(initialBalance);
-        }
+     useEffect(() => {
+        const initBalance = getBigIntFromLS(LS_MOCK_DPP_BALANCE) ?? DEFAULT_MOCK_BALANCE_RAW;
+        const initPower = getBigIntFromLS(LS_MOCK_VOTING_POWER) ?? 0n;
+        const initStatus = getNumberArrayFromLS(LS_MOCK_GOV_STATUS) ?? DEFAULT_MOCK_STATUS;
+        const initPollId = getNumberFromLS(LS_MOCK_POLL_ID) ?? DEFAULT_MOCK_POLL_ID;
+        const initStartTime = getNumberFromLS(LS_MOCK_POLL_START_TIME) ?? DEFAULT_MOCK_START_TIME;
 
-        const initialPower = getBigIntFromLS(LS_MOCK_VOTING_POWER);
-        if (initialPower === null) {
-            console.log("[Governance Mock] LS empty for power, initializing to default: 0");
-            setMockVotingPowerRaw(0n);
-            localStorage.setItem(LS_MOCK_VOTING_POWER, '0');
-        } else {
-            setMockVotingPowerRaw(initialPower);
-        }
+        // Only set state if it's currently null to avoid overwriting after first load
+        if (mockDppBalanceRaw === null) setMockDppBalanceRaw(initBalance);
+        if (mockVotingPowerRaw === null) setMockVotingPowerRaw(initPower);
+        if (mockGovernanceStatus === null) setMockGovernanceStatus(initStatus);
+        if (mockPollIdNum === null) setMockPollIdNum(initPollId);
+        if (mockPollStartTime === null) setMockPollStartTime(initStartTime);
 
-        const initialStatus = getNumberArrayFromLS(LS_MOCK_GOV_STATUS);
-        if (initialStatus === null) {
-            console.log("[Governance Mock] LS empty for status, initializing to default (zeros)");
-            setMockGovernanceStatus(DEFAULT_MOCK_STATUS);
-            try { localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(DEFAULT_MOCK_STATUS)); }
-            catch (e) { console.error("Failed to save default status to LS:", e); }
-        } else {
-            setMockGovernanceStatus(initialStatus);
-        }
+        // Ensure defaults are saved back if LS was initially empty
+        if (getBigIntFromLS(LS_MOCK_DPP_BALANCE) === null) localStorage.setItem(LS_MOCK_DPP_BALANCE, initBalance.toString());
+        if (getBigIntFromLS(LS_MOCK_VOTING_POWER) === null) localStorage.setItem(LS_MOCK_VOTING_POWER, initPower.toString());
+        if (getNumberArrayFromLS(LS_MOCK_GOV_STATUS) === null) try { localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(initStatus)); } catch (e) { console.error("LS Error (Status Init Save):", e); }
+        if (getNumberFromLS(LS_MOCK_POLL_ID) === null) localStorage.setItem(LS_MOCK_POLL_ID, initPollId.toString());
+        if (getNumberFromLS(LS_MOCK_POLL_START_TIME) === null) localStorage.setItem(LS_MOCK_POLL_START_TIME, initStartTime.toString());
+
+
+        console.log("[Governance Mock] State Initialized (from LS or Default):", {
+            balance: initBalance.toString(),
+            power: initPower.toString(),
+            statusLength: initStatus.length,
+            pollId: initPollId,
+            startTime: initStartTime,
+        });
+
     // Run only on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, []); // Empty dependency array ensures this runs only once
 
-    // --- Effects to Persist Mock State Changes to localStorage (Keep These) ---
-    useEffect(() => {
-        // Only save if it's not null (i.e., after initialization)
-        if (mockDppBalanceRaw !== null) {
-            localStorage.setItem(LS_MOCK_DPP_BALANCE, mockDppBalanceRaw.toString());
-            // console.log("[Governance Mock] Saved mockDppBalanceRaw to LS:", mockDppBalanceRaw.toString());
-        }
-    }, [mockDppBalanceRaw]);
+    // --- Effects to Persist Mock State Changes to localStorage ---
+    useEffect(() => { if (mockDppBalanceRaw !== null) localStorage.setItem(LS_MOCK_DPP_BALANCE, mockDppBalanceRaw.toString()); }, [mockDppBalanceRaw]);
+    useEffect(() => { if (mockVotingPowerRaw !== null) localStorage.setItem(LS_MOCK_VOTING_POWER, mockVotingPowerRaw.toString()); }, [mockVotingPowerRaw]);
+    useEffect(() => { if (mockGovernanceStatus !== null) try { localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(mockGovernanceStatus)); } catch (e) { console.error("LS Error (Status Save):", e); } }, [mockGovernanceStatus]);
+    useEffect(() => { if (mockPollIdNum !== null) localStorage.setItem(LS_MOCK_POLL_ID, mockPollIdNum.toString()); }, [mockPollIdNum]);
+    useEffect(() => { if (mockPollStartTime !== null) localStorage.setItem(LS_MOCK_POLL_START_TIME, mockPollStartTime.toString()); }, [mockPollStartTime]);
 
-    useEffect(() => {
-        if (mockVotingPowerRaw !== null) {
-            localStorage.setItem(LS_MOCK_VOTING_POWER, mockVotingPowerRaw.toString());
-            // console.log("[Governance Mock] Saved mockVotingPowerRaw to LS:", mockVotingPowerRaw.toString());
-        }
-    }, [mockVotingPowerRaw]);
 
-    useEffect(() => {
-        if (mockGovernanceStatus !== null) {
-             try {
-                 localStorage.setItem(LS_MOCK_GOV_STATUS, JSON.stringify(mockGovernanceStatus));
-                 // console.log("[Governance Mock] Saved mockGovernanceStatus to LS:", mockGovernanceStatus);
-             } catch (e) { console.error("Failed to stringify governance status for LS:", e); }
+    // --- Derive Poll Info Dynamically ---
+    const derivedMockPollInfo = useMemo(() => {
+        if (mockPollIdNum === null || mockPollStartTime === null) {
+            return { stage: 'Loading...', timeLeft: 'N/A', isPaused: true, isMajor: false };
         }
-    }, [mockGovernanceStatus]);
+        const currentTimeS = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
+        const timePassedS = currentTimeS - mockPollStartTime;
+        const isMajor = mockPollIdNum % CYCLE_LENGTH === (CYCLE_LENGTH - 1);
+
+        let stage: string;
+        const cycleDurationS = isMajor ? MAJOR_POLL_EXECUTION_READY_S : REGULAR_POLL_EXECUTION_READY_S;
+        const cycleEndTimeS = mockPollStartTime + cycleDurationS;
+
+        if (timePassedS < 0) { stage = "Not Started"; }
+        else if (timePassedS >= cycleDurationS) { stage = "Exec. Ready"; }
+        else if (isMajor) {
+            if (timePassedS < MAJOR_POLL_PREVOTE_END_S) { stage = "PreVote"; }
+            else if (timePassedS < MAJOR_POLL_VOTE_END_S) { stage = "Vote"; }
+            else if (timePassedS < MAJOR_POLL_FINALVOTE_END_S) { stage = "Final Vote"; }
+            else { stage = "PreExecution"; }
+        } else { // Regular Poll
+            if (timePassedS < REGULAR_POLL_PREVOTE_END_S) { stage = "PreVote"; }
+            else if (timePassedS < REGULAR_POLL_VOTE_END_S) { stage = "Vote"; }
+            else if (timePassedS < REGULAR_POLL_FINALVOTE_END_S) { stage = "Final Vote"; }
+            else { stage = "PreExecution"; }
+        }
+
+        const timeLeftUntilCycleEndS = cycleEndTimeS - currentTimeS;
+        const timeLeftFormatted = stage === "Exec. Ready" ? "Ready" : formatDuration(timeLeftUntilCycleEndS);
+
+        return { stage, timeLeft: timeLeftFormatted, isPaused: false, isMajor };
+    }, [mockPollIdNum, mockPollStartTime, simulatedTimestamp]);
+
+
+    // --- Combine Real Meta with Mock Poll Info ---
+    const finalMetaData: GovernanceMetaData | null = useMemo(() => {
+         if (!realMetaData || mockPollIdNum === null || mockPollStartTime === null) return null;
+         // Ensure poolId from selectedPool takes precedence if available
+         const currentPoolId = selectedPool?.poolId ?? realMetaData.poolId;
+         return {
+             // Data likely coming from the real hook/contract
+             desiredPriceTick: realMetaData.desiredPriceTick,
+             governanceTokenAddress: realMetaData.governanceTokenAddress,
+             // Data now primarily derived from mock state
+             poolId: currentPoolId, // Use selected pool's ID primarily
+             pollId: mockPollIdNum.toString(),
+             pollStartTime: mockPollStartTime,
+             pollPauseRequested: false, // Mocked value
+             pollFlags: 0, // Mocked value
+             pollStage: derivedMockPollInfo.stage,
+             pollTimeLeft: derivedMockPollInfo.timeLeft,
+             pollIsPaused: derivedMockPollInfo.isPaused,
+             pollIsMajor: derivedMockPollInfo.isMajor,
+             pollIsManualExecution: false, // Mocked value
+         };
+    }, [realMetaData, mockPollIdNum, mockPollStartTime, derivedMockPollInfo, selectedPool?.poolId]);
+
 
     // --- Derived State ---
-    // Updated isLoading check: Removed BalancesContext loading, check mock states are initialized
-    const isLoading = isLoadingGovernanceData || mockDppBalanceRaw === null || mockVotingPowerRaw === null || mockGovernanceStatus === null;
-    const displayError = errorGovernanceData; // Remove errorBalances
+    const isLoading = isLoadingGovernanceData || mockDppBalanceRaw === null || mockVotingPowerRaw === null || mockGovernanceStatus === null || mockPollIdNum === null || mockPollStartTime === null;
+    const displayError = errorGovernanceData;
 
     const canVote = !!(
-        !isLoadingGovernanceData && // Still check real metadata loading
+        !isLoadingGovernanceData &&
         (mockVotingPowerRaw ?? 0n) > 0n &&
-        metaData?.pollStage &&
-        (metaData.pollStage === 'Vote' || metaData.pollStage === 'Final Vote')
+        finalMetaData?.pollStage && // Use derived stage
+        (finalMetaData.pollStage === 'Vote' || finalMetaData.pollStage === 'Final Vote')
     );
 
-    // --- Mock Action Wrappers (remain the same, logic is inside the hook) ---
+    // --- Mock Action Wrappers ---
      const handleMockVote = useCallback(async (proposalId: number, lower: number, upper: number) => {
           if (mockVotingPowerRaw === null || mockGovernanceStatus === null) {
                console.error("Cannot vote: Mock state not initialized."); return false;
@@ -175,6 +266,50 @@ const Governance: React.FC = () => {
        }, [handleDelegate, mockVotingPowerRaw, mockDppBalanceRaw]);
 
 
+    // --- Execute Action Handler ---
+    const handleMockExecute = useCallback(async () => {
+         if (isLoading || !finalMetaData || finalMetaData.pollStage !== 'Exec. Ready') {
+             showSnackbar("Poll is not ready for execution.", "warning");
+             return;
+         }
+         if (mockPollIdNum === null || mockDppBalanceRaw === null) {
+             showSnackbar("Cannot execute: Mock state not ready.", "error");
+             return;
+         }
+
+        const executeKey = `executePoll_${mockPollIdNum}`;
+        setLoading(executeKey, true);
+        console.log(`[Mock Execute] Executing poll ID: ${mockPollIdNum}`);
+
+        try {
+            await new Promise(resolve => setTimeout(resolve, 700)); // Simulate delay
+
+            const newPollId = mockPollIdNum + 1;
+            const newStartTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000); // Start next poll now
+
+            // Reset state for the new poll
+            setMockPollIdNum(newPollId);
+            setMockPollStartTime(newStartTime);
+            setMockGovernanceStatus(DEFAULT_MOCK_STATUS); // Reset chart
+            // setMockVotingPowerRaw(mockDppBalanceRaw); // Reset voting power to full balance
+            console.log(`[Mock Execute] New Poll Started: ID=${newPollId}, StartTime=${newStartTime}, VotingPower Reset to ${mockDppBalanceRaw.toString()}`);
+
+
+            showSnackbar(`Mock Poll ${mockPollIdNum} Executed! Starting Poll ${newPollId}.`, 'success');
+
+        } catch (e) {
+            console.error("Mock Execute Error:", e);
+            showSnackbar("Failed to simulate poll execution.", "error");
+        } finally {
+            setLoading(executeKey, false);
+        }
+    }, [
+        isLoading, finalMetaData, mockPollIdNum, mockDppBalanceRaw,
+        setLoading, showSnackbar, simulatedTimestamp,
+        setMockPollIdNum, setMockPollStartTime, setMockGovernanceStatus, setMockVotingPowerRaw
+    ]);
+
+
     // --- Render Logic ---
     if (isLoading) {
         return (
@@ -188,33 +323,32 @@ const Governance: React.FC = () => {
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
-                Governance Center
+                Governance Center (Mock Actions)
             </Typography>
 
             {displayError && <Alert severity="error" sx={{ mb: 2 }}>Error loading pool data: {displayError}</Alert>}
 
-            {/* Pass MOCKED balance and voting power to InfoBar */}
+            {/* Pass derived metaData (combined real + mock poll state) */}
             <GovernanceInfoBar
                 mockDppBalanceRaw={mockDppBalanceRaw ?? 0n}
                 mockVotingPowerRaw={mockVotingPowerRaw ?? 0n}
-                metaData={metaData} // Pass real metadata
+                metaData={finalMetaData} // Use the combined metadata
+                onExecute={handleMockExecute} // Pass execute handler
+                isLoadingExecute={loadingStates[`executePoll_${mockPollIdNum ?? 0}`] ?? false} // Pass loading state for execute
             />
 
-            {/* Pass MOCKED status to Chart */}
             <GovernanceStatusChart mockGovernanceStatus={mockGovernanceStatus || []} />
 
             <Grid container spacing={3} alignItems="stretch">
                 <Grid item xs={12} md={6}>
-                    {/* Pass MOCKED voting power and wrapped action handler */}
                     <VoteForm
-                        proposalId={metaData ? parseInt(metaData.pollId, 10) || 0 : 0}
+                        proposalId={mockPollIdNum ?? 0} // Use mock poll ID
                         mockVotingPowerRaw={mockVotingPowerRaw ?? 0n}
                         onVoteSubmit={handleMockVote}
                         canVote={canVote}
                     />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                    {/* Pass MOCKED balance and wrapped action handler */}
                     <DelegationForm
                         mockDppBalanceRaw={mockDppBalanceRaw ?? 0n}
                         onDelegateSubmit={handleMockDelegate}

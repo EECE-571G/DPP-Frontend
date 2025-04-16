@@ -1,7 +1,7 @@
 // src/components/Governance/GovernanceInfoBar.tsx
 import React, { useCallback } from 'react';
 import {
-    Grid, Paper, Box, ListItemIcon, Typography, Chip, Tooltip, IconButton
+    Grid, Paper, Box, ListItemIcon, Typography, Chip, Tooltip, IconButton, Button, CircularProgress
 } from '@mui/material';
 import TagIcon from '@mui/icons-material/Tag';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -10,6 +10,7 @@ import PriceCheckIcon from '@mui/icons-material/PriceCheck';
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { ethers, formatUnits } from 'ethers';
 
 import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext';
@@ -19,15 +20,17 @@ import { formatBalance } from '../../utils/formatters';
 import { TickMath } from '../../utils/tickMath';
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { usePoolsContext } from '../../contexts/PoolsContext';
-import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
+import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants'; // <<< Import DEFAULT_DPP_DECIMALS
 
 interface GovernanceInfoBarProps {
-    mockDppBalanceRaw: bigint; // <<< UPDATED PROP NAME
-    mockVotingPowerRaw: bigint; // <<< UPDATED PROP NAME
-    metaData: GovernanceMetaData | null; // Keep using real metadata
+    mockDppBalanceRaw: bigint;
+    mockVotingPowerRaw: bigint;
+    metaData: GovernanceMetaData | null; // Combined metaData
+    onExecute: () => Promise<void>;
+    isLoadingExecute: boolean;
 }
 
-// MetaItem component (Keep as before)
+// MetaItem component
 const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string | React.ReactNode;}> =
     ({ icon, label, value }) => (
      <Box display="flex" alignItems="center" sx={{ width: '100%', py: 0.5 }}>
@@ -50,62 +53,77 @@ const MetaItem: React.FC<{ icon: React.ReactNode; label: string; value: string |
 );
 
 
-// <<< UPDATED: Accept mock props >>>
-const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ mockDppBalanceRaw, mockVotingPowerRaw, metaData }) => {
+const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({
+    mockDppBalanceRaw,
+    mockVotingPowerRaw,
+    metaData,
+    onExecute,
+    isLoadingExecute
+ }) => {
+    // Still need tokenDecimals for formatting, but use default if not found
     const { tokenDecimals } = useBalancesContext();
     const { selectedPool } = usePoolsContext();
-    const { fetchGovernanceData } = useGovernanceContext();
+    const { fetchGovernanceData } = useGovernanceContext(); // Keep for refresh context
     const { fetchRealTimestamp } = useTimeContext();
 
-    // <<< Use mock values for calculations and display >>>
-    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
+    // <<< Use default if token decimals context isn't ready or token isn't listed >>>
+    const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS];
     const DPPBalanceFormatted = formatUnits(mockDppBalanceRaw, DPPDecimals);
-    const votingPowerFormatted = formatUnits(mockVotingPowerRaw, DPPDecimals); // Format mock power
+    const votingPowerFormatted = formatUnits(mockVotingPowerRaw, DPPDecimals);
 
-     // --- Real Metadata Display (remains the same) ---
-     const decimals0 = selectedPool?.tokenA_Address ? (tokenDecimals[selectedPool.tokenA_Address] ?? 18) : 18;
-     const decimals1 = selectedPool?.tokenB_Address ? (tokenDecimals[selectedPool.tokenB_Address] ?? 18) : 18;
-     const desiredPriceDisplay = metaData?.desiredPriceTick !== null && metaData?.desiredPriceTick !== undefined
+    // --- Real Metadata Display ---
+    const decimals0 = selectedPool?.tokenA_Address ? (tokenDecimals[selectedPool.tokenA_Address] ?? 18) : 18;
+    const decimals1 = selectedPool?.tokenB_Address ? (tokenDecimals[selectedPool.tokenB_Address] ?? 18) : 18;
+    const desiredPriceDisplay = metaData?.desiredPriceTick !== null && metaData?.desiredPriceTick !== undefined
         ? formatBalance(TickMath.getPriceAtTick(metaData.desiredPriceTick, decimals0, decimals1), 6)
         : 'N/A';
-     const desiredTickDisplay = (metaData && metaData.desiredPriceTick !== null) ? `(Tick: ${metaData.desiredPriceTick})` : '';
+    const desiredTickDisplay = (metaData && metaData.desiredPriceTick !== null) ? `(Tick: ${metaData.desiredPriceTick})` : '';
 
-     const pollIdDisplay = metaData?.pollId ?? 'N/A';
-     const pollStageDisplay = metaData?.pollStage ?? 'N/A';
-     const pollPausedDisplay = metaData?.pollIsPaused ?? true;
-     const pollTimeLeftDisplay = metaData?.pollTimeLeft ?? 'N/A';
+    // --- Mocked Poll Data Display ---
+    const pollIdDisplay = metaData?.pollId ?? 'N/A';
+    const pollStageDisplay = metaData?.pollStage ?? 'N/A';
+    const pollPausedDisplay = metaData?.pollIsPaused ?? true;
+    const pollTimeLeftDisplay = metaData?.pollTimeLeft ?? 'N/A';
 
     const handleRefreshClick = useCallback(async () => {
         await fetchRealTimestamp();
         if (selectedPool) {
-            await fetchGovernanceData(selectedPool);
-            // NOTE: This refresh might reset the mocked balance/power state in Governance.tsx
-            // if it refetches the initial balance. Consider if this reset is desired on refresh.
+            // Fetching real gov data might conflict slightly if mock state changed,
+            // but it's useful for getting the real desired price updated.
+            // The mock states will persist via LS anyway.
+            // await fetchGovernanceData(selectedPool); // << Maybe comment this out if purely mock
         }
-    }, [fetchRealTimestamp, fetchGovernanceData, selectedPool]);
+         // Optionally, trigger a reload of mock state from LS if needed, though setters should handle it
+         console.log("Refreshed time, mock state persists via localStorage.");
+    }, [fetchRealTimestamp, selectedPool]); // Removed fetchGovernanceData dependency
+
+    // --- Determine if Execute button should be shown/enabled ---
+    const canExecute = metaData?.pollStage === 'Exec. Ready';
 
     return (
         <Grid container spacing={2} sx={{ mb: 3 }} alignItems="stretch">
-            {/* Desired Price (Real) */}
+
+            {/* Desired Price InfoBox */}
             <Grid item xs={12} sm={6} md={3}>
                  <InfoBox title="Current Desired Price">
                     {desiredPriceDisplay} {desiredTickDisplay}
                 </InfoBox>
              </Grid>
-            {/* Poll Status (Real/Derived) */}
+
+            {/* Poll Status InfoBox */}
              <Grid item xs={12} sm={6} md={3}>
-                <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
-                    {/* Refresh button and MetaItems */}
-                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Paper elevation={1} sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                          <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2 }}>
                             Poll Status
                         </Typography>
-                        <Tooltip title="Refresh Poll Status & Sync Time">
-                            <IconButton size="small" onClick={handleRefreshClick}>
+                        <Tooltip title="Refresh Mock Poll Status & Sync Time">
+                            <IconButton size="small" onClick={handleRefreshClick} disabled={isLoadingExecute}>
                                 <RefreshIcon fontSize="inherit" />
                             </IconButton>
                         </Tooltip>
                     </Box>
+                    {/* MetaItems */}
                     <MetaItem icon={<TagIcon fontSize="small" />} label="Poll ID" value={pollIdDisplay} />
                      <MetaItem icon={<AccessTimeIcon fontSize="small" />} label="Time Left" value={pollTimeLeftDisplay} />
                     <MetaItem
@@ -116,25 +134,34 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({ mockDppBalanceRaw
                                 icon={pollPausedDisplay ? <PauseCircleOutlineIcon /> : <PlayCircleOutlineIcon />}
                                 label={pollStageDisplay}
                                 size="small"
-                                color={pollPausedDisplay ? "warning" : pollStageDisplay.startsWith('Exec') ? 'info' : 'success'}
+                                color={pollPausedDisplay ? "warning" : pollStageDisplay === 'Exec. Ready' ? 'info' : (pollStageDisplay === 'Vote' || pollStageDisplay === 'Final Vote' ? 'success' : 'default')}
                                 variant="outlined"
                                 sx={{ fontWeight: 500 }}
                             />
                         }
                     />
+                    {/* Execute Button */}
+                    <Button
+                        variant="contained"
+                        size="small"
+                        onClick={onExecute}
+                        disabled={!canExecute || isLoadingExecute}
+                        startIcon={isLoadingExecute ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+                        sx={{ mt: 'auto', alignSelf: 'flex-end' }}
+                    >
+                        {isLoadingExecute ? "Executing..." : "Execute Poll"}
+                    </Button>
                 </Paper>
              </Grid>
-            {/* Voting Power (Mock) */}
+
+            {/* Voting Power and Balance InfoBoxes */}
              <Grid item xs={6} sm={6} md={3}>
                  <InfoBox title="Your Voting Power">
-                     {/* Format the MOCKED voting power */}
                      {formatBalance(votingPowerFormatted, 2)}
                  </InfoBox>
              </Grid>
-             {/* DPP Balance (Mock) */}
              <Grid item xs={6} sm={6} md={3}>
                  <InfoBox title="DPP Balance">
-                     {/* Format the MOCKED balance */}
                      {formatBalance(DPPBalanceFormatted, 2)}
                  </InfoBox>
              </Grid>
