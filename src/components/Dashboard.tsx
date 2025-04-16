@@ -14,10 +14,7 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID, EXPLORER_URL_BASE } from '../constants';
 import PositionManagerABI from '../abis/PositionManager.json';
 import { formatBalance } from '../utils/formatters';
-// <<< Import NEW utility functions >>>
 import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
-
-// const LS_TOKEN_ID = 'liquidity_tokenId'; // No longer needed here
 
 const Dashboard: React.FC = () => {
   const { pools, selectedPool, isLoadingPools, errorPools, handlePoolSelection } = usePoolsContext();

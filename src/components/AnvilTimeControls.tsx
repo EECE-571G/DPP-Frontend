@@ -1,11 +1,10 @@
 // src/components/AnvilTimeControls.tsx
-// Uses TimeContext
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Typography, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import AddAlarmIcon from '@mui/icons-material/AddAlarm';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useAuthContext } from '../contexts/AuthContext';
-import { useTimeContext } from '../contexts/TimeContext'; // <<< Use TimeContext
+import { useTimeContext } from '../contexts/TimeContext';
 import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { TARGET_NETWORK_CHAIN_ID } from '../constants';
 
@@ -74,7 +73,7 @@ const AnvilTimeControls: React.FC = () => {
             {/* Advance button calls context function */}
             <Tooltip title={tooltipTitleAdvance}>
                  <span>
-                    <IconButton size="small" color="inherit" onClick={handleAdvanceClick} disabled={isAdvancingLoading || !provider /* Disable if no provider */}>
+                    <IconButton size="small" color="inherit" onClick={handleAdvanceClick} disabled={isAdvancingLoading || !provider}>
                         {isAdvancingLoading ? <CircularProgress size={20} color="inherit" /> : <AddAlarmIcon fontSize="small" />}
                     </IconButton>
                  </span>
