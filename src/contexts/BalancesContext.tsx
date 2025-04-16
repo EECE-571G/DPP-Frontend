@@ -8,7 +8,7 @@ import React, {
   ReactNode,
   useMemo,
 } from 'react';
-import { isAddress, ZeroAddress, formatUnits, Contract } from 'ethers'; // Ethers v6 imports
+import { isAddress, ZeroAddress, formatUnits, Contract } from 'ethers';
 import { useAuthContext } from './AuthContext';
 import { RELEVANT_TOKEN_ADDRESSES, TARGET_NETWORK_CHAIN_ID } from '../constants';
 import Erc20ABI from '../abis/ERC20.json';
@@ -89,14 +89,13 @@ export const BalancesProvider: React.FC<BalancesProviderProps> = ({ children }) 
                   ]);
 
                   const balance = balanceResult.status === 'fulfilled' ? (balanceResult.value as bigint) : 0n;
-                  console.log(`Raw balance fetched for ${tokenAddress}:`, balance.toString()); // <<< ADD LOG
+                  console.log(`Raw balance fetched for ${tokenAddress}:`, balance.toString());
                   // Decimals need explicit check for bigint before Number()
                   const decimalsBigInt = decimalsResult.status === 'fulfilled' ? (decimalsResult.value as bigint) : 18n;
                   const decimals = Number(decimalsBigInt); // Convert bigint decimals to number
                   const symbol = symbolResult.status === 'fulfilled' ? (symbolResult.value as string) : `UNK_${tokenAddress.slice(0, 6)}`;
 
                   rawBalances[tokenAddress] = balance;
-                  // Use Ethers v6 formatUnits
                   balances[tokenAddress] = formatUnits(balance, decimals);
                   console.log(`Formatted balance for ${tokenAddress}:`, balances[tokenAddress]);
                   decimalsMap[tokenAddress] = decimals;
@@ -148,7 +147,7 @@ export const BalancesProvider: React.FC<BalancesProviderProps> = ({ children }) 
            setErrorBalances(null);
            setIsLoadingBalances(false);
       }
-  }, [signer, account, network, fetchBalances]); // Add fetchBalances dependency
+  }, [signer, account, network, fetchBalances]);
 
 
   const contextValue = useMemo(
