@@ -35,15 +35,14 @@ export const useRewardActions = () => {
     const { setLoading } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
     const { selectedPool } = usePoolsContext(); // Need for token info
-    const { simulatedTimestamp } = useTimeContext(); // <<< Get simulated timestamp
+    const { simulatedTimestamp } = useTimeContext(); // Get simulated timestamp
 
     // --- Calculate Rewards ---
-    // <<< Modify return type to include earnedTimestamp >>>
     const handleCalculateReward = useCallback(async (positionIdStr: string): Promise<{ amount0: string; amount1: string; earnedTimestamp: number } | null> => {
-        // <<< Get current simulated time for timestamping >>>
+        // Get current simulated time for timestamping
         const currentSimulatedTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
 
-        // --- Prerequisite checks (keep these) ---
+        // --- Prerequisite checks ---
         if (!signer || !account || !selectedPool || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             showSnackbar('Cannot calculate rewards: Wallet/Pool/Network issue.', 'error');
             return null;
@@ -70,22 +69,22 @@ export const useRewardActions = () => {
         setLoading(loadingKey, true);
 
         try {
-            // --- MOCK REWARD VALUES ---
-            console.log(`[MOCK] Simulating reward calculation for position ID: ${positionIdStr}`);
+            // --- REWARD VALUES ---
+            console.log(`Simulating reward calculation for position ID: ${positionIdStr}`);
             // Simulate some non-zero rewards after a brief delay
             await new Promise(resolve => setTimeout(resolve, 400)); // Simulate network lag
 
             const decimals0 = tokenDecimals[selectedPool.tokenA_Address ?? ''] ?? 18;
             const decimals1 = tokenDecimals[selectedPool.tokenB_Address ?? ''] ?? 18;
 
-            // Generate mock amounts (e.g., based on position ID or just fixed)
+            // Generate amounts (e.g., based on position ID or just fixed)
             // Ensure these are plausible values for your token decimals
             const mockAmount0Raw = parseUnits((Number(positionIdStr) * 0.01).toFixed(decimals0), decimals0); // Example: scale with ID
             const mockAmount1Raw = parseUnits((Number(positionIdStr) * 1.23).toFixed(decimals1), decimals1); // Example: scale with ID
 
             const amount0Formatted = formatUnits(mockAmount0Raw, decimals0);
             const amount1Formatted = formatUnits(mockAmount1Raw, decimals1);
-            // --- END MOCK ---
+            // --- END ---
 
             /*
             // --- REAL CALCULATION (Commented out) ---
@@ -102,7 +101,7 @@ export const useRewardActions = () => {
             */
 
 
-            console.log(`[MOCK] Calculated Rewards: ${amount0Formatted} ${selectedPool.tokenA || 'TKA'}, ${amount1Formatted} ${selectedPool.tokenB || 'TKB'}`);
+            console.log(`Calculated Rewards: ${amount0Formatted} ${selectedPool.tokenA || 'TKA'}, ${amount1Formatted} ${selectedPool.tokenB || 'TKB'}`);
 
             // <<< Return the timestamp along with amounts >>>
             return {
@@ -119,7 +118,6 @@ export const useRewardActions = () => {
         } finally {
             setLoading(loadingKey, false);
         }
-        // <<< Add simulatedTimestamp to dependency array >>>
     }, [signer, account, network, selectedPool, tokenDecimals, setLoading, showSnackbar, simulatedTimestamp]);
 
     // --- Collect Rewards ---

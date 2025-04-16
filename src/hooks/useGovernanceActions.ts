@@ -19,7 +19,7 @@ export const useGovernanceActions = () => {
     const { showSnackbar } = useSnackbarContext();
     const { selectedPool } = usePoolsContext();
 
-    // --- Modified handleVoteWithRange for Mocking ---
+    // --- HandleVoteWithRange ---
     const handleVoteWithRange = useCallback(async (
         proposalId: number,
         lower: number,

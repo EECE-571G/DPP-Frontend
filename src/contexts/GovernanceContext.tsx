@@ -96,7 +96,7 @@ const calculatePollInfo = (
      pollIdNum: number,
     startTimeNum: number,
     pauseRequested: boolean,
-    currentTimeS: number // <<< Added currentTime argument
+    currentTimeS: number
 ): { stage: string; timeLeft: string; isPaused: boolean; isMajor: boolean } => {
      if (startTimeNum === 0) {
         // If paused, check if a pause was requested (implies it's about to pause or already paused awaiting reset)

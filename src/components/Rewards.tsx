@@ -1,5 +1,5 @@
 // src/components/Rewards.tsx
-import React, { useState, useEffect, useCallback } from 'react'; // <<< Added useCallback
+import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Card, CardContent, TextField, Button,
     CircularProgress, Fade, Alert, Skeleton, Grid,
