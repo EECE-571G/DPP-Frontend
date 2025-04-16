@@ -2,23 +2,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     ethers, ZeroAddress, Contract, formatUnits, parseUnits, isAddress, ZeroHash, FixedNumber
-} from 'ethers'; // Ethers v6 imports - ADD FixedNumber
+} from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
-import { useGovernanceContext } from '../contexts/GovernanceContext'; // <<< IMPORT Governance Context
+import { useGovernanceContext } from '../contexts/GovernanceContext';
 import {
     TARGET_NETWORK_CHAIN_ID,
-    // Constants matching the contract for fee calculation
-    DEFAULT_BASE_FEE_PER_TICK, // <<< Now imported correctly
-    DEFAULT_HOOK_FEE,          // <<< Now imported correctly
+    DEFAULT_BASE_FEE_PER_TICK,
+    DEFAULT_HOOK_FEE,
+    POOL_TICK_SPACING, // Use actual tick spacing from poolKey if available
 } from '../constants';
-// ABIs are not needed for frontend estimation
-// import DesiredPricePoolHelperABI from '../abis/DesiredPricePoolHelper.json';
-import { BalanceDelta, getAmount0Delta, getAmount1Delta } from '../types/BalanceDelta'; // Keep for potential future use? Not strictly needed now.
+import { BalanceDelta } from '../types/BalanceDelta'; // Might not be needed but kept for consistency
 import { TickMath } from '../utils/tickMath';
 
-// Debounce function (keep as is)
+// Debounce function
 function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
     let timeout: ReturnType<typeof setTimeout> | null = null;
     return function executedFunction(...args: Parameters<T>) {
@@ -33,34 +31,51 @@ function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (.
     };
 }
 
-// --- Fee Calculation Constants (from Poll.sol / DesiredPricePool.sol) ---
+// --- Fee Calculation Constants ---
 const HOOK_FEE_PERCENT_DENOMINATOR = 100;
-const FEE_RATE_DENOMINATOR = 1_000_000; // Fees are in ppm or similar for baseFee
-const TICK_SPACING_SQRT_FACTOR_SHIFT = 116; // (factor << 16) / (factor + (abs(tickDiff) << 116))
-const DYNAMIC_FEE_MULTIPLIER_SHIFT = 16;
+const FEE_RATE_DENOMINATOR = 1_000_000;
+// --- ADJUST THIS FOR SENSITIVITY ---
+// Lower value -> MORE sensitive adjustment (fee changes more drastically with tick diff)
+const DYNAMIC_FEE_SENSITIVITY_FACTOR = 1.0; // *** DECREASED FOR MORE SENSITIVITY ***
 
-// --- Helper to Estimate Tick Difference (APPROXIMATION) ---
-// This is a very rough estimate based on swap size relative to balance
-// A more sophisticated model would require more pool data.
+// --- Helper to Estimate Tick Difference (APPROXIMATION - DEMO) ---
 const estimateTickDiff = (
     sellAmountWei: bigint,
     sellBalanceWei: bigint,
     tickSpacing: number,
-    maxTickImpactEstimate: number = 10 // Max estimated ticks moved by a large swap
+    maxTickImpactEstimate: number = 50 // Base impact estimate
 ): number => {
-    if (sellBalanceWei <= 0n) return 0; // Avoid division by zero
+    if (sellBalanceWei <= 0n || sellAmountWei <= 0n) return 0;
 
-    // Calculate swap size as a percentage of balance (scaled)
-    const percentageScaled = (sellAmountWei * 10000n) / sellBalanceWei; // Percentage * 100
+    const basePercentageOffset = 10n; // Add 0.1% base effect
+    const percentageScaled = ((sellAmountWei * 10000n) / sellBalanceWei) + basePercentageOffset;
 
-    // Simple linear scaling - assumes swapping 100% of balance moves by maxTickImpactEstimate
-    const estimatedDiff = (BigInt(maxTickImpactEstimate) * percentageScaled) / 10000n;
+    // --- INCREASED SENSITIVITY MULTIPLIER ---
+    const multiplier = 40n; // *** INCREASED multiplier ***
+    const estimatedDiffBigInt = (BigInt(maxTickImpactEstimate) * percentageScaled * multiplier) / 10000n;
 
-    // Return as number, ensuring it's a multiple of tickSpacing (simplification)
-    const diffNum = Number(estimatedDiff);
-    return Math.round(diffNum / tickSpacing) * tickSpacing;
+    const diffNum = Number(estimatedDiffBigInt);
+    let roundedTickDiff = Math.round(diffNum / tickSpacing) * tickSpacing;
+
+    // Ensure non-zero diff for non-zero input (Demo Mod)
+    if (roundedTickDiff === 0 && sellAmountWei > 0n) {
+        if (diffNum > 0 || basePercentageOffset > 0n) {
+             console.log(`[EstimateTickDiff] Forcing minimum tick difference of ${tickSpacing} (Original unrounded: ${diffNum.toFixed(4)})`);
+             roundedTickDiff = tickSpacing;
+        }
+    }
+
+    // Cap the estimated difference (Sanity Check)
+    const maxReasonableDiff = tickSpacing * 30; // Increased cap slightly
+    if (Math.abs(roundedTickDiff) > maxReasonableDiff) {
+         roundedTickDiff = roundedTickDiff > 0 ? maxReasonableDiff : -maxReasonableDiff;
+         console.log(`[EstimateTickDiff] Capping estimated tick difference to ${roundedTickDiff}`);
+    }
+
+    return roundedTickDiff;
 };
 // --- End Helper ---
+
 
 export const useSwapEstimate = (
     sellAmountStr: string,
@@ -68,10 +83,10 @@ export const useSwapEstimate = (
     buyTokenAddress: string | null
 ) => {
     // Contexts
-    const { provider, network } = useAuthContext(); // Keep provider/network check
+    const { provider, network } = useAuthContext();
     const { selectedPool } = usePoolsContext();
-    const { tokenDecimals, userBalancesRaw } = useBalancesContext(); // Need raw balances
-    const { metaData: governanceMetaData } = useGovernanceContext(); // <<< Get Governance Metadata
+    const { tokenDecimals, userBalancesRaw } = useBalancesContext();
+    const { metaData: governanceMetaData } = useGovernanceContext();
 
     // State
     const [estimatedBuyAmountStr, setEstimatedBuyAmountStr] = useState<string>("0.0");
@@ -81,197 +96,187 @@ export const useSwapEstimate = (
     // --- Frontend Estimation Logic ---
     const performFrontendEstimate = useCallback(async (
         pool: V4Pool,
-        govMeta: NonNullable<typeof governanceMetaData>, // Ensure metadata is present
+        govMeta: NonNullable<typeof governanceMetaData>,
         sellAddr: string,
         buyAddr: string,
         sellAmountWei: bigint
     ) => {
         if (!pool.poolKey || govMeta.desiredPriceTick === null || sellAmountWei <= 0n) {
-             setEstimatedBuyAmountStr("0.0");
-             setIsLoadingEstimate(false);
-             setEstimateError(null);
-             return;
+             setEstimatedBuyAmountStr("0.0"); setIsLoadingEstimate(false); setEstimateError(null); return;
         }
 
-        setIsLoadingEstimate(true);
-        setEstimateError(null);
-        setEstimatedBuyAmountStr("0.0"); // Reset while calculating
+        setIsLoadingEstimate(true); setEstimateError(null); setEstimatedBuyAmountStr("0.0");
+        console.log(`\n--- Estimating Swap ---`);
+        console.log(`Input Amount (Wei): ${sellAmountWei.toString()}`);
+        console.log(`Selected Pool:`, pool);
 
         try {
             const { poolKey } = pool;
             const { desiredPriceTick } = govMeta;
-            const tickSpacing = poolKey.tickSpacing;
+            const tickSpacing = poolKey.tickSpacing ?? POOL_TICK_SPACING;
             const sellDecimals = tokenDecimals[sellAddr] ?? 18;
             const buyDecimals = tokenDecimals[buyAddr] ?? 18;
-            const sellBalanceWei = userBalancesRaw[sellAddr] ?? 0n;
-
+            const sellBalanceWei = userBalancesRaw[sellAddr] ?? 10n**BigInt(sellDecimals + 3);
+            console.log(`Using Tick Spacing: ${tickSpacing}`);
+            console.log(`Sell Balance (Wei, for estimate): ${sellBalanceWei.toString()}`);
             const zeroForOne = sellAddr.toLowerCase() === poolKey.currency0.toLowerCase();
 
-            // --- Calculate Ideal Price (token1/token0) at Desired Tick ---
+            // --- Calculate Ideal Price & Gross Output ---
             const idealPriceNum = TickMath.getPriceAtTick(desiredPriceTick, sellDecimals, buyDecimals);
-            if (isNaN(idealPriceNum) || idealPriceNum <= 0) {
-                throw new Error("Could not calculate price at desired tick.");
-            }
-            // Use FixedNumber for precision - create a format matching the buy token's decimals
+            if (isNaN(idealPriceNum) || idealPriceNum <= 0) throw new Error("Could not calculate price at desired tick.");
             const idealPriceFixed = FixedNumber.fromString(idealPriceNum.toFixed(buyDecimals), `fixed128x${buyDecimals}`);
             const sellAmountFixed = FixedNumber.fromValue(sellAmountWei, sellDecimals, `fixed128x${sellDecimals}`);
-
-            // --- Calculate Gross Output (before fees) ---
             let grossOutputFixed: FixedNumber;
-            if (zeroForOne) {
-                // Selling token0 for token1. Price is T1/T0. Output = SellAmount * Price
-                 grossOutputFixed = sellAmountFixed.mulUnsafe(idealPriceFixed); // Use mulUnsafe for potential overflow handling if needed, or mul
-            } else {
-                 // Selling token1 for token0. Price is T1/T0. Output = SellAmount / Price
-                 if (idealPriceFixed.isZero()) throw new Error("Price is zero, cannot divide.");
-                 grossOutputFixed = sellAmountFixed.divUnsafe(idealPriceFixed); // Use divUnsafe
-            }
-            // Convert gross output to target decimals format *before* fee calculation
+            if (zeroForOne) { grossOutputFixed = sellAmountFixed.mulUnsafe(idealPriceFixed); }
+            else { if (idealPriceFixed.isZero()) throw new Error("Price is zero."); grossOutputFixed = sellAmountFixed.divUnsafe(idealPriceFixed); }
             grossOutputFixed = FixedNumber.fromValue(grossOutputFixed.value, buyDecimals, `fixed128x${buyDecimals}`);
+            console.log(`Gross Output Estimate (FixedNumber): ${grossOutputFixed.toString()}`);
 
-
-            // --- Calculate Fees ---
-            // 1. Base LP Fee Rate (pips - parts per million)
-            const baseLpFeePips = BigInt(DEFAULT_BASE_FEE_PER_TICK) * BigInt(tickSpacing); // Use BigInt
-            // <<< FIX: Use fromValue for BigInt >>>
+            // --- Calculate Base Fees ---
+            const baseLpFeePips = BigInt(DEFAULT_BASE_FEE_PER_TICK) * BigInt(tickSpacing);
             const baseLpFeeRateFixed = FixedNumber.fromValue(baseLpFeePips, 0).divUnsafe(FixedNumber.fromValue(BigInt(FEE_RATE_DENOMINATOR), 0));
-
-            // 2. Base Hook Fee Rate (%)
+            const lpFeeRatePercent = parseFloat(baseLpFeeRateFixed.mulUnsafe(FixedNumber.fromString('100')).toString()).toFixed(4);
+            // Log base LP rate only once for clarity
+            // console.log(`LP Fee Rate (Fixed): ${baseLpFeeRateFixed.toString()} (~${lpFeeRatePercent}%)`);
             const baseHookFeePercent = BigInt(DEFAULT_HOOK_FEE);
-            // <<< FIX: Use fromValue for BigInt >>>
             const baseHookFeeRateFixed = FixedNumber.fromValue(baseHookFeePercent, 0).divUnsafe(FixedNumber.fromValue(BigInt(HOOK_FEE_PERCENT_DENOMINATOR), 0));
-
-            // 3. Base LP Fee Amount (applied to gross output)
+            // console.log(`Hook Fee Rate (Base % of LP Fee): ${baseHookFeeRateFixed.toString()} (${DEFAULT_HOOK_FEE}%)`);
             const baseLpFeeAmountFixed = grossOutputFixed.mulUnsafe(baseLpFeeRateFixed);
-
-            // 4. Base Hook Fee Amount (applied to LP fee amount)
+            // console.log(`LP Fee Amount (FixedNumber): ${baseLpFeeAmountFixed.toString()}`);
             const hookFeeAmountBaseFixed = baseLpFeeAmountFixed.mulUnsafe(baseHookFeeRateFixed);
+            // console.log(`Hook Fee Amount (Base, FixedNumber): ${hookFeeAmountBaseFixed.toString()}`);
 
-            // 5. Estimate Price Impact (Tick Difference)
-            const estimatedTickDiff = estimateTickDiff(sellAmountWei, sellBalanceWei, tickSpacing);
-            console.log(`[Estimate] Estimated Tick Diff: ${estimatedTickDiff}`);
+            // --- Estimated Tick Difference ---
+            const estimatedTickDiffMagnitude = estimateTickDiff(sellAmountWei, sellBalanceWei, tickSpacing);
+            let estimatedTickDiff = zeroForOne ? estimatedTickDiffMagnitude : -estimatedTickDiffMagnitude;
+            console.log(`Estimated Tick Difference (Signed): ${estimatedTickDiff}`);
 
-            // 6. Calculate Dynamic Hook Fee Adjustment
-            let adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed; // Start with base
+            // --- Dynamic Hook Fee Adjustment (SIMPLIFIED Ratio) ---
+            let adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed;
+            let dynamicFactorString = "1.0 (No adjustment)";
+
             if (estimatedTickDiff !== 0 && tickSpacing > 0) {
-                try {
-                    // Replicate factor calculation carefully with BigInt
-                    const tickSpacingBigInt = BigInt(tickSpacing);
-                    const factorSqrt = Math.sqrt(Number(tickSpacingBigInt)); // JS sqrt is fine here
-                    // Scale factorSqrt before converting back to BigInt to maintain precision
-                    const factorScaled = BigInt(Math.floor(factorSqrt * (2**116))); // Scale similar to contract's use of sqrt(tickSpacing << 232)
-                    const factor = (factorScaled << 2n); // Equivalent to * 4
+                 try {
+                    const absTickDiff = Math.abs(estimatedTickDiff);
+                    const sensitivityDenominator = tickSpacing * DYNAMIC_FEE_SENSITIVITY_FACTOR;
 
-                    const absTickDiffBigInt = BigInt(Math.abs(estimatedTickDiff));
-                    const denominatorScaled = factor + (absTickDiffBigInt << BigInt(TICK_SPACING_SQRT_FACTOR_SHIFT));
-
-                    if (denominatorScaled > 0n) {
-                        // dynamicMultiplier = (factor << 16) / denominatorScaled;
-                        // <<< FIX: Perform shift on BigInt, then create FixedNumber >>>
-                        const dynamicMultiplierNumerator = factor << BigInt(DYNAMIC_FEE_MULTIPLIER_SHIFT); // Shift BigInt
-                        const dynamicMultiplierFixed = FixedNumber.fromValue(dynamicMultiplierNumerator, 0) // Create FN from shifted value
-                            .divUnsafe(FixedNumber.fromValue(denominatorScaled, 0)); // Divide by denominator
-
-                        // adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed * dynamicMultiplier >> 16;
-                        adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed.mulUnsafe(dynamicMultiplierFixed);
-
-
-                        // Adjust further if price moved away from desired
-                        if (estimatedTickDiff > 0) {
-                            // adjustedHookFeeAmount = (hookFeeAmountBase << 1) - adjustedHookFeeAmount;
-                            // <<< FIX: Perform shift on BigInt value, then create FixedNumber >>>
-                            const baseHookFeeAmountBaseShifted = hookFeeAmountBaseFixed.value << 1n;
-                            const baseHookFeeAmountBaseShiftedFixed = FixedNumber.fromValue(baseHookFeeAmountBaseShifted, hookFeeAmountBaseFixed.decimals, hookFeeAmountBaseFixed.format); // Use same format
-                            adjustedHookFeeAmountFixed = baseHookFeeAmountBaseShiftedFixed.subUnsafe(adjustedHookFeeAmountFixed);
-                        }
-
-                        // Ensure fee doesn't become negative
-                        if (adjustedHookFeeAmountFixed.isNegative()) {
-                             adjustedHookFeeAmountFixed = FixedNumber.fromValue(0n, adjustedHookFeeAmountFixed.decimals, adjustedHookFeeAmountFixed.format); // Use correct format
-                        }
-                        console.log(`[Estimate] Dynamic Hook Fee Factor Applied. Base: ${hookFeeAmountBaseFixed.toString()}, Adjusted: ${adjustedHookFeeAmountFixed.toString()}`);
-
+                    if (sensitivityDenominator <= 0) {
+                        console.warn("[Estimate] Invalid sensitivity denominator, using base hook fee.");
+                        dynamicFactorString = "1.0 (Sensitivity Denominator Zero)";
                     } else {
-                        console.warn("[Estimate] Dynamic fee denominator was zero, using base hook fee.");
+                        const ratioTerm = FixedNumber.fromValue(BigInt(absTickDiff), 0)
+                                                .divUnsafe(FixedNumber.fromValue(BigInt(Math.round(sensitivityDenominator)), 0));
+                        const oneFixed = FixedNumber.fromString("1.0");
+                        const denominatorMultiplier = oneFixed.addUnsafe(ratioTerm);
+
+                        if (denominatorMultiplier.isZero()) {
+                            console.warn("[Estimate] Simplified dynamic fee denominator became zero, using base hook fee.");
+                            dynamicFactorString = "1.0 (Simplified Denominator Zero)";
+                        } else {
+                            const dynamicMultiplierFixed = oneFixed.divUnsafe(denominatorMultiplier);
+                            dynamicFactorString = dynamicMultiplierFixed.toString();
+                            console.log(`Dynamic Hook Fee Factor Applied (Simplified): ${dynamicFactorString}`);
+                            adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed.mulUnsafe(dynamicMultiplierFixed);
+
+                            if (estimatedTickDiff > 0) {
+                                 const maxSafeShiftVal = (1n << 255n) - 1n;
+                                 if (hookFeeAmountBaseFixed.value < maxSafeShiftVal) {
+                                     const baseHookFeeAmountBaseShifted = hookFeeAmountBaseFixed.value << 1n;
+                                     const baseHookFeeAmountBaseShiftedFixed = FixedNumber.fromValue(baseHookFeeAmountBaseShifted, hookFeeAmountBaseFixed.decimals, hookFeeAmountBaseFixed.format);
+                                     adjustedHookFeeAmountFixed = baseHookFeeAmountBaseShiftedFixed.subUnsafe(adjustedHookFeeAmountFixed);
+                                 } else {
+                                     console.warn("[Estimate] Base hook fee amount too large for bit-shift adjustment, skipping.");
+                                 }
+                            }
+
+                            if (adjustedHookFeeAmountFixed.isNegative()) {
+                                 adjustedHookFeeAmountFixed = FixedNumber.fromValue(0n, adjustedHookFeeAmountFixed.decimals, adjustedHookFeeAmountFixed.format);
+                            }
+                        }
                     }
-                } catch (mathError) {
-                     console.error("[Estimate] Error during dynamic fee factor calculation:", mathError, "Using base hook fee.");
-                     // Fallback to base hook fee on error
+                } catch (mathError: any) {
+                     console.error("[Estimate] Error during simplified dynamic fee factor calculation:", mathError, "Using base hook fee.");
+                      dynamicFactorString = `1.0 (Simplified Calc Error: ${mathError.code || mathError.message})`;
                      adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed;
                 }
+            } else {
+                 console.log("Tick difference is zero, dynamic hook fee factor not applied.");
             }
+            // console.log(`Hook Fee Amount (Adjusted, FixedNumber): ${adjustedHookFeeAmountFixed.toString()}`);
 
-            // 7. Total Fee Amount
+            // --- Calculate Total Fee & Net Output ---
             const totalFeeFixed = baseLpFeeAmountFixed.addUnsafe(adjustedHookFeeAmountFixed);
-
-            // 8. Net Output Amount
             let netOutputFixed = grossOutputFixed.subUnsafe(totalFeeFixed);
-
-            // Ensure output is not negative
             if (netOutputFixed.isNegative()) {
-                // <<< FIX: Use fromValue >>>
                 netOutputFixed = FixedNumber.fromValue(0n, netOutputFixed.decimals, netOutputFixed.format);
             }
 
-            // --- Format Output ---
-            // Use formatUnits on the BigInt value extracted from FixedNumber
+            // --- *** ADDED: Calculate and Log Fee Rates (relative to Gross Output) *** ---
+            const zero = FixedNumber.fromString("0.0");
+            const hundred = FixedNumber.fromString("100.0");
+            let totalFeeRatePercent = zero;
+            let lpFeeRatePercentActual = zero;
+            let hookFeeRatePercentActual = zero;
+
+            // Avoid division by zero if gross output is zero
+            if (!grossOutputFixed.isZero()) {
+                 totalFeeRatePercent = totalFeeFixed.divUnsafe(grossOutputFixed).mulUnsafe(hundred);
+                 lpFeeRatePercentActual = baseLpFeeAmountFixed.divUnsafe(grossOutputFixed).mulUnsafe(hundred);
+                 hookFeeRatePercentActual = adjustedHookFeeAmountFixed.divUnsafe(grossOutputFixed).mulUnsafe(hundred);
+            }
+
+            console.log(`--- Fee Rates (vs Gross Output) ---`);
+            console.log(`LP Fee Rate: ${lpFeeRatePercentActual.round(4).toString()}%`);
+            console.log(`Hook Fee Rate (Adjusted): ${hookFeeRatePercentActual.round(4).toString()}%`);
+            console.log(`Total Effective Fee Rate: ${totalFeeRatePercent.round(4).toString()}%`);
+            // --- *** END: Fee Rate Logging *** ---
+
+
+            // --- Format Final Output for Display ---
             const netOutputWei = netOutputFixed.value;
+            const displayDecimals = Math.max(6, buyDecimals);
             const formattedBuyAmount = formatUnits(netOutputWei, buyDecimals);
-            setEstimatedBuyAmountStr(formattedBuyAmount);
-            console.log(`[Estimate FE] Gross: ${grossOutputFixed.toString()}, LP Fee: ${baseLpFeeAmountFixed.toString()}, Hook Fee: ${adjustedHookFeeAmountFixed.toString()}, Net: ${formattedBuyAmount}`);
+            const displayAmount = FixedNumber.fromString(formattedBuyAmount, `fixed256x${buyDecimals}`)
+                                            .round(displayDecimals).toString();
+
+            setEstimatedBuyAmountStr(displayAmount);
+            console.log(`Net Output Estimate (Rounded Display): ${displayAmount}`);
+            console.log(`--- Estimate End ---`);
 
         } catch (error: any) {
             console.error("Frontend Swap estimation failed:", error);
             setEstimateError(`Estimation Error: ${error.message}`);
             setEstimatedBuyAmountStr("0.0");
+             console.log(`--- Estimate End (Error) ---`);
         } finally {
-            setIsLoadingEstimate(false);
+             setTimeout(() => setIsLoadingEstimate(false), 50);
         }
-    }, [tokenDecimals, userBalancesRaw]); // Dependencies for the calculation logic
+    }, [tokenDecimals, userBalancesRaw]); // Dependencies
 
-    // Debounced estimation trigger (memoized)
-    const debouncedFrontendEstimate = useMemo(() => debounce(performFrontendEstimate, 300), [performFrontendEstimate]);
+    // Debounced estimation trigger
+    const debouncedFrontendEstimate = useMemo(() => debounce(performFrontendEstimate, 400), [performFrontendEstimate]);
 
     // Effect to trigger estimation
     useEffect(() => {
-        // Basic validation before attempting estimation
-        if (!selectedPool || !sellTokenAddress || !buyTokenAddress || !sellAmountStr || !governanceMetaData || governanceMetaData.desiredPriceTick === null) {
-            setEstimatedBuyAmountStr("0.0");
-            setIsLoadingEstimate(false);
-            setEstimateError(null);
-            return;
+        if (!selectedPool || !selectedPool.poolKey || !sellTokenAddress || !buyTokenAddress || !sellAmountStr || !governanceMetaData || governanceMetaData.desiredPriceTick === null) {
+            setEstimatedBuyAmountStr("0.0"); setIsLoadingEstimate(false); setEstimateError(null); return;
         }
-
         const sellDecimals = tokenDecimals[sellTokenAddress] ?? 18;
         let amountInWei: bigint;
         try {
-            amountInWei = parseUnits(sellAmountStr, sellDecimals);
-            if (amountInWei <= 0n) {
-                setEstimatedBuyAmountStr("0.0");
-                setIsLoadingEstimate(false);
-                setEstimateError(null);
-                return;
+            const cleanAmountStr = sellAmountStr.endsWith('.') ? sellAmountStr.slice(0, -1) : sellAmountStr;
+            if (cleanAmountStr === '' || parseFloat(cleanAmountStr) === 0) {
+                 setEstimatedBuyAmountStr("0.0"); setIsLoadingEstimate(false); setEstimateError(null); return;
             }
-        } catch {
-            setEstimatedBuyAmountStr("0.0");
-            setIsLoadingEstimate(false);
-            setEstimateError("Invalid sell amount");
-            return;
-        }
-
-        // Clear error and call debounced function
+            amountInWei = parseUnits(cleanAmountStr, sellDecimals);
+            if (amountInWei <= 0n) {
+                setEstimatedBuyAmountStr("0.0"); setIsLoadingEstimate(false); setEstimateError(null); return;
+            }
+        } catch (e){ setEstimatedBuyAmountStr("0.0"); setIsLoadingEstimate(false); return; }
         setEstimateError(null);
+        setIsLoadingEstimate(true);
         debouncedFrontendEstimate(selectedPool, governanceMetaData, sellTokenAddress, buyTokenAddress, amountInWei);
-
-    }, [
-        sellAmountStr,
-        sellTokenAddress,
-        buyTokenAddress,
-        selectedPool,
-        governanceMetaData, // Re-estimate if governance data (desired tick) changes
-        tokenDecimals,
-        debouncedFrontendEstimate // Debounced function is stable
-    ]);
+    }, [sellAmountStr, sellTokenAddress, buyTokenAddress, selectedPool, governanceMetaData, tokenDecimals, debouncedFrontendEstimate]);
 
     return { estimatedBuyAmountStr, isLoadingEstimate, estimateError };
 };
