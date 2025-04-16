@@ -1,7 +1,6 @@
 // src/types/index.ts
 import React from 'react';
 import { createTheme, PaletteMode } from '@mui/material/styles';
-import { BigNumberish } from 'ethers'; // Import BigNumberish
 
 // --- General App Structure ---
 export interface NavigationItem {
@@ -44,16 +43,12 @@ export interface Pool {
   name: string; // User-friendly name (e.g., "ETH/DAI Pool")
   tokenA: string; // Symbol (e.g., "ETH")
   tokenB: string; // Symbol (e.g., "DAI")
-  tokenA_Address?: string; // Optional: Contract address of token A
-  tokenB_Address?: string; // Optional: Contract address of token B
-  poolAddress?: string; // Optional: Contract address of the specific Uniswap V4 pool
+  tokenA_Address?: string; // Contract address of token A
+  tokenB_Address?: string; // Contract address of token B
+  poolAddress?: string; // Contract address of the specific Uniswap V4 pool
   currentPrice: number; // Current market price (e.g., 1 tokenA = X tokenB)
   desiredPrice: number; // Community-set target price (1 tokenA = X tokenB)
-  baseFee: number; // Base protocol fee percentage (e.g., 0.003 for 0.3%)
-  // Add other relevant pool stats as needed:
-  // tvl?: number; // Total Value Locked (in USD)
-  // volume24h?: number; // 24-hour trading volume
-  // lpTokenSymbol?: string; // Symbol for the LP token if applicable
+  baseFee: number; // Base protocol fee
 }
 
 // --- Governance Data ---
@@ -76,7 +71,6 @@ export interface Proposal {
 }
 
 // --- Component-Specific Props ---
-
 export interface AppContextType {
   navigation: Navigation;
   theme: ReturnType<typeof createTheme>;
@@ -86,9 +80,3 @@ export interface AppContextType {
   colorMode: ColorMode;
   availableAccounts: string[] | null;
 }
-
-// Remove the local definition causing the conflict
-// export type BalanceDelta = BigNumberish;
-
-// Use 'export type' for re-exporting when isolatedModules is true
-export type { BalanceDelta } from './BalanceDelta';

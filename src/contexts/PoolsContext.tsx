@@ -269,17 +269,15 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
                       poolAddress: ZeroAddress,
                       poolId: poolId,
                       poolKey: poolKey,
-                      // --- Mocked/Fetched State ---
-                      desiredPriceTick: desiredPriceTick, // Mocked
-                      lpFeeRate: lpFeePips,              // Fetched (optional)
-                      hookFeeRate: hookFeePercent,         // Fetched (optional)
-                      currentTick: currentTick,            // Mocked
-                      sqrtPriceX96: sqrtPriceX96,          // Derived from Mocked Tick
-                      currentPrice: currentPrice,          // Derived from Mocked Tick
-                      // --- Unavailable/Not Fetched ---
+                      desiredPriceTick: desiredPriceTick,
+                      lpFeeRate: lpFeePips,
+                      hookFeeRate: hookFeePercent,
+                      currentTick: currentTick,
+                      sqrtPriceX96: sqrtPriceX96,
+                      currentPrice: currentPrice,
+                      desiredPrice: desiredPrice,
                       liquidity: null,
                       protocolFee: null,
-                      // --- Base fee from key ---
                       baseFee: poolKey.fee,
                   };
                    console.log(`[PoolsContext Mock] Pool ${def.id} state: DesiredTick=${desiredPriceTick}, CurrentTick=${currentTick}, CurrentPrice=${currentPrice}`);

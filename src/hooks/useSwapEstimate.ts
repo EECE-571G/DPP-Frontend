@@ -1,19 +1,17 @@
 // src/hooks/useSwapEstimate.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    ethers, ZeroAddress, Contract, formatUnits, parseUnits, isAddress, ZeroHash, FixedNumber
+    formatUnits, parseUnits, FixedNumber
 } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useGovernanceContext } from '../contexts/GovernanceContext';
 import {
-    TARGET_NETWORK_CHAIN_ID,
     DEFAULT_BASE_FEE_PER_TICK,
     DEFAULT_HOOK_FEE,
-    POOL_TICK_SPACING, // Use actual tick spacing from poolKey if available
+    POOL_TICK_SPACING,
 } from '../constants';
-import { BalanceDelta } from '../types/BalanceDelta'; // Might not be needed but kept for consistency
 import { TickMath } from '../utils/tickMath';
 
 // Debounce function

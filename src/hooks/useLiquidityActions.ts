@@ -14,11 +14,8 @@ import {
 } from '../constants';
 import DesiredPricePoolHelperABI from '../abis/DesiredPricePoolHelper.json';
 import Erc20ABI from '../abis/ERC20.json';
-// <<< Import NEW utility functions >>>
 import { addPositionToHistory, touchTokenIdInHistory, PositionHistoryItem } from '../utils/localStorageUtils';
 
-// Local storage key (no longer needed here, defined in utils)
-// const LS_TOKEN_ID = 'liquidity_tokenId';
 const ERC721_TRANSFER_EVENT = "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)";
 
 export const useLiquidityActions = () => {
@@ -118,7 +115,6 @@ export const useLiquidityActions = () => {
             console.log(`[useLiquidityActions] Calling helper.mint: key=${JSON.stringify(poolKey)}, lower=${lowerTick}, upper=${upperTick}, liq=${liquidityWei.toString()}`);
             const tx = await helperContract.mint(poolKey, lowerTick, upperTick, liquidityWei);
 
-            // ... (tx submission message remains the same) ...
              let message = `Mint Position tx submitted`;
              if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
             showSnackbar(message, 'info');
@@ -138,14 +134,12 @@ export const useLiquidityActions = () => {
                              const parsedLog = erc721Interface.parseLog({ topics: [...log.topics], data: log.data });
                              if (parsedLog && parsedLog.name === "Transfer" && parsedLog.args.from === ZeroAddress) {
                                  mintedTokenId = parsedLog.args.tokenId.toString();
-                                 // <<< Create PositionHistoryItem and add to history >>>
                                  const historyItem: PositionHistoryItem = {
                                      tokenId: mintedTokenId,
-                                     lowerTick: lowerTick.toString(), // Store the ticks used for minting
+                                     lowerTick: lowerTick.toString(),
                                      upperTick: upperTick.toString(),
                                  };
-                                 addPositionToHistory(historyItem); // Use new utility
-                                 // <<< END history update >>>
+                                 addPositionToHistory(historyItem);
                                  console.log("Minted Token ID found and added to history:", mintedTokenId);
                                  break;
                              }
@@ -153,7 +147,6 @@ export const useLiquidityActions = () => {
                      }
                  } else { console.warn("Receipt has no logs or Position Manager address is ZeroAddress"); }
 
-                 // ... (snackbar logic for success/failure to find ID remains the same) ...
                 if (mintedTokenId === "Unknown") {
                     console.error("Failed to extract Token ID from mint transaction logs.");
                     showSnackbar(`Position minted, but failed to retrieve Token ID. Check console/explorer. Tx: ${receipt.hash}`, 'warning');
@@ -166,7 +159,6 @@ export const useLiquidityActions = () => {
             } else { throw new Error('Mint position transaction failed.'); }
 
         } catch (error: any) {
-             // ... (error handling remains the same) ...
             console.error("Mint Position Error:", error);
             const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Mint position failed.";
             showSnackbar(`Mint Position failed: ${reason}`, 'error');
@@ -178,7 +170,6 @@ export const useLiquidityActions = () => {
     }, [signer, account, network, selectedPool, checkAndRequestApproval, fetchBalances, setLoading, showSnackbar]);
 
     const handleAddLiquidity = useCallback(async (tokenIdStr: string, liquidityStr: string): Promise<boolean> => {
-         // ... (prerequisite checks remain the same) ...
          if (!signer || !account || !selectedPool?.poolKey || !selectedPool.tokenA_Address || !selectedPool.tokenB_Address || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
              showSnackbar('Cannot add liquidity: Wallet/Pool/Network issue.', 'error'); return false;
          }
@@ -186,13 +177,12 @@ export const useLiquidityActions = () => {
              showSnackbar("Helper contract address not configured.", "error"); return false;
          }
 
-        // ... (tokenId and liquidity parsing remain the same) ...
         let tokenId: bigint;
          let liquidityWei: bigint;
          try {
              tokenId = BigInt(tokenIdStr);
              if (tokenId <= 0n) throw new Error("Invalid Token ID");
-             liquidityWei = parseUnits(liquidityStr, 0); // Liquidity is unitless
+             liquidityWei = parseUnits(liquidityStr, 0);
              if (liquidityWei <= 0n) {
                  showSnackbar('Liquidity amount must be positive.', 'warning'); return false;
              }
@@ -202,7 +192,6 @@ export const useLiquidityActions = () => {
 
         const { tokenA_Address, tokenB_Address } = selectedPool;
         try {
-            // ... (approval logic remains the same) ...
              setLoading(`addLiquidity_approve_${tokenIdStr}`, true);
              const approvedA = tokenA_Address === ZeroAddress ? true : await checkAndRequestApproval(tokenA_Address);
              const approvedB = tokenB_Address === ZeroAddress ? true : await checkAndRequestApproval(tokenB_Address);
@@ -215,11 +204,9 @@ export const useLiquidityActions = () => {
              setLoading(`addLiquidity_${tokenIdStr}`, true);
              showSnackbar(`Preparing to add liquidity to token ${tokenIdStr}...`, 'info');
              const helperContract = new Contract(DESIRED_PRICE_POOL_HELPER_ADDRESS, DesiredPricePoolHelperABI, signer);
-             const txValue = 0n; // No ETH needed for helper add
              console.log(`[useLiquidityActions] Calling helper.addLiquidity: tokenId=${tokenIdStr}, liq=${liquidityWei.toString()}`);
              const tx = await helperContract.addLiquidity(tokenId, liquidityWei);
 
-            // ... (tx submission message remains the same) ...
              let message = `Add Liquidity tx submitted for token ${tokenIdStr}`;
              if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
              showSnackbar(message, 'info');
@@ -228,15 +215,12 @@ export const useLiquidityActions = () => {
 
             if (receipt?.status === 1) {
                 showSnackbar(`Liquidity added successfully to token ${tokenIdStr}!`, 'success');
-                // <<< "Touch" the token ID in history to move it to the end >>>
                 touchTokenIdInHistory(tokenIdStr);
-                // <<< END history update >>>
                 await fetchBalances();
                 return true;
             } else { throw new Error('Add liquidity transaction failed.'); }
 
         } catch (error: any) {
-            // ... (error handling remains the same) ...
             console.error(`Add Liquidity Error for token ${tokenIdStr}:`, error);
              const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Add liquidity failed.";
              showSnackbar(`Add Liquidity failed: ${reason}`, 'error');
@@ -248,7 +232,6 @@ export const useLiquidityActions = () => {
     }, [signer, account, network, selectedPool, checkAndRequestApproval, fetchBalances, setLoading, showSnackbar]);
 
     const handleRemoveLiquidity = useCallback(async (tokenIdStr: string, liquidityStr: string): Promise<boolean> => {
-        // ... (prerequisite checks remain the same) ...
         if (!signer || !account || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
             showSnackbar('Cannot remove liquidity: Wallet/Network issue.', 'error'); return false;
         }
@@ -256,13 +239,12 @@ export const useLiquidityActions = () => {
              showSnackbar("Helper contract address not configured.", "error"); return false;
          }
 
-        // ... (tokenId and liquidity parsing remain the same) ...
         let tokenId: bigint;
          let liquidityWei: bigint;
          try {
              tokenId = BigInt(tokenIdStr);
              if (tokenId <= 0n) throw new Error("Invalid Token ID");
-             liquidityWei = parseUnits(liquidityStr, 0); // Liquidity is unitless
+             liquidityWei = parseUnits(liquidityStr, 0);
              if (liquidityWei <= 0n) {
                  showSnackbar('Liquidity amount to remove must be positive.', 'warning'); return false;
              }
@@ -277,7 +259,6 @@ export const useLiquidityActions = () => {
             console.log(`[useLiquidityActions] Calling helper.removeLiquidity: tokenId=${tokenIdStr}, liq=${liquidityWei.toString()}`);
             const tx = await helperContract.removeLiquidity(tokenId, liquidityWei);
 
-            // ... (tx submission message remains the same) ...
             let message = `Remove Liquidity tx submitted for token ${tokenIdStr}`;
              if (EXPLORER_URL_BASE) { message += `. Waiting...`; } else { message += `: ${tx.hash}. Waiting...`; }
              showSnackbar(message, 'info');
@@ -286,15 +267,12 @@ export const useLiquidityActions = () => {
 
             if (receipt?.status === 1) {
                 showSnackbar(`Liquidity removal initiated for token ${tokenIdStr}!`, 'success');
-                // <<< "Touch" the token ID in history to move it to the end >>>
                 touchTokenIdInHistory(tokenIdStr);
-                // <<< END history update >>>
-                await fetchBalances(); // Refresh token balances after withdrawal
+                await fetchBalances();
                 return true;
             } else { throw new Error('Remove liquidity transaction failed.'); }
 
        } catch (error: any) {
-            // ... (error handling remains the same) ...
            console.error(`Remove Liquidity Error for token ${tokenIdStr}:`, error);
             const reason = error?.reason || error?.data?.message?.replace('execution reverted: ', '') || error.message || "Remove liquidity failed.";
             showSnackbar(`Remove Liquidity failed: ${reason}`, 'error');
@@ -302,7 +280,7 @@ export const useLiquidityActions = () => {
        } finally {
             setLoading(`removeLiquidity_${tokenIdStr}`, false);
        }
-    }, [signer, account, network, fetchBalances, setLoading, showSnackbar]); // Removed selectedPool dependency
+    }, [signer, account, network, fetchBalances, setLoading, showSnackbar]);
 
     return { handleMintPosition, handleAddLiquidity, handleRemoveLiquidity };
 };

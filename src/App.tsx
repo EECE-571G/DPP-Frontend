@@ -20,7 +20,7 @@ import { PoolsProvider } from './contexts/PoolsContext';
 import { GovernanceProvider } from './contexts/GovernanceContext';
 import { LoadingProvider } from './contexts/LoadingContext';
 import { SnackbarProvider } from './contexts/SnackbarProvider';
-import { TimeProvider } from './contexts/TimeContext'; // Import TimeProvider
+import { TimeProvider } from './contexts/TimeContext';
 
 // Types
 import { Navigation } from './types';
@@ -44,7 +44,6 @@ const NAVIGATION_CONFIG: Navigation = [
 
 // --- Main App Content Component ---
 // This component renders the main layout OR the WalletConnect screen
-// It no longer needs to render TimeProvider itself
 const AppContent: React.FC = () => {
     const location = useLocation();
     const { session } = useAuthContext();
@@ -75,7 +74,6 @@ const AppContent: React.FC = () => {
                 <Fade in={true} key={location.pathname} timeout={300}>
                     <Box>
                         <Routes>
-                            {/* Routes now render components that consume context directly */}
                             <Route path="/dashboard" element={<Dashboard />} />
                             <Route path="/swap" element={<Swap />} />
                             <Route path="/liquidity" element={<Liquidity />} />
@@ -93,19 +91,16 @@ const AppContent: React.FC = () => {
 
 
 // --- Root App Component ---
-// Corrected Provider nesting
 const App: React.FC = () => {
     return (
         <SnackbarProvider>
             <LoadingProvider>
                  <AuthProvider>
-                    {/* TimeProvider wraps components needing time context */}
                     <TimeProvider>
                         <BalancesProvider>
                             <PoolsProvider>
-                                {/* GovernanceProvider is now correctly inside TimeProvider */}
                                 <GovernanceProvider>
-                                    <AppContent /> {/* Renders UI, can access all contexts */}
+                                    <AppContent />
                                 </GovernanceProvider>
                             </PoolsProvider>
                         </BalancesProvider>

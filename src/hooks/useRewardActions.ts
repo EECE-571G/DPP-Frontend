@@ -6,14 +6,13 @@ import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { usePoolsContext } from '../contexts/PoolsContext';
-import { useTimeContext } from '../contexts/TimeContext'; // <<< IMPORT TimeContext
+import { useTimeContext } from '../contexts/TimeContext';
 import {
-    DESIRED_PRICE_POOL_HOOK_ADDRESS, // The contract implementing IHookReward
+    DESIRED_PRICE_POOL_HOOK_ADDRESS,
     EXPLORER_URL_BASE,
     TARGET_NETWORK_CHAIN_ID,
 } from '../constants';
-// ABI for the contract implementing IHookReward (likely your DesiredPricePool hook)
-import HookRewardABI from '../abis/IHookReward.json'; // Adjust if your ABI file is named differently
+import HookRewardABI from '../abis/IHookReward.json';
 
 // Define the lock period in seconds (matching the contract if possible)
 const REWARD_LOCK_PERIOD_S = 1 * 24 * 60 * 60; // 1 day in seconds

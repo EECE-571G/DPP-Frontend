@@ -7,16 +7,14 @@ import { ethers, formatUnits, parseUnits } from 'ethers';
 // Context and Hook Imports
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { useLoadingContext } from '../../contexts/LoadingContext';
-// No longer need useGovernanceActions directly
-// import { useGovernanceActions } from '../../hooks/useGovernanceActions';
 import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 
 interface DelegationFormProps {
-    mockDppBalanceRaw: bigint; // <<< UPDATED PROP: Receive mocked balance
-    onDelegateSubmit: (targetAddress: string, amount: number) => Promise<boolean>; // <<< UPDATED PROP: Receive submit handler
+    mockDppBalanceRaw: bigint;
+    onDelegateSubmit: (targetAddress: string, amount: number) => Promise<boolean>;
 }
 
-// <<< UPDATED: Accept mocked props and callback >>>
+// Accept mocked props and callback
 const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDelegateSubmit }) => {
     // --- Contexts (only need decimals) ---
     const { tokenDecimals } = useBalancesContext();

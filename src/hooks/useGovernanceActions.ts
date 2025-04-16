@@ -1,18 +1,14 @@
 // src/hooks/useGovernanceActions.ts
 import React, { useCallback } from 'react';
-import { ethers, ZeroAddress, isAddress, Contract, parseUnits, formatUnits } from 'ethers';
+import { isAddress, parseUnits, formatUnits } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import {
-    GOVERNANCE_CONTRACT_ADDRESS,
     GOVERNANCE_TOKEN_ADDRESS,
-    EXPLORER_URL_BASE,
-    TARGET_NETWORK_CHAIN_ID
 } from '../constants';
-import GovernanceABI from '../abis/DesiredPricePool.json';
 
 const VOTE_RANGE = 10;
 
@@ -28,12 +24,10 @@ export const useGovernanceActions = () => {
         proposalId: number,
         lower: number,
         upper: number,
-        // --- Mock state and setters ---
         currentVotingPowerRaw: bigint,
         currentGovernanceStatus: number[],
         setMockVotingPowerRaw: React.Dispatch<React.SetStateAction<bigint | null>>,
         setMockGovernanceStatus: React.Dispatch<React.SetStateAction<number[] | null>>
-        // --- End mock args ---
     ): Promise<boolean> => {
         if (!account || !selectedPool?.poolId) {
             showSnackbar('Wallet or Pool ID missing.', 'error');
@@ -60,8 +54,7 @@ export const useGovernanceActions = () => {
         try {
             console.log(`[Mock Vote] User ${account} voting on pool ${selectedPool.poolId} with range [${lowerSlotInt8}, ${upperSlotInt8}) using power ${currentVotingPowerRaw.toString()}`);
 
-            // *** MOCK LOGIC ***
-            await new Promise(resolve => setTimeout(resolve, 800)); // Simulate transaction delay
+            await new Promise(resolve => setTimeout(resolve, 800));
 
             const govTokenDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
 
@@ -87,9 +80,6 @@ export const useGovernanceActions = () => {
 
             // Update the mock state via setters
             setMockGovernanceStatus(newGovernanceStatus);
-            // --- REMOVED: Do NOT reset voting power ---
-            // setMockVotingPowerRaw(0n);
-            // --- END REMOVAL ---
             console.log(`[Mock Vote] Vote cast, voting power remains: ${currentVotingPowerRaw.toString()}`);
 
 
@@ -109,7 +99,7 @@ export const useGovernanceActions = () => {
     }, [account, selectedPool, tokenDecimals, GOVERNANCE_TOKEN_ADDRESS, setLoading, showSnackbar]);
 
 
-    // --- handleDelegate (remains unchanged) ---
+    // --- handleDelegate ---
     const handleDelegate = useCallback(async (
         targetAddress: string,
         amount: number,
