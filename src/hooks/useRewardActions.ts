@@ -1,6 +1,6 @@
 // src/hooks/useRewardActions.ts
 import { useCallback } from 'react';
-import { ethers, ZeroAddress, isAddress, Contract, formatUnits, parseUnits } from 'ethers';
+import { ZeroAddress, Contract, formatUnits, parseUnits } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
@@ -14,10 +14,10 @@ import {
 } from '../constants';
 import HookRewardABI from '../abis/IHookReward.json';
 
-// Define the lock period in seconds (matching the contract if possible)
+// Define the lock period in seconds
 const REWARD_LOCK_PERIOD_S = 1 * 24 * 60 * 60; // 1 day in seconds
 
-// Helper function (can be moved to formatters.ts if used elsewhere)
+// Helper function
 const formatDuration = (seconds: number): string => {
     if (seconds <= 0) return "now";
     if (seconds < 60) return `${Math.floor(seconds)}s`;
@@ -87,7 +87,7 @@ export const useRewardActions = () => {
             // --- END ---
 
             /*
-            // --- REAL CALCULATION (Commented out) ---
+            // --- REAL CALCULATION ---
             const rewardContract = new Contract(DESIRED_PRICE_POOL_HOOK_ADDRESS, HookRewardABI, signer);
             console.log(`Statically calling calculateReward for position ID: ${positionIdStr}`);
             // Use staticCall to get return values without sending a transaction
@@ -123,10 +123,10 @@ export const useRewardActions = () => {
     // --- Collect Rewards ---
     const handleCollectReward = useCallback(async (
         positionIdStr: string,
-        // <<< Pass the earnedTimestamp associated with the displayed reward >>>
+        // Pass the earnedTimestamp associated with the displayed reward
         earnedTimestamp: number | null
     ): Promise<boolean> => {
-        // <<< Get current simulated time for the check >>>
+        // Get current simulated time for the check
         const currentSimulatedTime = simulatedTimestamp ?? Math.floor(Date.now() / 1000);
 
         // --- Prerequisite Checks ---
@@ -142,7 +142,7 @@ export const useRewardActions = () => {
              showSnackbar("Reward hook ABI is missing.", "error");
              return false;
          }
-        // <<< Check if we have an earned timestamp to compare against >>>
+        // Check if we have an earned timestamp to compare against
         if (earnedTimestamp === null) {
              showSnackbar('Cannot collect: Calculate rewards first to determine lock period.', 'warning');
              return false;
@@ -201,10 +201,8 @@ export const useRewardActions = () => {
         } finally {
             setLoading(loadingKey, false);
         }
-        // <<< Add simulatedTimestamp to dependency array >>>
-    }, [signer, account, network, fetchBalances, setLoading, showSnackbar, simulatedTimestamp]); // Dependencies
+    }, [signer, account, network, fetchBalances, setLoading, showSnackbar, simulatedTimestamp]);
 
 
     return { handleCalculateReward, handleCollectReward };
 };
-// Note: formatDuration helper is duplicated here for completeness, move it to utils if preferred.
