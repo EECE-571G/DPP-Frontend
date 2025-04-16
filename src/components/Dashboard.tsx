@@ -25,21 +25,17 @@ const Dashboard: React.FC = () => {
   const [positionLiquidity, setPositionLiquidity] = useState<string | null>(null);
   const [isLoadingLiquidity, setIsLoadingLiquidity] = useState<boolean>(false);
   const [liquidityError, setLiquidityError] = useState<string | null>(null);
-  // <<< History state now stores only IDs for Autocomplete >>>
   const [tokenIdHistoryList, setTokenIdHistoryList] = useState<string[]>([]);
 
   // --- Load history on mount ---
   useEffect(() => {
-      // <<< Use new utility functions >>>
       const historyList = getTokenIdHistoryList();
       setTokenIdHistoryList(historyList);
       const mostRecentPosition = getMostRecentPosition();
-      // Set initial value to the most recent ID from the SHARED history
       setInspectTokenId(mostRecentPosition?.tokenId ?? '');
-      // <<< End history load >>>
   }, []);
 
-  // --- Fetch Liquidity Logic (remains the same, no history update needed here) ---
+  // --- Fetch Liquidity Logic ---
     const fetchPositionLiquidity = useCallback(async () => {
     if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID) {
       setLiquidityError("Connect to the correct network first.");
@@ -75,9 +71,6 @@ const Dashboard: React.FC = () => {
       const formattedLiquidity = liquidityResult.toLocaleString();
       setPositionLiquidity(formattedLiquidity);
       console.log(`Fetched Liquidity: ${formattedLiquidity}`);
-
-      // NOTE: No history update here, only when actions modify positions
-
     } catch (err: any) {
       console.error("Failed to fetch position liquidity:", err);
       const reason = err?.reason || err?.data?.message?.replace('execution reverted: ', '') || err.message || "Could not fetch liquidity.";
@@ -105,7 +98,7 @@ const Dashboard: React.FC = () => {
    };
 
 
-  // Derived values (remain the same)
+  // Derived values
   const tokenAAddress = selectedPool?.tokenA_Address;
   const tokenBAddress = selectedPool?.tokenB_Address;
   const tokenABalanceStr = tokenAAddress && userBalances[tokenAAddress] ? formatBalance(userBalances[tokenAAddress], 6) : '0.00';
@@ -113,7 +106,7 @@ const Dashboard: React.FC = () => {
   const tokenASymbol = tokenAAddress && tokenSymbols[tokenAAddress] ? tokenSymbols[tokenAAddress] : 'N/A';
   const tokenBSymbol = tokenBAddress && tokenSymbols[tokenBAddress] ? tokenSymbols[tokenBAddress] : 'N/A';
 
-  // --- Render logic (Update Autocomplete options) ---
+  // --- Render logic ---
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* ... Title, Errors, Pool Selection Card ... */}
@@ -135,16 +128,16 @@ const Dashboard: React.FC = () => {
                   onChange={(event: any, newValue: V4Pool | null) => {
                       handlePoolSelection(newValue);
                       // Reset inspection input when pool changes
-                      const mostRecentPos = getMostRecentPosition(); // <<< Use new util
-                      setInspectTokenId(mostRecentPos?.tokenId ?? ''); // <<< Use new util
+                      const mostRecentPos = getMostRecentPosition();
+                      setInspectTokenId(mostRecentPos?.tokenId ?? '');
                       setPositionLiquidity(null);
                       setLiquidityError(null);
                       // Refresh history suggestions when pool changes
-                      setTokenIdHistoryList(getTokenIdHistoryList()); // <<< Use new util
+                      setTokenIdHistoryList(getTokenIdHistoryList());
                   }}
                   getOptionLabel={(option) => `${option.name} (${option.tokenA} / ${option.tokenB})`}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => ( /* ... TextField ... */
+                  renderInput={(params) => (
                        <TextField
                           {...params}
                           label="Select a DPP Pool"
@@ -178,12 +171,12 @@ const Dashboard: React.FC = () => {
                 </Typography>
               </Grid>
             )}
-             {isLoadingBalances ? ( /* ... Skeletons ... */
+             {isLoadingBalances ? (
                  <>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                     <Grid item xs={12} sm={6}><Skeleton width="50%" /></Grid>
                  </>
-             ) : selectedPool ? ( /* ... Balances ... */
+             ) : selectedPool ? (
                 <>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2">
@@ -219,10 +212,10 @@ const Dashboard: React.FC = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                          <Autocomplete
                             freeSolo
-                            options={tokenIdHistoryList} // <<< Use list of IDs
+                            options={tokenIdHistoryList}
                             value={inspectTokenId}
                             onChange={handleInspectTokenIdChange}
-                            onInputChange={handleInspectTokenIdInputChange} // <<< Use new handler
+                            onInputChange={handleInspectTokenIdInputChange}
                             disabled={isLoadingLiquidity || !account}
                             fullWidth
                             size="small"
