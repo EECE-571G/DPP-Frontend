@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import PollIcon from '@mui/icons-material/Poll';
 import SendIcon from '@mui/icons-material/Send';
-import { ethers, formatUnits } from 'ethers';
+import { formatUnits } from 'ethers';
 
 // Context and Hook Imports
 import { useBalancesContext } from '../../contexts/BalancesContext';
@@ -23,16 +23,15 @@ import { formatBalance } from '../../utils/formatters';
 
 interface VoteFormProps {
     proposalId: number;
-    mockVotingPowerRaw: bigint; // <<< UPDATED PROP: Receive mocked power
-    onVoteSubmit: (proposalId: number, lower: number, upper: number) => Promise<boolean>; // <<< UPDATED PROP: Receive submit handler
-    canVote: boolean; // <<< UPDATED PROP: Receive voting eligibility
+    mockVotingPowerRaw: bigint;
+    onVoteSubmit: (proposalId: number, lower: number, upper: number) => Promise<boolean>;
+    canVote: boolean;
 }
 
-// <<< UPDATED: Accept mocked props and callback >>>
 const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onVoteSubmit, canVote }) => {
     // --- Contexts (only needed for decimals now) ---
     const { tokenDecimals } = useBalancesContext();
-    const { metaData, isLoadingGovernanceData } = useGovernanceContext(); // Keep metaData for stage check
+    const { metaData, isLoadingGovernanceData } = useGovernanceContext();
     const { isLoading: loadingStates } = useLoadingContext();
 
     // --- Local State ---
@@ -42,7 +41,6 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
 
     // --- Derived State ---
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS] ?? 18;
-    // <<< Use mocked voting power for display >>>
     const votingPowerFormatted = formatUnits(mockVotingPowerRaw, DPPDecimals);
 
     const voteLowerNum = parseFloat(voteLowerStr);
@@ -51,7 +49,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
     const isLoading = loadingStates[voteKey] ?? false;
     // canVote is now passed as a prop
 
-    // <<< Updated: Call the passed handler >>>
+    // Call the passed handler
     const handleVoteSubmitInternal = async () => {
          setVoteError(null);
         if (isLoading || !proposalId) return;
@@ -60,7 +58,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
             setVoteError('Please enter valid numbers for bounds.');
             return;
         }
-        // <<< Use mocked power for check >>>
+
         if (mockVotingPowerRaw <= 0n) {
             setVoteError('You have no voting power (DPP) to cast a vote.');
             return;
@@ -77,8 +75,6 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
                 setVoteLowerStr('');
                 setVoteUpperStr('');
             } else {
-                // Assume onVoteSubmit handles its own errors/snackbars if it returns false
-                // Optionally set a local error here too
                 // setVoteError("Vote submission failed. Check console or try again.");
             }
         } catch (error: any) {
@@ -101,7 +97,6 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
                     <PollIcon sx={{ mr: 1 }} /> Pool Target Price Voting
                 </Typography>
                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    {/* <<< Use mocked power for display >>> */}
                     Your vote will utilize your full voting power: {formatBalance(votingPowerFormatted, 2)} DPP
                 </Typography>
 
@@ -137,9 +132,7 @@ const VoteForm: React.FC<VoteFormProps> = ({ proposalId, mockVotingPowerRaw, onV
                     </Button>
                 </Stack>
                 <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                    {/* --- CORRECTED TEXT WRAPPING --- */}
                     {`Updates chart and sets voting power to 0. Requires DPP balance > 0 and correct poll stage.`}
-                    {/* --- END CORRECTION --- */}
                 </Typography>
             </Box>
         </Paper>
