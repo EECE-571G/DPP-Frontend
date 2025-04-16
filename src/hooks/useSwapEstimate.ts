@@ -173,9 +173,9 @@ export const useSwapEstimate = (
                             console.warn("[Estimate] Simplified dynamic fee denominator became zero, using base hook fee.");
                             dynamicFactorString = "1.0 (Simplified Denominator Zero)";
                         } else {
-                            const dynamicMultiplierFixed = oneFixed.divUnsafe(denominatorMultiplier);
+                            const dynamicMultiplierFixed = oneFixed.addUnsafe(ratioTerm);
                             dynamicFactorString = dynamicMultiplierFixed.toString();
-                            console.log(`Dynamic Hook Fee Factor Applied (Simplified): ${dynamicFactorString}`);
+                            console.log(`Dynamic Hook Fee Factor Applied (Increasing): ${dynamicFactorString}`);    
                             adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed.mulUnsafe(dynamicMultiplierFixed);
 
                             if (estimatedTickDiff > 0) {
