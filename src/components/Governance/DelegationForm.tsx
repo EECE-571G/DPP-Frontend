@@ -33,7 +33,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ mockDppBalanceRaw, onDe
     const delegateKey = 'delegateVotes';
     const isLoading = loadingStates[delegateKey] ?? false;
 
-    // Call the passed handler >>>
+    // Call the passed handler
     const handleDelegateClickInternal = async () => {
         setDelegateError(null);
         if (!delegateTarget || !delegatePowerStr || isLoading) return;

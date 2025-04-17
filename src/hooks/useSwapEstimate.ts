@@ -202,7 +202,7 @@ export const useSwapEstimate = (
                 netOutputFixed = FixedNumber.fromValue(0n, netOutputFixed.decimals, netOutputFixed.format);
             }
 
-            // --- *** ADDED: Calculate and Log Fee Rates (relative to Gross Output) *** ---
+            // Calculate and Log Fee Rates (relative to Gross Output) ---
             const zero = FixedNumber.fromString("0.0");
             const hundred = FixedNumber.fromString("100.0");
             let totalFeeRatePercent = zero;

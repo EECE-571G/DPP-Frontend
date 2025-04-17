@@ -103,7 +103,7 @@ export const useRewardActions = () => {
 
             console.log(`Calculated Rewards: ${amount0Formatted} ${selectedPool.tokenA || 'TKA'}, ${amount1Formatted} ${selectedPool.tokenB || 'TKB'}`);
 
-            // <<< Return the timestamp along with amounts >>>
+            // Return the timestamp along with amounts
             return {
                 amount0: amount0Formatted,
                 amount1: amount1Formatted,

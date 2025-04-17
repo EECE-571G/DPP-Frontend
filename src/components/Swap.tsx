@@ -260,7 +260,7 @@ const Swap: React.FC = () => {
     }, [
         selectedPool, sellTokenAddress, buyTokenAddress, isLoadingSwap, isApprovingSell,
         isLoadingEstimate, sellAmountStr, sellAmountNum, tokenDecimals, hasSufficientBalance,
-        sellSymbol, handleSwap, tokenSymbols, // Added tokenSymbols for error message
+        sellSymbol, handleSwap, tokenSymbols,
     ]);
 
     // Combined loading state for disabling UI elements

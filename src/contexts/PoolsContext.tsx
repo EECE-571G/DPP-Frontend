@@ -93,7 +93,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
   // Use a fixed desired tick for the demo
   const mockDesiredTick = MOCK_INITIAL_DESIRED_TICK;
 
-  // Function to initialize state from localStorage >>>
+  // Function to initialize state from localStorage
   const initializeMockTicks = useCallback(() => {
       const initialMap: Record<string, number | null> = {};
        // Define pool IDs based on definitions (ensure this matches fetchPoolData)
@@ -128,7 +128,7 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
       setMockCurrentTickMap(initialMap);
   }, []);
 
-  // Initialize state on mount >>>
+  // Initialize state on mount
   useEffect(() => {
       initializeMockTicks();
   }, [initializeMockTicks]);
@@ -214,9 +214,6 @@ export const PoolsProvider: React.FC<PoolsProviderProps> = ({ children }) => {
               { nameTemplate: `${tokenSymbols[TOKEN_B_ADDRESS] ?? 'B'}/${tokenSymbols[TOKEN_C_ADDRESS] ?? 'C'} Pool`, token0: TOKEN_B_ADDRESS, token1: TOKEN_C_ADDRESS, id: 2 },
               { nameTemplate: `${tokenSymbols[TOKEN_A_ADDRESS] ?? 'A'}/${tokenSymbols[TOKEN_C_ADDRESS] ?? 'C'} Pool`, token0: TOKEN_A_ADDRESS, token1: TOKEN_C_ADDRESS, id: 3 },
           ];
-
-          const fetchedPools: V4Pool[] = [];
-          let firstPool: V4Pool | null = null;
 
           // Use Promise.all to fetch hook fees concurrently
           const hookFeePromises = poolDefinitions.map(async (def) => {

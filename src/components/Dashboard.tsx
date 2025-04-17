@@ -3,15 +3,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Autocomplete, TextField, Card, CardContent,
   Paper, Grid, Collapse, Skeleton, Alert, Divider, Button,
-  CircularProgress, Link
+  CircularProgress
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
-import { ethers, Contract, ZeroAddress, isAddress } from 'ethers';
+import { Contract, ZeroAddress } from 'ethers';
 
 import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useAuthContext } from '../contexts/AuthContext';
-import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID, EXPLORER_URL_BASE } from '../constants';
+import { POSITION_MANAGER_ADDRESS, TARGET_NETWORK_CHAIN_ID } from '../constants';
 import PositionManagerABI from '../abis/PositionManager.json';
 import { formatBalance } from '../utils/formatters';
 import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
