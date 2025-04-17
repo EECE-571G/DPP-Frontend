@@ -20,7 +20,7 @@ const ERC721_TRANSFER_EVENT = "event Transfer(address indexed from, address inde
 
 export const useLiquidityActions = () => {
     const { signer, account, network } = useAuthContext();
-    const { fetchBalances, tokenDecimals, tokenSymbols } = useBalancesContext();
+    const { fetchBalances, tokenSymbols } = useBalancesContext();
     const { setLoading } = useLoadingContext();
     const { showSnackbar } = useSnackbarContext();
     const { selectedPool } = usePoolsContext();

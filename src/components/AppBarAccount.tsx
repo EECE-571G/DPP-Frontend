@@ -1,6 +1,6 @@
 // src/components/AppBarAccount.tsx
 import React, { useState } from 'react';
-import { Box, Button, Menu, MenuItem, Typography, ListItemIcon, Tooltip, Fade, Divider, IconButton } from '@mui/material';
+import { Box, Button, Menu, MenuItem, Typography, ListItemIcon, Tooltip, Fade, Divider } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckIcon from '@mui/icons-material/Check';
 import LogoutIcon from '@mui/icons-material/Logout';

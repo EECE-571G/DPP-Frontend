@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     formatUnits, parseUnits, FixedNumber
 } from 'ethers';
-import { useAuthContext } from '../contexts/AuthContext';
 import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useGovernanceContext } from '../contexts/GovernanceContext';
@@ -79,7 +78,6 @@ export const useSwapEstimate = (
     buyTokenAddress: string | null
 ) => {
     // Contexts
-    const { provider, network } = useAuthContext();
     const { selectedPool } = usePoolsContext();
     const { tokenDecimals, userBalancesRaw } = useBalancesContext();
     const { metaData: governanceMetaData } = useGovernanceContext();
@@ -131,9 +129,6 @@ export const useSwapEstimate = (
             // --- Calculate Base Fees ---
             const baseLpFeePips = BigInt(DEFAULT_BASE_FEE_PER_TICK) * BigInt(tickSpacing);
             const baseLpFeeRateFixed = FixedNumber.fromValue(baseLpFeePips, 0).divUnsafe(FixedNumber.fromValue(BigInt(FEE_RATE_DENOMINATOR), 0));
-            const lpFeeRatePercent = parseFloat(baseLpFeeRateFixed.mulUnsafe(FixedNumber.fromString('100')).toString()).toFixed(4);
-            // Log base LP rate only once for clarity
-            // console.log(`LP Fee Rate (Fixed): ${baseLpFeeRateFixed.toString()} (~${lpFeeRatePercent}%)`);
             const baseHookFeePercent = BigInt(DEFAULT_HOOK_FEE);
             const baseHookFeeRateFixed = FixedNumber.fromValue(baseHookFeePercent, 0).divUnsafe(FixedNumber.fromValue(BigInt(HOOK_FEE_PERCENT_DENOMINATOR), 0));
             // console.log(`Hook Fee Rate (Base % of LP Fee): ${baseHookFeeRateFixed.toString()} (${DEFAULT_HOOK_FEE}%)`);
