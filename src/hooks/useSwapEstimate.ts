@@ -1,19 +1,16 @@
 // src/hooks/useSwapEstimate.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    ethers, ZeroAddress, Contract, formatUnits, parseUnits, isAddress, ZeroHash, FixedNumber
+    formatUnits, parseUnits, FixedNumber
 } from 'ethers';
-import { useAuthContext } from '../contexts/AuthContext';
 import { usePoolsContext, V4Pool } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useGovernanceContext } from '../contexts/GovernanceContext';
 import {
-    TARGET_NETWORK_CHAIN_ID,
     DEFAULT_BASE_FEE_PER_TICK,
     DEFAULT_HOOK_FEE,
-    POOL_TICK_SPACING, // Use actual tick spacing from poolKey if available
+    POOL_TICK_SPACING,
 } from '../constants';
-import { BalanceDelta } from '../types/BalanceDelta'; // Might not be needed but kept for consistency
 import { TickMath } from '../utils/tickMath';
 
 // Debounce function
@@ -34,30 +31,28 @@ function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (.
 // --- Fee Calculation Constants ---
 const HOOK_FEE_PERCENT_DENOMINATOR = 100;
 const FEE_RATE_DENOMINATOR = 1_000_000;
-// --- ADJUST THIS FOR SENSITIVITY ---
-// Lower value -> MORE sensitive adjustment (fee changes more drastically with tick diff)
-const DYNAMIC_FEE_SENSITIVITY_FACTOR = 1.0; // *** DECREASED FOR MORE SENSITIVITY ***
+const DYNAMIC_FEE_SENSITIVITY_FACTOR = 1.0;
 
-// --- Helper to Estimate Tick Difference (APPROXIMATION - DEMO) ---
+// --- Helper to Estimate Tick Difference ---
 const estimateTickDiff = (
     sellAmountWei: bigint,
     sellBalanceWei: bigint,
     tickSpacing: number,
-    maxTickImpactEstimate: number = 50 // Base impact estimate
+    maxTickImpactEstimate: number = 50
 ): number => {
     if (sellBalanceWei <= 0n || sellAmountWei <= 0n) return 0;
 
-    const basePercentageOffset = 10n; // Add 0.1% base effect
+    const basePercentageOffset = 10n;
     const percentageScaled = ((sellAmountWei * 10000n) / sellBalanceWei) + basePercentageOffset;
 
     // --- INCREASED SENSITIVITY MULTIPLIER ---
-    const multiplier = 40n; // *** INCREASED multiplier ***
+    const multiplier = 40n;
     const estimatedDiffBigInt = (BigInt(maxTickImpactEstimate) * percentageScaled * multiplier) / 10000n;
 
     const diffNum = Number(estimatedDiffBigInt);
     let roundedTickDiff = Math.round(diffNum / tickSpacing) * tickSpacing;
 
-    // Ensure non-zero diff for non-zero input (Demo Mod)
+    // Ensure non-zero diff for non-zero input
     if (roundedTickDiff === 0 && sellAmountWei > 0n) {
         if (diffNum > 0 || basePercentageOffset > 0n) {
              console.log(`[EstimateTickDiff] Forcing minimum tick difference of ${tickSpacing} (Original unrounded: ${diffNum.toFixed(4)})`);
@@ -83,7 +78,6 @@ export const useSwapEstimate = (
     buyTokenAddress: string | null
 ) => {
     // Contexts
-    const { provider, network } = useAuthContext();
     const { selectedPool } = usePoolsContext();
     const { tokenDecimals, userBalancesRaw } = useBalancesContext();
     const { metaData: governanceMetaData } = useGovernanceContext();
@@ -135,9 +129,6 @@ export const useSwapEstimate = (
             // --- Calculate Base Fees ---
             const baseLpFeePips = BigInt(DEFAULT_BASE_FEE_PER_TICK) * BigInt(tickSpacing);
             const baseLpFeeRateFixed = FixedNumber.fromValue(baseLpFeePips, 0).divUnsafe(FixedNumber.fromValue(BigInt(FEE_RATE_DENOMINATOR), 0));
-            const lpFeeRatePercent = parseFloat(baseLpFeeRateFixed.mulUnsafe(FixedNumber.fromString('100')).toString()).toFixed(4);
-            // Log base LP rate only once for clarity
-            // console.log(`LP Fee Rate (Fixed): ${baseLpFeeRateFixed.toString()} (~${lpFeeRatePercent}%)`);
             const baseHookFeePercent = BigInt(DEFAULT_HOOK_FEE);
             const baseHookFeeRateFixed = FixedNumber.fromValue(baseHookFeePercent, 0).divUnsafe(FixedNumber.fromValue(BigInt(HOOK_FEE_PERCENT_DENOMINATOR), 0));
             // console.log(`Hook Fee Rate (Base % of LP Fee): ${baseHookFeeRateFixed.toString()} (${DEFAULT_HOOK_FEE}%)`);
@@ -151,7 +142,7 @@ export const useSwapEstimate = (
             let estimatedTickDiff = zeroForOne ? estimatedTickDiffMagnitude : -estimatedTickDiffMagnitude;
             console.log(`Estimated Tick Difference (Signed): ${estimatedTickDiff}`);
 
-            // --- Dynamic Hook Fee Adjustment (SIMPLIFIED Ratio) ---
+            // --- Dynamic Hook Fee Adjustment ---
             let adjustedHookFeeAmountFixed = hookFeeAmountBaseFixed;
             let dynamicFactorString = "1.0 (No adjustment)";
 
@@ -211,7 +202,7 @@ export const useSwapEstimate = (
                 netOutputFixed = FixedNumber.fromValue(0n, netOutputFixed.decimals, netOutputFixed.format);
             }
 
-            // --- *** ADDED: Calculate and Log Fee Rates (relative to Gross Output) *** ---
+            // Calculate and Log Fee Rates (relative to Gross Output) ---
             const zero = FixedNumber.fromString("0.0");
             const hundred = FixedNumber.fromString("100.0");
             let totalFeeRatePercent = zero;
@@ -229,7 +220,7 @@ export const useSwapEstimate = (
             console.log(`LP Fee Rate: ${lpFeeRatePercentActual.round(4).toString()}%`);
             console.log(`Hook Fee Rate (Adjusted): ${hookFeeRatePercentActual.round(4).toString()}%`);
             console.log(`Total Effective Fee Rate: ${totalFeeRatePercent.round(4).toString()}%`);
-            // --- *** END: Fee Rate Logging *** ---
+            // --- END: Fee Rate Logging ---
 
 
             // --- Format Final Output for Display ---
@@ -251,7 +242,7 @@ export const useSwapEstimate = (
         } finally {
              setTimeout(() => setIsLoadingEstimate(false), 50);
         }
-    }, [tokenDecimals, userBalancesRaw]); // Dependencies
+    }, [tokenDecimals, userBalancesRaw]);
 
     // Debounced estimation trigger
     const debouncedFrontendEstimate = useMemo(() => debounce(performFrontendEstimate, 400), [performFrontendEstimate]);

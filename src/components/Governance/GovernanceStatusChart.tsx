@@ -5,16 +5,15 @@ import { BarChart, axisClasses } from '@mui/x-charts';
 import { BarChartProps } from '@mui/x-charts/BarChart';
 
 interface GovernanceStatusChartProps {
-    mockGovernanceStatus: number[]; // <<< UPDATED PROP NAME
+    mockGovernanceStatus: number[];
 }
 
 const VOTE_RANGE = 10;
 
-// <<< UPDATED: Accept mock prop >>>
 const GovernanceStatusChart: React.FC<GovernanceStatusChartProps> = ({ mockGovernanceStatus }) => {
 
     const chartData = useMemo(() => {
-        // Use the mocked status prop
+        // Use the status prop
         if (!Array.isArray(mockGovernanceStatus) || mockGovernanceStatus.length !== (VOTE_RANGE * 2 + 1)) {
              console.warn(`GovernanceStatusChart: Received invalid data length ${mockGovernanceStatus?.length}. Expected ${VOTE_RANGE * 2 + 1}.`);
              return [];
@@ -24,10 +23,10 @@ const GovernanceStatusChart: React.FC<GovernanceStatusChartProps> = ({ mockGover
             slotLabel: (index - VOTE_RANGE).toString(),
             value: value,
         }));
-        // Depend on the mocked prop
+        // Depend on the prop
     }, [mockGovernanceStatus]);
 
-    // --- Chart Config (remains the same) ---
+    // --- Chart Config ---
     const chartXAxisConfig: BarChartProps['xAxis'] = useMemo(() => {
         return [{
             id: 'voteSlots',

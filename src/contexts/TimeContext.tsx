@@ -1,12 +1,12 @@
 // src/contexts/TimeContext.tsx
 import React, { createContext, useState, useContext, useCallback, useEffect, ReactNode, useMemo } from 'react';
-import { useAuthContext } from './AuthContext'; // Need provider to fetch real time
+import { useAuthContext } from './AuthContext';
 import { useSnackbarContext } from './SnackbarProvider';
 
 interface TimeContextType {
     simulatedTimestamp: number | null; // The timestamp used for display and calculations (can be real or advanced)
     isSimulating: boolean; // Flag to know if the displayed time is potentially different from real time
-    isLoadingTime: boolean; // <<< ADDED: Expose loading state
+    isLoadingTime: boolean; // Expose loading state
     fetchRealTimestamp: () => Promise<void>; // Function to sync back to real time
     advanceSimulatedTime: (seconds: number) => void; // Function to advance the simulated time
 }
@@ -91,7 +91,7 @@ export const TimeProvider: React.FC<TimeProviderProps> = ({ children }) => {
     const contextValue = useMemo(() => ({
         simulatedTimestamp,
         isSimulating,
-        isLoadingTime: isLoading, // <<< PROVIDE IT HERE
+        isLoadingTime: isLoading,
         fetchRealTimestamp,
         advanceSimulatedTime,
     }), [simulatedTimestamp, isSimulating, isLoading, fetchRealTimestamp, advanceSimulatedTime]);

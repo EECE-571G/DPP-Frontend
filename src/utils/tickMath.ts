@@ -16,7 +16,6 @@ export class TickMath {
 
     /**
      * Returns the sqrt ratio as a Q64.96 corresponding to a given tick.
-     * (Keep the previous robust version of this function using Math.exp and BigInt scaling)
      */
     public static getSqrtRatioAtTick(tick: number): bigint {
          const absTick = Math.abs(tick);

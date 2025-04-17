@@ -1,5 +1,5 @@
 // src/components/Rewards.tsx
-import React, { useState, useEffect, useCallback } from 'react'; // <<< Added useCallback
+import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Card, CardContent, TextField, Button,
     CircularProgress, Fade, Alert, Skeleton, Grid,
@@ -14,10 +14,8 @@ import { useLoadingContext } from '../contexts/LoadingContext';
 import { useTimeContext } from '../contexts/TimeContext';
 import { useRewardActions } from '../hooks/useRewardActions';
 import { formatBalance } from '../utils/formatters';
-// <<< Import NEW utility functions >>>
 import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
 
-// const LS_TOKEN_ID = 'liquidity_tokenId'; // No longer needed here
 const REWARD_LOCK_PERIOD_S = 1 * 24 * 60 * 60; // 1 day in seconds
 
 interface CalculatedRewardState {
@@ -26,7 +24,7 @@ interface CalculatedRewardState {
     earnedTimestamp: number;
 }
 
-// Helper function (can be moved)
+// Helper function
 const formatDuration = (seconds: number): string => {
     if (seconds <= 0) return "now";
     if (seconds < 60) return `${Math.floor(seconds)}s`;
@@ -49,7 +47,6 @@ const Rewards: React.FC = () => {
     const [positionIdStr, setPositionIdStr] = useState<string>('');
     const [calculatedRewards, setCalculatedRewards] = useState<CalculatedRewardState | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    // <<< History state now stores only IDs for Autocomplete >>>
     const [tokenIdHistoryList, setTokenIdHistoryList] = useState<string[]>([]);
     const [justCollectedTokenId, setJustCollectedTokenId] = useState<string | null>(null);
 
@@ -59,12 +56,10 @@ const Rewards: React.FC = () => {
 
     // --- Load history on mount ---
     useEffect(() => {
-        // <<< Use new utility functions >>>
         const historyList = getTokenIdHistoryList();
         setTokenIdHistoryList(historyList);
         const mostRecentPosition = getMostRecentPosition();
         setPositionIdStr(mostRecentPosition?.tokenId ?? '');
-        // <<< End history load >>>
         setJustCollectedTokenId(null);
     }, []);
 
@@ -125,7 +120,6 @@ const Rewards: React.FC = () => {
         if (success) {
             setJustCollectedTokenId(currentTokenIdToCollect);
             setCalculatedRewards(null);
-            // <<< Refresh history list state in case it was touched >>>
             setTokenIdHistoryList(getTokenIdHistoryList());
         }
     };
@@ -139,7 +133,7 @@ const Rewards: React.FC = () => {
                        (parseFloat(calculatedRewards.amount0) > 0 || parseFloat(calculatedRewards.amount1) > 0) &&
                        !isLocked;
 
-    // --- Render Logic (remains largely the same, just update Autocomplete options) ---
+    // --- Render Logic ---
     const tokenA = selectedPool?.tokenA;
     const tokenB = selectedPool?.tokenB;
     const tokenAAddress = selectedPool?.tokenA_Address;
@@ -149,7 +143,7 @@ const Rewards: React.FC = () => {
     const symbolB = tokenBAddress ? (tokenSymbols[tokenBAddress] ?? tokenB ?? 'Token B') : 'Token B';
 
     if (isLoadingPools || isLoadingBalances) {
-         return ( /* ... Skeleton Loader ... */
+         return (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4, px: { xs: 1, sm: 0 } }}>
                 <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>Rewards Center</Typography>
                 <Card sx={{ width: '100%', maxWidth: 500, borderRadius: 3 }}>
@@ -166,7 +160,7 @@ const Rewards: React.FC = () => {
     }
 
     if (!selectedPool) {
-        return ( /* ... No Pool Selected Message ... */
+        return (
             <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '30vh' }}>
                 {errorPools ? (
                     <Alert severity="error">Error loading pool: {errorPools}</Alert>
@@ -198,10 +192,10 @@ const Rewards: React.FC = () => {
 
                         <Autocomplete
                             freeSolo
-                            options={tokenIdHistoryList} // <<< Use list of IDs
+                            options={tokenIdHistoryList}
                             value={positionIdStr}
                             onChange={handlePositionIdChange}
-                            onInputChange={handlePositionIdInputChange} // Handles typing
+                            onInputChange={handlePositionIdInputChange}
                             disabled={isLoadingCalculate || isLoadingCollect}
                             fullWidth
                             size="small"
@@ -218,9 +212,9 @@ const Rewards: React.FC = () => {
                             )}
                         />
 
-                        {/* Calculated Rewards Display (remains the same) */}
+                        {/* Calculated Rewards Display */}
                         <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 2, mb: 2, minHeight: '80px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', bgcolor: 'action.hover' }}>
-                           {calculatedRewards ? ( /* ... content ... */
+                           {calculatedRewards ? (
                                 <Grid container spacing={1} textAlign="center">
                                     <Grid item xs={6}>
                                          <Typography variant="overline" color="text.secondary">Reward {symbolA}</Typography>
@@ -248,7 +242,7 @@ const Rewards: React.FC = () => {
                             ) : isLoadingCalculate ? ( <CircularProgress size={24} /> ) : ( <Typography variant="body2" color="text.secondary"> Enter/Select ID and click 'Calculate'. </Typography> )}
                         </Box>
 
-                         {/* Action Buttons (remain the same) */}
+                         {/* Action Buttons */}
                          <Grid container spacing={2}>
                             {/* ... buttons ... */}
                              <Grid item xs={6}>

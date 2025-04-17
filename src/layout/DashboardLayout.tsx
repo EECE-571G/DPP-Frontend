@@ -261,9 +261,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           }),
         }}
       >
-        {/* Use Toolbar for standard height padding below fixed AppBar */}
         <Toolbar />
-        {/* Render the page content passed as children (now managed by <Routes>) */}
         {children}
       </Box>
     </Box>

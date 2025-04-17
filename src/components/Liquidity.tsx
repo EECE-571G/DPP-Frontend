@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box, Typography, Card, CardContent, TextField, Button,
-    Tabs, Tab, CircularProgress, Fade, Alert, Skeleton,
+    Tabs, Tab, Fade, Alert, Skeleton,
     Autocomplete
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -13,15 +13,13 @@ import { usePoolsContext } from '../contexts/PoolsContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useLiquidityActions } from '../hooks/useLiquidityActions';
-// <<< Import NEW utility functions >>>
 import { getTokenIdHistoryList, getMostRecentPosition } from '../utils/localStorageUtils';
 
-// Local storage keys (no longer directly used here, handled by utils)
-// const LS_TOKEN_ID = 'liquidity_tokenId';
-const LS_LOWER_TICK = 'liquidity_lowerTick'; // Keep for Mint form convenience
-const LS_UPPER_TICK = 'liquidity_upperTick'; // Keep for Mint form convenience
+// Local storage keys
+const LS_LOWER_TICK = 'liquidity_lowerTick';
+const LS_UPPER_TICK = 'liquidity_upperTick';
 
-// --- Helper Components (TabPanel remains the same) ---
+// --- Helper Components ---
 interface TabPanelProps { children?: React.ReactNode; index: number; value: number; }
 function TabPanel(props: TabPanelProps) {
     const { children, value, index, ...other } = props;
@@ -61,7 +59,7 @@ const Liquidity: React.FC = () => {
     const [removeTokenIdStr, setRemoveTokenIdStr] = useState('');
     const [removeLiquidityStr, setRemoveLiquidityStr] = useState('');
 
-    // --- State for Token ID History (now just the IDs for Autocomplete) ---
+    // --- State for Token ID History ---
     const [tokenIdHistoryList, setTokenIdHistoryList] = useState<string[]>([]);
 
     // --- Loading State ---
@@ -74,26 +72,23 @@ const Liquidity: React.FC = () => {
     // --- Load from localStorage on mount ---
     useEffect(() => {
         // Load history list (just IDs)
-        const historyList = getTokenIdHistoryList(); // <<< Use new util
+        const historyList = getTokenIdHistoryList();
         setTokenIdHistoryList(historyList);
 
         // Get the most recent full position data
-        const mostRecentPosition = getMostRecentPosition(); // <<< Use new util
+        const mostRecentPosition = getMostRecentPosition();
 
         // Set initial value for token ID fields
         const mostRecentId = mostRecentPosition?.tokenId ?? '';
         setAddTokenIdStr(mostRecentId);
         setRemoveTokenIdStr(mostRecentId);
 
-        // Pre-fill Mint ticks ONLY if the most recent position is relevant?
-        // Or just use the last individually saved ticks for Mint convenience?
-        // Let's keep using individual LS for Mint ticks for now.
         setLowerTickStr(localStorage.getItem(LS_LOWER_TICK) || mostRecentPosition?.lowerTick || '');
         setUpperTickStr(localStorage.getItem(LS_UPPER_TICK) || mostRecentPosition?.upperTick || '');
 
-    }, []); // Run only once on mount
+    }, []);
 
-    // Refresh history suggestions after actions (triggered by hook now)
+    // Refresh history suggestions after actions
     const refreshHistoryList = useCallback(() => {
         setTokenIdHistoryList(getTokenIdHistoryList());
     }, []);
@@ -104,17 +99,17 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null); // Clear errors on tab change
     };
 
-    // Input change handlers with localStorage saving (keep for Mint convenience)
+    // Input change handlers with localStorage saving
     const handleLowerTickChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setLowerTickStr(val);
-        localStorage.setItem(LS_LOWER_TICK, val); // Still save individually for Mint tab
+        localStorage.setItem(LS_LOWER_TICK, val);
         setErrorMsg(null);
     };
     const handleUpperTickChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setUpperTickStr(val);
-        localStorage.setItem(LS_UPPER_TICK, val); // Still save individually for Mint tab
+        localStorage.setItem(LS_UPPER_TICK, val);
         setErrorMsg(null);
     };
     const handleMintLiquidityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,7 +117,7 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null);
     };
 
-    // Token ID Autocomplete Handlers (remain similar, just update the string state)
+    // Token ID Autocomplete Handlers
     const handleAddTokenIdInputChange = (event: React.SyntheticEvent, newValue: string | null) => {
         setAddTokenIdStr(newValue ?? '');
         setErrorMsg(null);
@@ -132,7 +127,7 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null);
     };
 
-    // Other amount handlers (keep)
+    // Other amount handlers
     const handleAddLiquidityAmtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setAddLiquidityStr(e.target.value);
         setErrorMsg(null);
@@ -142,7 +137,7 @@ const Liquidity: React.FC = () => {
         setErrorMsg(null);
     };
 
-    // Action handlers (now refresh the list state after hook success)
+    // Action handlers
     const handleMintClick = async () => {
         setErrorMsg(null);
         const lowerTickNum = parseInt(lowerTickStr, 10);
@@ -163,7 +158,7 @@ const Liquidity: React.FC = () => {
             const latestId = latestPosition?.tokenId ?? '';
             setAddTokenIdStr(latestId);
             setRemoveTokenIdStr(latestId);
-            // Optionally update tick fields based on the new position
+            // Update tick fields based on the new position
             // setLowerTickStr(latestPosition?.lowerTick ?? '');
             // setUpperTickStr(latestPosition?.upperTick ?? '');
         }
@@ -239,9 +234,8 @@ const Liquidity: React.FC = () => {
                         {renderBalanceError}
                         {errorMsg && <Alert severity="error" onClose={() => setErrorMsg(null)} sx={{ mb: 2 }}>{errorMsg}</Alert>}
 
-                        {/* Mint Position Panel (Keeps using individual tick state for convenience) */}
+                        {/* Mint Position Panel */}
                         <TabPanel value={tabValue} index={0}>
-                           {/* ... Content remains the same ... */}
                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                 Create a new liquidity position (NFT) within a specified price range (ticks).
                             </Typography>
@@ -291,14 +285,14 @@ const Liquidity: React.FC = () => {
                             </Typography>
                         </TabPanel>
 
-                        {/* Add Liquidity Panel (Uses Autocomplete with ID list) */}
+                        {/* Add Liquidity Panel */}
                         <TabPanel value={tabValue} index={1}>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                 Increase the liquidity of an existing position NFT you own.
                             </Typography>
                             <Autocomplete
                                 freeSolo
-                                options={tokenIdHistoryList} // <<< Use list of IDs
+                                options={tokenIdHistoryList}
                                 value={addTokenIdStr}
                                 onInputChange={handleAddTokenIdInputChange} // Handles typing
                                 onChange={(event, newValue) => { // Handles selection/clear
@@ -321,7 +315,6 @@ const Liquidity: React.FC = () => {
                                     />
                                 )}
                             />
-                             {/* ... Rest of Add Panel (liquidity amount, button) remains the same ... */}
                             <TextField
                                 label="Liquidity Amount to Add"
                                 type="text"
@@ -348,14 +341,14 @@ const Liquidity: React.FC = () => {
                             </Typography>
                         </TabPanel>
 
-                        {/* Remove Liquidity Panel (Uses Autocomplete with ID list) */}
+                        {/* Remove Liquidity Panel */}
                         <TabPanel value={tabValue} index={2}>
                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                 Decrease the liquidity of an existing position NFT you own.
                             </Typography>
                             <Autocomplete
                                 freeSolo
-                                options={tokenIdHistoryList} // <<< Use list of IDs
+                                options={tokenIdHistoryList}
                                 value={removeTokenIdStr}
                                 onInputChange={handleRemoveTokenIdInputChange} // Handles typing
                                 onChange={(event, newValue) => { // Handles selection/clear
@@ -378,7 +371,6 @@ const Liquidity: React.FC = () => {
                                     />
                                 )}
                             />
-                             {/* ... Rest of Remove Panel (liquidity amount, button) remains the same ... */}
                             <TextField
                                 label="Liquidity Amount to Remove"
                                 type="text"

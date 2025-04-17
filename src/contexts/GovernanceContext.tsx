@@ -7,21 +7,20 @@ import React, {
     ReactNode,
     useMemo,
     useCallback,
-    // useRef removed as it's not strictly needed with the functional update approach for setMockPollStartTimeRef
 } from 'react';
 import { ethers, ZeroAddress, Contract, formatUnits as ethersFormatUnits } from 'ethers';
-import { Proposal } from '../types'; // Keep Proposal type for potential future use
+import { Proposal } from '../types';
 import { useAuthContext } from './AuthContext';
 import { usePoolsContext, V4Pool } from './PoolsContext';
-import { useTimeContext } from './TimeContext'; // <<< IMPORT useTimeContext
+import { useTimeContext } from './TimeContext';
 import { GOVERNANCE_CONTRACT_ADDRESS, TARGET_NETWORK_CHAIN_ID } from '../constants';
-import DesiredPricePoolABI from '../abis/DesiredPricePool.json'; // Ensure ABI is imported
+import DesiredPricePoolABI from '../abis/DesiredPricePool.json';
 
 // --- Ensure this interface is defined and exported ---
 export interface GovernanceMetaData {
     poolId: string;
     desiredPriceTick: number | null;
-    governanceTokenAddress: string | null; // Renamed for clarity
+    governanceTokenAddress: string | null;
     // --- Poll State Fields ---
     pollId: string;
     pollStartTime: number | null; // In seconds since epoch
@@ -32,7 +31,7 @@ export interface GovernanceMetaData {
     pollIsPaused: boolean;
     pollIsManualExecution: boolean;
     pollIsMajor: boolean;
-    pollTimeLeft: string; // Added: Human-readable time left
+    pollTimeLeft: string;
 }
 
 // --- Ensure this interface is defined ---
@@ -97,7 +96,7 @@ const calculatePollInfo = (
      pollIdNum: number,
     startTimeNum: number,
     pauseRequested: boolean,
-    currentTimeS: number // <<< Added currentTime argument
+    currentTimeS: number
 ): { stage: string; timeLeft: string; isPaused: boolean; isMajor: boolean } => {
      if (startTimeNum === 0) {
         // If paused, check if a pause was requested (implies it's about to pause or already paused awaiting reset)
@@ -157,7 +156,7 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
     const [isLoadingGovernanceData, setIsLoadingGovernanceData] = useState<boolean>(false);
     const [errorGovernanceData, setErrorGovernanceData] = useState<string | null>(null);
 
-    // State to store the *fixed* mock start time for the current pool
+    // State to store the start time for the current pool
     const [mockPollStartTimeRef, setMockPollStartTimeRef] = useState<number | null>(null);
 
     // Memoize fetchGovernanceData to prevent infinite loops
@@ -167,7 +166,7 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
         // --- Prerequisite Checks ---
          if (!provider || network?.chainId !== TARGET_NETWORK_CHAIN_ID || !currentPool || !currentPool.poolId) {
             setProposals([]); setGovernanceStatus([]); setMetaData(null); setErrorGovernanceData(null); setIsLoadingGovernanceData(false);
-            setMockPollStartTimeRef(null); // Reset mock start time if pool/network invalid
+            setMockPollStartTimeRef(null); // Reset start time if pool/network invalid
             return;
         }
         if (GOVERNANCE_CONTRACT_ADDRESS === ZeroAddress || !GovernanceABI || GovernanceABI.length === 0) {
@@ -186,18 +185,18 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
         try {
             const governanceContract = new Contract(GOVERNANCE_CONTRACT_ADDRESS, GovernanceABI, provider);
 
-             // Fetch REAL desired price and governance token address
+             // Fetch desired price and governance token address
              const [desiredPriceResult, govTokenResult] = await Promise.allSettled([
                   governanceContract.desiredPrice(currentPoolId),
                   governanceContract.governanceToken(),
              ]);
 
-             // Determine currentTime to use (simulated or real)
+             // Determine currentTime to use
              const currentTimeToUse = simulatedTimestamp !== null
                 ? simulatedTimestamp
                 : Math.floor(Date.now() / 1000);
 
-            // --- Calculate or retrieve the FIXED mock start time ---
+            // --- Calculate or retrieve the start time ---
             let fixedMockStartTime: number;
             // Check if it's the initial load for this specific pool
             // Use a local variable to prevent dependency on metaData state within useCallback
@@ -207,46 +206,45 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
                  const mockPollIdNumCalc = 1; // Regular poll
                  // Target: Initial stage is PreVote, approx 4.5 days left in *total cycle*
                  const TARGET_TOTAL_TIME_LEFT_S = (4 * 24 * 60 * 60) + (12 * 60 * 60); // 4.5 days
-                 const initialRealTimeS = Math.floor(Date.now() / 1000); // Base initial calculation on real time
+                 const initialRealTimeS = Math.floor(Date.now() / 1000); // Base initial calculation on time
                  const initialEndTimeTarget = initialRealTimeS + TARGET_TOTAL_TIME_LEFT_S;
                  fixedMockStartTime = initialEndTimeTarget - REGULAR_POLL_EXECUTION_READY_S; // StartTime = EndTime - Duration
 
                  // Use functional update for the state setter
                  setMockPollStartTimeRef(fixedMockStartTime);
-                 console.log(`[GovernanceContext] Calculated NEW fixed mock start time: ${fixedMockStartTime} for pool ${currentPoolId} (Targeting PreVote initially)`);
+                 console.log(`[GovernanceContext] Calculated NEW start time: ${fixedMockStartTime} for pool ${currentPoolId} (Targeting PreVote initially)`);
             } else {
                 // Use the stored start time if available, otherwise default (should normally be available after first load)
                 fixedMockStartTime = mockPollStartTimeRef ?? Math.floor(Date.now() / 1000); // Fallback needed if state not set yet
-                console.log(`[GovernanceContext] Using STORED fixed mock start time: ${fixedMockStartTime} for pool ${currentPoolId}`);
+                console.log(`[GovernanceContext] Using STORED start time: ${fixedMockStartTime} for pool ${currentPoolId}`);
             }
             // --------------------------------------------------------
 
-             // MOCK Poll State and Vote Distribution (using the fixed mock start time)
+             // Poll State and Vote Distribution
              const mockPollIdNum = 1;
              const mockPollState = {
                  id: BigInt(mockPollIdNum),
-                 startTime: BigInt(fixedMockStartTime), // <<< Use the determined fixed start time
+                 startTime: BigInt(fixedMockStartTime),
                  pauseRequested: false,
                  flags: BigInt(FLAG_IN_TIME_EXECUTION),
-                 totalVotes: ethers.parseUnits("1000", 18), // Mock 1000 DPP total power
-                 // Mock some vote distribution
+                 totalVotes: ethers.parseUnits("100", 18),
                  voteDiffs: [
                     0n, 0n, 0n, 0n, 0n,
                     ethers.parseUnits("50", 18),    // Slot -5
                     ethers.parseUnits("100", 18),   // Slot -4
                     ethers.parseUnits("150", 18),   // Slot -3
                     ethers.parseUnits("200", 18),   // Slot -2
-                    ethers.parseUnits("100", 18),                             // Slot -1
-                    ethers.parseUnits("250", 18), // Slot 0
-                    ethers.parseUnits("100", 18), // Slot +1
-                    ethers.parseUnits("50", 18),  // Slot +2
-                    0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n // Slots +3 to +10
+                    ethers.parseUnits("100", 18),   // Slot -1
+                    ethers.parseUnits("250", 18),   // Slot 0
+                    ethers.parseUnits("100", 18),   // Slot +1
+                    ethers.parseUnits("50", 18),    // Slot +2
+                    0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n  // Slots +3 to +10
                  ]
              };
-            // Convert mock bigints to numbers for the BarChart component
+            // Convert bigints to numbers for the BarChart component
             const mockGovernanceStatus = mockPollState.voteDiffs.map(diff => Number(ethers.formatUnits(diff, 18)));
 
-            // --- Process fetched REAL data ---
+            // --- Process fetched data ---
             let fetchedDesiredPriceTick: number | null = null;
             let fetchedGovTokenAddr: string | null = null;
             if (desiredPriceResult.status === 'fulfilled') fetchedDesiredPriceTick = Number(desiredPriceResult.value);
@@ -254,15 +252,14 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
             if (govTokenResult.status === 'fulfilled') fetchedGovTokenAddr = govTokenResult.value;
             else console.error(`[GovernanceContext] Failed gov token fetch:`, govTokenResult.reason);
 
-             // --- Calculate Poll Info using FIXED MOCK start time and potentially advanced currentTimeToUse ---
+             // --- Calculate Poll Info using start time and potentially advanced currentTimeToUse ---
             let pollMetaData: Partial<GovernanceMetaData> = { /* defaults */ };
             if (mockPollState) {
                  const pollIdNum = Number(mockPollState.id);
-                 const startTimeNum = Number(mockPollState.startTime); // Use fixed start time
+                 const startTimeNum = Number(mockPollState.startTime);
                  const pauseRequestedBool = Boolean(mockPollState.pauseRequested);
                  const flagsNum = Number(mockPollState.flags);
                 // Pass the potentially advanced current time to the calculation
-                // Use the CORRECTED calculatePollInfo function
                 const { stage, timeLeft, isPaused, isMajor } = calculatePollInfo(pollIdNum, startTimeNum, pauseRequestedBool, currentTimeToUse);
                 pollMetaData = { pollId: pollIdNum.toString(), pollStartTime: startTimeNum, pollPauseRequested: pauseRequestedBool, pollFlags: flagsNum, pollStage: stage, pollTimeLeft: timeLeft, pollIsPaused: isPaused, pollIsMajor: isMajor, pollIsManualExecution: (flagsNum & FLAG_MANUAL_EXECUTION) !== 0 };
                 console.log(`[GovernanceContext] Calculated poll info (using time: ${currentTimeToUse}, start: ${startTimeNum}): stage=${stage}, timeLeft=${timeLeft}`);
@@ -271,27 +268,27 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
             // --- Set Final State ---
             setMetaData({
                  poolId: currentPoolId,
-                 desiredPriceTick: fetchedDesiredPriceTick, // Real
-                 governanceTokenAddress: fetchedGovTokenAddr, // Real
-                 pollId: pollMetaData.pollId ?? 'N/A', // Mock
-                 pollStartTime: pollMetaData.pollStartTime ?? null, // Mock (fixed)
-                 pollPauseRequested: pollMetaData.pollPauseRequested ?? false, // Mock
-                 pollFlags: pollMetaData.pollFlags ?? null, // Mock
-                 pollStage: pollMetaData.pollStage ?? 'N/A', // Mock derived (using potentially simulated time)
-                 pollTimeLeft: pollMetaData.pollTimeLeft ?? 'N/A', // Mock derived (now reflects time left in cycle)
-                 pollIsPaused: pollMetaData.pollIsPaused ?? true, // Mock derived
-                 pollIsManualExecution: pollMetaData.pollIsManualExecution ?? false, // Mock derived
-                 pollIsMajor: pollMetaData.pollIsMajor ?? false, // Mock derived
+                 desiredPriceTick: fetchedDesiredPriceTick,
+                 governanceTokenAddress: fetchedGovTokenAddr,
+                 pollId: pollMetaData.pollId ?? 'N/A',
+                 pollStartTime: pollMetaData.pollStartTime ?? null,
+                 pollPauseRequested: pollMetaData.pollPauseRequested ?? false,
+                 pollFlags: pollMetaData.pollFlags ?? null,
+                 pollStage: pollMetaData.pollStage ?? 'N/A',
+                 pollTimeLeft: pollMetaData.pollTimeLeft ?? 'N/A',
+                 pollIsPaused: pollMetaData.pollIsPaused ?? true,
+                 pollIsManualExecution: pollMetaData.pollIsManualExecution ?? false,
+                 pollIsMajor: pollMetaData.pollIsMajor ?? false,
              });
-            setGovernanceStatus(mockGovernanceStatus); // Mock chart data
-            setProposals([]); // Keep proposals empty
+            setGovernanceStatus(mockGovernanceStatus);
+            setProposals([]);
 
         } catch (err: any) {
             console.error(`[GovernanceContext] General error fetching data for ${currentPoolId}:`, err);
             setErrorGovernanceData(`Failed to load governance data: ${err.message || String(err)}`);
             // Clear state on error
             setProposals([]); setGovernanceStatus([]); setMetaData(null);
-             setMockPollStartTimeRef(null); // Reset mock start time on error
+             setMockPollStartTimeRef(null); // Reset start time on error
         } finally {
             setIsLoadingGovernanceData(false);
         }
@@ -307,7 +304,7 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
         } else {
              // Clear state if pool/network is invalid
              setProposals([]); setGovernanceStatus([]); setMetaData(null); setErrorGovernanceData(null); setIsLoadingGovernanceData(false);
-             setMockPollStartTimeRef(null); // Clear stored mock start time
+             setMockPollStartTimeRef(null); // Clear stored start time
         }
         // fetchGovernanceData is stable due to useCallback
     }, [provider, network, contextSelectedPool, simulatedTimestamp, fetchGovernanceData]);
@@ -320,9 +317,9 @@ export const GovernanceProvider: React.FC<GovernanceProviderProps> = ({ children
             metaData,
             isLoadingGovernanceData,
             errorGovernanceData,
-            fetchGovernanceData, // Provide the memoized function
+            fetchGovernanceData,
         }),
-        [ proposals, governanceStatus, metaData, isLoadingGovernanceData, errorGovernanceData, fetchGovernanceData ] // Include fetchGovernanceData here
+        [ proposals, governanceStatus, metaData, isLoadingGovernanceData, errorGovernanceData, fetchGovernanceData ]
     );
 
     return (

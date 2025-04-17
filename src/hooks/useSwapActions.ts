@@ -1,19 +1,17 @@
 // src/hooks/useSwapActions.ts
 import { useCallback } from 'react';
-import { ethers, parseUnits, MaxUint256, Contract, ZeroAddress, isAddress } from 'ethers'; // Ethers v6 imports
+import { parseUnits, MaxUint256, Contract, ZeroAddress } from 'ethers';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useBalancesContext } from '../contexts/BalancesContext';
 import { useLoadingContext } from '../contexts/LoadingContext';
 import { useSnackbarContext } from '../contexts/SnackbarProvider';
 import { usePoolsContext } from '../contexts/PoolsContext';
 import {
-    // POOL_MANAGER_ADDRESS, // No longer directly needed for swap tx
-    DESIRED_PRICE_POOL_HELPER_ADDRESS, // <<< Use Helper Address
+    DESIRED_PRICE_POOL_HELPER_ADDRESS,
     EXPLORER_URL_BASE,
     TARGET_NETWORK_CHAIN_ID,
 } from '../constants';
-// import PoolManagerABI from '../abis/IPoolManager.json'; // No longer needed for swap tx
-import DesiredPricePoolHelperABI from '../abis/DesiredPricePoolHelper.json'; // <<< Use Helper ABI
+import DesiredPricePoolHelperABI from '../abis/DesiredPricePoolHelper.json';
 import Erc20ABI from '../abis/ERC20.json';
 
 export const useSwapActions = () => {
@@ -120,12 +118,6 @@ export const useSwapActions = () => {
 
             const zeroForOne = sellTokenAddress.toLowerCase() === poolKey.currency0.toLowerCase();
 
-            // Define sqrtPriceLimitX96 based on swap direction - THIS IS NOT NEEDED FOR THE HELPER CALL
-            // const sqrtPriceLimitX96 = zeroForOne
-            //    ? 4295128739n + 1n
-            //    : 1461446703485210103287273052203988822378723970342n -1n;
-
-            // <<< FIX: REMOVE sqrtPriceLimitX96 from the arguments list >>>
             console.log(`[useSwapActions] Calling helper.swapExactIn: zeroForOne=${zeroForOne}, amount=${amountInWei.toString()}`);
 
             // Determine if ETH is involved for msg.value
@@ -138,9 +130,8 @@ export const useSwapActions = () => {
             const tx = await helperContract.swapExactIn(
                 poolKey,
                 zeroForOne,
-                amountInWei, // Use the bigint value
-                // sqrtPriceLimitX96, // <<< REMOVE THIS ARGUMENT >>>
-                { value: txValue } // Pass ETH value if needed
+                amountInWei,
+                { value: txValue }
             );
 
             let message = `Swap transaction submitted`;
@@ -172,6 +163,5 @@ export const useSwapActions = () => {
         }
     }, [signer, account, network, selectedPool, tokenDecimals, checkAndRequestApproval, fetchBalances, setLoading, showSnackbar]);
 
-    // Return only handleSwap, approval is internal now
     return { handleSwap };
 };

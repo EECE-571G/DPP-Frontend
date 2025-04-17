@@ -1,14 +1,14 @@
 // src/utils/localStorageUtils.ts
 
 const DEFAULT_HISTORY_LIMIT = 10;
-const LS_KEY_POSITION_HISTORY = 'liquidity_positionHistory'; // <<< NEW KEY
+const LS_KEY_POSITION_HISTORY = 'liquidity_positionHistory';
 
 // --- Define the structure for each history item ---
 export interface PositionHistoryItem {
     tokenId: string;
     lowerTick: string; // Store as string as they often come from input fields
     upperTick: string;
-    // Optional: Add timestamp or poolId if needed later
+    // Add timestamp or poolId if needed later
     // timestamp?: number;
     // poolId?: string;
 }
@@ -39,7 +39,7 @@ export const getPositionHistory = (): PositionHistory => {
             typeof item === 'object' &&
             item !== null &&
             typeof item.tokenId === 'string' &&
-            typeof item.lowerTick === 'string' && // Check types if needed
+            typeof item.lowerTick === 'string' &&
             typeof item.upperTick === 'string'
         );
 
@@ -116,7 +116,7 @@ export const touchTokenIdInHistory = (tokenId: string, limit: number = DEFAULT_H
         const filteredHistory = currentHistory.filter((_, index) => index !== existingItemIndex);
         const updatedHistory = [...filteredHistory, itemToMove]; // Add the found item to the end
 
-        // Enforce limit (shouldn't change length, but good practice)
+        // Enforce limit
         const limitedHistory = updatedHistory.slice(-limit);
 
         localStorage.setItem(LS_KEY_POSITION_HISTORY, JSON.stringify(limitedHistory));

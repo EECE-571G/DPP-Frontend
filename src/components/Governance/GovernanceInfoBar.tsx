@@ -6,12 +6,11 @@ import {
 import TagIcon from '@mui/icons-material/Tag';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import FlagIcon from '@mui/icons-material/Flag';
-import PriceCheckIcon from '@mui/icons-material/PriceCheck';
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import { ethers, formatUnits } from 'ethers';
+import { formatUnits } from 'ethers';
 
 import { GovernanceMetaData, useGovernanceContext } from '../../contexts/GovernanceContext';
 import { useTimeContext } from '../../contexts/TimeContext';
@@ -20,12 +19,12 @@ import { formatBalance } from '../../utils/formatters';
 import { TickMath } from '../../utils/tickMath';
 import { useBalancesContext } from '../../contexts/BalancesContext';
 import { usePoolsContext } from '../../contexts/PoolsContext';
-import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants'; // <<< Import DEFAULT_DPP_DECIMALS
+import { GOVERNANCE_TOKEN_ADDRESS } from '../../constants';
 
 interface GovernanceInfoBarProps {
     mockDppBalanceRaw: bigint;
     mockVotingPowerRaw: bigint;
-    metaData: GovernanceMetaData | null; // Combined metaData
+    metaData: GovernanceMetaData | null;
     onExecute: () => Promise<void>;
     isLoadingExecute: boolean;
 }
@@ -66,12 +65,12 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({
     const { fetchGovernanceData } = useGovernanceContext(); // Keep for refresh context
     const { fetchRealTimestamp } = useTimeContext();
 
-    // <<< Use default if token decimals context isn't ready or token isn't listed >>>
+    // Use default if token decimals context isn't ready or token isn't listed
     const DPPDecimals = tokenDecimals[GOVERNANCE_TOKEN_ADDRESS];
     const DPPBalanceFormatted = formatUnits(mockDppBalanceRaw, DPPDecimals);
     const votingPowerFormatted = formatUnits(mockVotingPowerRaw, DPPDecimals);
 
-    // --- Real Metadata Display ---
+    // --- Metadata Display ---
     const decimals0 = selectedPool?.tokenA_Address ? (tokenDecimals[selectedPool.tokenA_Address] ?? 18) : 18;
     const decimals1 = selectedPool?.tokenB_Address ? (tokenDecimals[selectedPool.tokenB_Address] ?? 18) : 18;
     const desiredPriceDisplay = metaData?.desiredPriceTick !== null && metaData?.desiredPriceTick !== undefined
@@ -79,7 +78,7 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({
         : 'N/A';
     const desiredTickDisplay = (metaData && metaData.desiredPriceTick !== null) ? `(Tick: ${metaData.desiredPriceTick})` : '';
 
-    // --- Mocked Poll Data Display ---
+    // --- Poll Data Display ---
     const pollIdDisplay = metaData?.pollId ?? 'N/A';
     const pollStageDisplay = metaData?.pollStage ?? 'N/A';
     const pollPausedDisplay = metaData?.pollIsPaused ?? true;
@@ -88,14 +87,11 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({
     const handleRefreshClick = useCallback(async () => {
         await fetchRealTimestamp();
         if (selectedPool) {
-            // Fetching real gov data might conflict slightly if mock state changed,
-            // but it's useful for getting the real desired price updated.
-            // The mock states will persist via LS anyway.
-            // await fetchGovernanceData(selectedPool); // << Maybe comment this out if purely mock
+            // await fetchGovernanceData(selectedPool);
         }
-         // Optionally, trigger a reload of mock state from LS if needed, though setters should handle it
-         console.log("Refreshed time, mock state persists via localStorage.");
-    }, [fetchRealTimestamp, selectedPool]); // Removed fetchGovernanceData dependency
+         // Trigger a reload of state from LS if needed, though setters should handle it
+         console.log("Refreshed time, state persists via localStorage.");
+    }, [fetchRealTimestamp, selectedPool]);
 
     // --- Determine if Execute button should be shown/enabled ---
     const canExecute = metaData?.pollStage === 'Exec. Ready';
@@ -117,7 +113,7 @@ const GovernanceInfoBar: React.FC<GovernanceInfoBarProps> = ({
                          <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2 }}>
                             Poll Status
                         </Typography>
-                        <Tooltip title="Refresh Mock Poll Status & Sync Time">
+                        <Tooltip title="Refresh Poll Status & Sync Time">
                             <IconButton size="small" onClick={handleRefreshClick} disabled={isLoadingExecute}>
                                 <RefreshIcon fontSize="inherit" />
                             </IconButton>

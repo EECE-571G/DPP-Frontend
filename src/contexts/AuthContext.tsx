@@ -28,7 +28,7 @@ interface AuthContextType {
   availableAccounts: string[] | null;
   isConnecting: boolean;
   authError: string | null;
-  authentication: LiveAuthentication; // Use the modified type
+  authentication: LiveAuthentication;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
 }
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (!accounts || accounts.length === 0) {
               throw new Error("No accounts found or permission denied.");
           }
-          const userAddress = getAddress(accounts[0]); // Use Ethers v6 getAddress
+          const userAddress = getAddress(accounts[0]);
 
           // Get Signer and Network AFTER requesting accounts
           const signerInstance = await web3Provider.getSigner(userAddress);
@@ -165,7 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                    // Consider triggering fetches in dependent contexts here or let their useEffect handle it
               }
               // Avoid clearing state completely on chain change, let user switch back.
-              // clearState(); // Optionally force reconnect by clearing state
+              // clearState(); // Force reconnect by clearing state
           };
 
           const handleAccountsChanged = (accounts: string[]) => {
