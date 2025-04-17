@@ -220,7 +220,7 @@ export const useSwapEstimate = (
             console.log(`LP Fee Rate: ${lpFeeRatePercentActual.round(4).toString()}%`);
             console.log(`Hook Fee Rate (Adjusted): ${hookFeeRatePercentActual.round(4).toString()}%`);
             console.log(`Total Effective Fee Rate: ${totalFeeRatePercent.round(4).toString()}%`);
-            // --- *** END: Fee Rate Logging *** ---
+            // --- END: Fee Rate Logging ---
 
 
             // --- Format Final Output for Display ---
