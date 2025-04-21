@@ -1,46 +1,137 @@
-# Getting Started with Create React App
+# Desired Price Pool - Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This repository contains the source code for the frontend application of the Desired Price Pool project. It's a React application built with TypeScript, utilizing Material UI for components and ethers.js (v6) for blockchain interactions.
 
-## Available Scripts
+The application provides a user interface for interacting with a decentralized finance (DeFi) system based on the "Desired Price Pool" concept, likely involving custom Automated Market Maker (AMM) logic or Uniswap V4 Hooks.
 
-In the project directory, you can run:
+**Important Note:** This frontend contains a mix of blockchain interactions and functionalities, primarily for demonstration and development purposes, especially concerning governance actions.
 
-### `npm start`
+## Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+*   **Wallet Connection:** Connects to user's Ethereum wallet using MetaMask.
+*   **Dashboard:**
+    *   Select active Desired Price Pool.
+    *   View user token balances for the selected pool.
+    *   Inspect liquidity details for a given Position NFT Token ID.
+*   **Swap:** Perform token swaps within the selected pool. Includes frontend price estimation.
+*   **Liquidity Management:**
+    *   **Mint:** Create new liquidity positions (NFTs) with specified price ranges (ticks) and liquidity amounts.
+    *   **Add:** Increase liquidity for an existing position NFT.
+    *   **Remove:** Decrease liquidity from an existing position NFT.
+*   **Rewards:**
+    *   Calculate estimated rewards accrued to a liquidity position NFT (Note: Calculation is currently).
+    *   Collect accrued rewards (Note: Collection triggers a blockchain transaction).
+    *   Includes a simulated 1-day lock period for reward collection.
+*   **Governance:**
+    *   View the current desired price and poll status for the selected pool (fetched from contract state).
+    *   Visualize vote distribution 
+    *   Cast votes within a tick range 
+    *   Delegate voting power
+*   **Time Simulation:** Controls (visible when connected to a local Anvil node) to advance the displayed block timestamp for testing time-dependent features.
+*   **Theme Toggle:** Switch between light and dark modes.
+*   **Responsive Layout:** Adapts to different screen sizes.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Tech Stack
 
-### `npm test`
+*   **Framework:** React 18
+*   **Language:** TypeScript
+*   **UI Library:** Material UI (MUI) v5
+*   **Routing:** React Router v6
+*   **Blockchain Interaction:** ethers.js v6
+*   **State Management:** React Context API
+*   **Build Tool:** Create React App (implied by file structure)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Architecture Overview
 
-### `npm run build`
+The application heavily relies on the **React Context API** for managing and distributing application state. Key contexts include:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+*   **`AuthProvider`**: Manages wallet connection state (provider, signer, account, network), connection logic, and error handling. Essential for all blockchain interactions.
+*   **`BalancesProvider`**: Fetches and stores user token balances, symbols, and decimals for relevant tokens. Depends on `AuthProvider`.
+*   **`TimeProvider`**: Manages the block timestamp used throughout the app. Can use the latest block timestamp or a simulated one advanced manually via `AnvilTimeControls`. Depends on `AuthProvider`.
+*   **`PoolsProvider`**: Fetches metadata about available pools (like desired price tick, fee rates) primarily from the *Hook* contract (`DesiredPricePool.sol`). It does *not* fetch live pool state like current tick or liquidity from view functions. Derives `poolId`. Depends on `AuthProvider` and `BalancesProvider`.
+*   **`GovernanceProvider`**: Manages governance-related data. It fetches metadata like the current desired price tick but uses data for poll state (ID, start time, flags, vote distribution). It calculates derived poll status based on the start time and the potentially simulated time from `TimeProvider`. State (start time) is persisted in `localStorage`. Depends on `AuthProvider`, `PoolsProvider`, and `TimeProvider`.
+*   **`AppProvider`**: Handles global UI concerns like theme mode and navigation structure.
+*   **`LoadingProvider`**: Manages loading states for various asynchronous actions (e.g., `swap`, `addLiquidity`, `approve_...`).
+*   **`SnackbarProvider`**: Provides a global system for displaying notification messages (toasts).
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+**Component Structure:**
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+*   **`components/`**: Contains reusable UI elements and feature-specific components (e.g., `Swap.tsx`, `Liquidity.tsx`, `Governance/`).
+*   **`contexts/`**: Holds all the React Context providers described above.
+*   **`hooks/`**: Encapsulates reusable logic, especially for blockchain interactions (`useSwapActions`, `useLiquidityActions`, `useRewardActions`) and complex state logic (`useSwapEstimate`, `useGovernanceActions`).
+*   **`layout/`**: Defines the main application layout (`DashboardLayout.tsx`) including the AppBar and Sidebar.
+*   **`types/`**: Contains TypeScript type definitions and interfaces.
+*   **`utils/`**: Provides utility functions for formatting, interacting with `localStorage`, and tick/price calculations (`tickMath.ts`).
+*   **`constants/`**: Stores crucial configuration like contract addresses, network IDs, and ABI imports. **This needs configuration.**
 
-### `npm run eject`
+**Blockchain Interaction Pattern:**
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+*   Most write operations (Swap, Mint, Add/Remove Liquidity, Collect Rewards) interact with a **Helper Contract** (`DesiredPricePoolHelper.sol`) or the **Hook Contract** (`DesiredPricePool.sol`), not directly with the Pool Manager or individual pool contracts.
+*   Approvals are handled within the action hooks (`useSwapActions`, `useLiquidityActions`) and target the relevant contract (usually the Helper).
+*   Read operations fetch data directly from contracts (`BalancesProvider`, `PoolsProvider` partly)
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Getting Started
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### Prerequisites
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+*   Node.js (v18 or later recommended)
+*   npm or yarn
+*   MetaMask browser extension
+*   A local blockchain environment (like Anvil or Hardhat Network) where the corresponding Desired Price Pool contracts are deployed.
 
-## Learn More
+### Installation
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1.  Clone the repository:
+    ```bash
+    git clone <your-repo-url>
+    cd desired-price-pool-frontend
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Configuration
+
+3.  **Crucially, update the contract addresses and network configuration:**
+    *   Open `src/constants/index.js`.
+    *   Replace the placeholder addresses (e.g., `poolManagerRaw`, `desiredPricePoolHookRaw`, `token0Raw`, etc.) with the **actual addresses** obtained after deploying your contracts to your local blockchain environment (Anvil/Hardhat).
+    *   Verify `TARGET_NETWORK_CHAIN_ID` matches your local network's Chain ID (Anvil default is 31337).
+    *   Verify `POOL_TICK_SPACING` and fee constants match your deployment.
+
+### Running the App
+
+4.  Ensure your local blockchain (Anvil/Hardhat) is running with the contracts deployed.
+5.  Start the React development server:
+    ```bash
+    npm start
+    # or
+    yarn start
+    ```
+6.  Open your browser to `http://localhost:3000` (or the specified port).
+7.  Connect MetaMask and ensure it's configured for your local network (e.g., `http://localhost:8545` with the correct Chain ID). Import an account that has funds (ETH and deployed tokens) on your local network.
+
+## Project Structure
+src/
+├── abis/ # Contract JSON ABIs
+├── assets/ # Static assets (if any, currently none shown)
+├── components/ # React components (UI elements, feature views)
+│ ├── Governance/ # Components specific to the Governance page
+│ └── ...
+├── contexts/ # React Context providers for state management
+├── hooks/ # Custom React Hooks for logic reuse
+├── layout/ # Main application layout component(s)
+├── types/ # TypeScript type definitions
+├── utils/ # Utility functions (formatting, localStorage, math)
+├── App.css # Basic App styling
+├── App.tsx # Main application component, routing, context setup
+├── App.test.tsx # Basic App test
+├── constants/ # Contract addresses, network config, etc. (NEEDS CONFIG)
+├── index.css # Global CSS styles
+├── index.tsx # Application entry point
+├── logo.svg # React logo
+├── react-app-env.d.ts # TypeScript declarations for CRA
+├── reportWebVitals.ts # Web Vitals reporting setup
+└── setupTests.ts # Jest test setup
