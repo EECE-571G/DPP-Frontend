@@ -2,9 +2,7 @@
 
 This repository contains the source code for the frontend application of the Desired Price Pool project. It's a React application built with TypeScript, utilizing Material UI for components and ethers.js (v6) for blockchain interactions.
 
-The application provides a user interface for interacting with a decentralized finance (DeFi) system based on the "Desired Price Pool" concept, likely involving custom Automated Market Maker (AMM) logic or Uniswap V4 Hooks.
-
-**Important Note:** This frontend contains a mix of blockchain interactions and functionalities, primarily for demonstration and development purposes, especially concerning governance actions.
+The application provides a user interface for interacting with a decentralized finance (DeFi) system based on the "Desired Price Pool" concept.
 
 ## Features
 
@@ -13,15 +11,15 @@ The application provides a user interface for interacting with a decentralized f
     *   Select active Desired Price Pool.
     *   View user token balances for the selected pool.
     *   Inspect liquidity details for a given Position NFT Token ID.
-*   **Swap:** Perform token swaps within the selected pool. Includes frontend price estimation.
+*   **Swap:** Perform token swaps within the selected pool. Includes price estimation.
 *   **Liquidity Management:**
     *   **Mint:** Create new liquidity positions (NFTs) with specified price ranges (ticks) and liquidity amounts.
     *   **Add:** Increase liquidity for an existing position NFT.
     *   **Remove:** Decrease liquidity from an existing position NFT.
 *   **Rewards:**
-    *   Calculate estimated rewards accrued to a liquidity position NFT (Note: Calculation is currently).
-    *   Collect accrued rewards (Note: Collection triggers a blockchain transaction).
-    *   Includes a simulated 1-day lock period for reward collection.
+    *   Calculate estimated rewards accrued to a liquidity position NFT.
+    *   Collect accrued rewards.
+    *   Includes a 1-day lock period for reward collection.
 *   **Governance:**
     *   View the current desired price and poll status for the selected pool (fetched from contract state).
     *   Visualize vote distribution 
@@ -39,7 +37,7 @@ The application provides a user interface for interacting with a decentralized f
 *   **Routing:** React Router v6
 *   **Blockchain Interaction:** ethers.js v6
 *   **State Management:** React Context API
-*   **Build Tool:** Create React App (implied by file structure)
+*   **Build Tool:** Create React App
 
 ## Architecture Overview
 
@@ -48,8 +46,8 @@ The application heavily relies on the **React Context API** for managing and dis
 *   **`AuthProvider`**: Manages wallet connection state (provider, signer, account, network), connection logic, and error handling. Essential for all blockchain interactions.
 *   **`BalancesProvider`**: Fetches and stores user token balances, symbols, and decimals for relevant tokens. Depends on `AuthProvider`.
 *   **`TimeProvider`**: Manages the block timestamp used throughout the app. Can use the latest block timestamp or a simulated one advanced manually via `AnvilTimeControls`. Depends on `AuthProvider`.
-*   **`PoolsProvider`**: Fetches metadata about available pools (like desired price tick, fee rates) primarily from the *Hook* contract (`DesiredPricePool.sol`). It does *not* fetch live pool state like current tick or liquidity from view functions. Derives `poolId`. Depends on `AuthProvider` and `BalancesProvider`.
-*   **`GovernanceProvider`**: Manages governance-related data. It fetches metadata like the current desired price tick but uses data for poll state (ID, start time, flags, vote distribution). It calculates derived poll status based on the start time and the potentially simulated time from `TimeProvider`. State (start time) is persisted in `localStorage`. Depends on `AuthProvider`, `PoolsProvider`, and `TimeProvider`.
+*   **`PoolsProvider`**: Fetches metadata about available pools (like desired price tick, fee rates) primarily from the *Hook* contract (`DesiredPricePool.sol`). Derives `poolId`. Depends on `AuthProvider` and `BalancesProvider`.
+*   **`GovernanceProvider`**: Manages governance-related data. It fetches metadata like the current desired price tick but uses data for poll state (ID, start time, flags, vote distribution). It calculates derived poll status based on the start time and the potentially simulated time from `TimeProvider`. Depends on `AuthProvider`, `PoolsProvider`, and `TimeProvider`.
 *   **`AppProvider`**: Handles global UI concerns like theme mode and navigation structure.
 *   **`LoadingProvider`**: Manages loading states for various asynchronous actions (e.g., `swap`, `addLiquidity`, `approve_...`).
 *   **`SnackbarProvider`**: Provides a global system for displaying notification messages (toasts).
@@ -62,7 +60,7 @@ The application heavily relies on the **React Context API** for managing and dis
 *   **`layout/`**: Defines the main application layout (`DashboardLayout.tsx`) including the AppBar and Sidebar.
 *   **`types/`**: Contains TypeScript type definitions and interfaces.
 *   **`utils/`**: Provides utility functions for formatting, interacting with `localStorage`, and tick/price calculations (`tickMath.ts`).
-*   **`constants/`**: Stores crucial configuration like contract addresses, network IDs, and ABI imports. **This needs configuration.**
+*   **`constants/`**: Stores crucial configuration like contract addresses, network IDs, and ABI imports.
 
 **Blockchain Interaction Pattern:**
 
