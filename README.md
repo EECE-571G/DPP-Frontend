@@ -112,26 +112,3 @@ The application heavily relies on the **React Context API** for managing and dis
     ```
 6.  Open your browser to `http://localhost:3000` (or the specified port).
 7.  Connect MetaMask and ensure it's configured for your local network (e.g., `http://localhost:8545` with the correct Chain ID). Import an account that has funds (ETH and deployed tokens) on your local network.
-
-## Project Structure
-src/
-├── abis/ # Contract JSON ABIs
-├── assets/ # Static assets (if any, currently none shown)
-├── components/ # React components (UI elements, feature views)
-│ ├── Governance/ # Components specific to the Governance page
-│ └── ...
-├── contexts/ # React Context providers for state management
-├── hooks/ # Custom React Hooks for logic reuse
-├── layout/ # Main application layout component(s)
-├── types/ # TypeScript type definitions
-├── utils/ # Utility functions (formatting, localStorage, math)
-├── App.css # Basic App styling
-├── App.tsx # Main application component, routing, context setup
-├── App.test.tsx # Basic App test
-├── constants/ # Contract addresses, network config, etc. (NEEDS CONFIG)
-├── index.css # Global CSS styles
-├── index.tsx # Application entry point
-├── logo.svg # React logo
-├── react-app-env.d.ts # TypeScript declarations for CRA
-├── reportWebVitals.ts # Web Vitals reporting setup
-└── setupTests.ts # Jest test setup
